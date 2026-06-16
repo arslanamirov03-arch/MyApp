@@ -1,0 +1,33 @@
+name: Build Android APK
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Extract project ZIP
+      run: unzip *.zip -d extracted_project
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+
+    - name: Compile APK via Gradle
+      run: |
+        GRADLEW_PATH=$(find . -name gradlew)
+        cd $(dirname "$GRADLEW_PATH")
+        chmod +x ./gradlew
+        ./gradlew assembleDebug
+
+    - name: Upload Finished APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: german-app-speed
+        path: "**/build/outputs/apk/debug/*.apk"
