@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Test: Koordinierende Konjunktionen</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      min-height: 100vh;
+      color: #e0e0e0;
+      padding: 20px;
+    }
+    h1 {
+      text-align: center;
+      font-size: 2rem;
+      margin-bottom: 6px;
+      color: #e2b96f;
+      letter-spacing: 1px;
+    }
+    .subtitle {
+      text-align: center;
+      color: #a0a8c0;
+      margin-bottom: 28px;
+      font-size: 0.95rem;
+    }
+    .cheatsheet {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(226,185,111,0.3);
+      border-radius: 12px;
+      padding: 16px 20px;
+      max-width: 860px;
+      margin: 0 auto 30px;
+    }
+    .cheatsheet h2 { color: #e2b96f; font-size: 1rem; margin-bottom: 10px; }
+    .tags { display: flex; flex-wrap: wrap; gap: 8px; }
+    .tag {
+      background: rgba(226,185,111,0.12);
+      border: 1px solid rgba(226,185,111,0.4);
+      border-radius: 20px;
+      padding: 4px 12px;
+      font-size: 0.85rem;
+      color: #e2b96f;
+    }
+    .tag span { color: #a0a8c0; margin-left: 4px; }
+
+    .quiz-container { max-width: 860px; margin: 0 auto; }
+    .question-card {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 14px;
+      padding: 20px 24px;
+      margin-bottom: 18px;
+      transition: border-color 0.3s;
+    }
+    .question-card.correct { border-color: #4caf50; background: rgba(76,175,80,0.08); }
+    .question-card.wrong   { border-color: #f44336; background: rgba(244,67,54,0.08); }
+    .q-num {
+      font-size: 0.75rem;
+      color: #a0a8c0;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 6px;
+    }
+    .q-text { font-size: 1.05rem; line-height: 1.6; margin-bottom: 14px; }
+    .q-text strong { color: #e2b96f; }
+    .options { display: flex; flex-wrap: wrap; gap: 10px; }
+    .opt-btn {
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 8px;
+      color: #e0e0e0;
+      padding: 8px 18px;
+      cursor: pointer;
+      font-size: 0.95rem;
+      transition: all 0.2s;
+    }
+    .opt-btn:hover:not(:disabled) { background: rgba(226,185,111,0.15); border-color: #e2b96f; }
+    .opt-btn.selected-correct { background: rgba(76,175,80,0.25); border-color: #4caf50; color: #a5d6a7; }
+    .opt-btn.selected-wrong   { background: rgba(244,67,54,0.25);  border-color: #f44336; color: #ef9a9a; }
+    .opt-btn.reveal-correct   { background: rgba(76,175,80,0.15);  border-color: #4caf50; color: #a5d6a7; }
+    .opt-btn:disabled { cursor: default; opacity: 0.9; }
+    .fill-wrap { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .fill-input {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.25);
+      border-radius: 8px;
+      color: #e0e0e0;
+      padding: 7px 14px;
+      font-size: 1rem;
+      width: 140px;
+      transition: border-color 0.2s;
+    }
+    .fill-input:focus { outline: none; border-color: #e2b96f; }
+    .fill-input.correct { border-color: #4caf50; background: rgba(76,175,80,0.15); }
+    .fill-input.wrong   { border-color: #f44336; background: rgba(244,67,54,0.15); }
+    .check-btn {
+      background: #e2b96f;
+      border: none;
+      border-radius: 8px;
+      color: #1a1a2e;
+      padding: 7px 16px;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: opacity 0.2s;
+    }
+    .check-btn:hover { opacity: 0.85; }
+    .check-btn:disabled { opacity: 0.4; cursor: default; }
+    .feedback {
+      margin-top: 10px;
+      font-size: 0.9rem;
+      min-height: 20px;
+    }
+    .feedback.ok  { color: #a5d6a7; }
+    .feedback.err { color: #ef9a9a; }
+
+    .results-box {
+      display: none;
+      max-width: 860px;
+      margin: 30px auto;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(226,185,111,0.4);
+      border-radius: 16px;
+      padding: 28px 32px;
+      text-align: center;
+    }
+    .results-box h2 { font-size: 1.8rem; color: #e2b96f; margin-bottom: 8px; }
+    .score-big { font-size: 3.5rem; font-weight: 900; margin: 16px 0; }
+    .score-msg { font-size: 1.1rem; color: #a0a8c0; margin-bottom: 20px; }
+    .submit-btn {
+      display: block;
+      margin: 28px auto 0;
+      background: linear-gradient(90deg, #e2b96f, #d4944a);
+      border: none;
+      border-radius: 10px;
+      color: #1a1a2e;
+      padding: 13px 40px;
+      font-size: 1.1rem;
+      font-weight: 800;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+      transition: opacity 0.2s;
+    }
+    .submit-btn:hover { opacity: 0.88; }
+    .restart-btn {
+      margin-top: 18px;
+      background: transparent;
+      border: 1px solid #e2b96f;
+      border-radius: 10px;
+      color: #e2b96f;
+      padding: 11px 36px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .restart-btn:hover { background: rgba(226,185,111,0.12); }
+    .section-title {
+      color: #e2b96f;
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin: 28px 0 14px;
+      padding-left: 4px;
+      border-left: 3px solid #e2b96f;
+      padding-left: 10px;
+    }
+  </style>
+</head>
+<body>
+
+
+<h1>🇩🇪 Koordinierende Konjunktionen</h1>
+<p class="subtitle">Тест · 20 заданий · Порядок слов не меняется!</p>
+
+<div class="cheatsheet">
+  <h2>📌 Шпаргалка</h2>
+  <div class="tags">
+    <div class="tag">und <span>и</span></div>
+    <div class="tag">oder <span>или</span></div>
+    <div class="tag">aber <span>но / однако</span></div>
+    <div class="tag">denn <span>потому что (причина)</span></div>
+    <div class="tag">sondern <span>а, а не (после отрицания)</span></div>
+    <div class="tag">doch <span>но всё же / однако</span></div>
+    <div class="tag">jedoch <span>однако / тем не менее</span></div>
+    <div class="tag">entweder…oder <span>либо…либо</span></div>
+    <div class="tag">weder…noch <span>ни…ни</span></div>
+    <div class="tag">sowohl…als auch <span>как…так и</span></div>
+    <div class="tag">nicht nur…sondern auch <span>не только…но и</span></div>
+  </div>
+</div>
+
+<div class="quiz-container" id="quiz"></div>
+<button class="submit-btn" onclick="submitAll()">Проверить всё ✓</button>
+<div class="results-box" id="results">
+  <h2>Результат</h2>
+  <div class="score-big" id="score-big"></div>
+  <div class="score-msg" id="score-msg"></div>
+  <button class="restart-btn" onclick="location.reload()">↺ Пройти заново</button>
+</div>
+
+
+
+<script>
+// ──────────────────────────────────────────────
+// QUIZ DATA
+// ──────────────────────────────────────────────
+const sections = [
+  {
+    title: "Часть 1 · Выбери правильный союз",
+    questions: [
+      {
+        id: "q1", type: "mc",
+        text: "Ich lerne Deutsch, ___ es macht mir Spaß.",
+        options: ["aber","denn","sondern","oder"],
+        answer: "denn",
+        hint: "«denn» вводит причину, порядок слов главного предложения сохраняется."
+      },
+      {
+        id: "q2", type: "mc",
+        text: "Er ist nicht faul, ___ sehr fleißig.",
+        options: ["aber","denn","sondern","und"],
+        answer: "sondern",
+        hint: "«sondern» используется после отрицания (nicht/kein) для противопоставления."
+      },
+      {
+        id: "q3", type: "mc",
+        text: "Willst du Tee ___ Kaffee?",
+        options: ["und","doch","oder","denn"],
+        answer: "oder",
+        hint: "«oder» = или — выбор из двух вариантов."
+      },
+      {
+        id: "q4", type: "mc",
+        text: "Das Wetter war schlecht, ___ wir gingen spazieren.",
+        options: ["denn","sondern","aber","entweder"],
+        answer: "aber",
+        hint: "«aber» выражает противопоставление, не требует отрицания."
+      },
+      {
+        id: "q5", type: "mc",
+        text: "Er wollte kommen, ___ er hatte keine Zeit.",
+        options: ["sondern","doch","weder","noch"],
+        answer: "doch",
+        hint: "«doch» = «но всё же / однако» — мягкое противоречие."
+      },
+      {
+        id: "q6", type: "mc",
+        text: "___ liest sie Bücher ___ schaut sie Filme.",
+        options: ["Entweder…oder","Weder…noch","Sowohl…als auch","Nicht nur…sondern auch"],
+        answer: "Entweder…oder",
+        hint: "«entweder…oder» = либо…либо — взаимоисключающий выбор."
+      },
+      {
+        id: "q7", type: "mc",
+        text: "Er spricht ___ Englisch ___ Französisch.",
+        options: ["entweder…oder","weder…noch","sowohl…als auch","nicht nur…sondern auch"],
+        answer: "weder…noch",
+        hint: "«weder…noch» = ни…ни — двойное отрицание."
+      }
+    ]
+  },
+  {
+    title: "Часть 2 · Вставь союз (впиши)",
+    questions: [
+      {
+        id: "q8", type: "fill",
+        text: "Sie ist nicht meine Schwester, ___ meine Cousine.",
+        answer: "sondern",
+        hint: "После отрицания «nicht» используем «sondern»."
+      },
+      {
+        id: "q9", type: "fill",
+        text: "Ich esse Pizza ___ Pasta, beide mag ich sehr.",
+        answer: "und",
+        hint: "Простое перечисление без противопоставления."
+      },
+      {
+        id: "q10", type: "fill",
+        text: "Kommst du heute, ___ bist du beschäftigt?",
+        answer: "oder",
+        hint: "Вопрос с альтернативой."
+      },
+      {
+        id: "q11", type: "fill",
+        text: "Das Essen war teuer, ___ es hat nicht geschmeckt.",
+        answer: "aber",
+        hint: "Противопоставление: дорогое, НО невкусное."
+      },
+      {
+        id: "q12", type: "fill",
+        text: "___ sie klug ___ sie ist fleißig — sie wird Erfolg haben.",
+        answer: "Sowohl",
+        hint: "Sowohl…als auch = как…так и. Вставь первую часть."
+      }
+    ]
+  },
+  {
+    title: "Часть 3 · und / aber / denn / sondern / oder?",
+    questions: [
+      {
+        id: "q13", type: "mc",
+        text: "Ich mag Katzen, ___ mein Bruder mag Hunde.",
+        options: ["und","aber","denn","sondern"],
+        answer: "aber",
+        hint: "Я люблю кошек, НО брат любит собак — противопоставление без отрицания."
+      },
+      {
+        id: "q14", type: "mc",
+        text: "Er bleibt zu Hause, ___ es regnet stark.",
+        options: ["aber","und","denn","sondern"],
+        answer: "denn",
+        hint: "Остаётся дома, ПОТОМУ ЧТО сильный дождь."
+      },
+      {
+        id: "q15", type: "mc",
+        text: "Das ist kein Hund, ___ eine Katze.",
+        options: ["aber","oder","denn","sondern"],
+        answer: "sondern",
+        hint: "kein → отрицание, значит нужен «sondern»."
+      },
+      {
+        id: "q16", type: "mc",
+        text: "Sie singt ___ tanzt auf der Bühne.",
+        options: ["aber","sondern","und","denn"],
+        answer: "und",
+        hint: "Простое соединение двух действий."
+      }
+    ]
+  },
+  {
+    title: "Часть 4 · Переведи на русский (выбери)",
+    questions: [
+      {
+        id: "q17", type: "mc",
+        text: "Что значит: <strong>Nicht nur er, sondern auch sie hat gewonnen.</strong>",
+        options: [
+          "Ни он, ни она не победила.",
+          "Не только он, но и она победила.",
+          "Или он, или она победила.",
+          "Он победил, потому что она тоже."
+        ],
+        answer: "Не только он, но и она победила.",
+        hint: "nicht nur…sondern auch = не только…но и."
+      },
+      {
+        id: "q18", type: "mc",
+        text: "Что значит: <strong>Weder er noch sie hat recht.</strong>",
+        options: [
+          "Как он, так и она правы.",
+          "Он прав, но она нет.",
+          "Ни он, ни она не правы.",
+          "Или он, или она права."
+        ],
+        answer: "Ни он, ни она не правы.",
+        hint: "weder…noch = ни…ни."
+      },
+      {
+        id: "q19", type: "mc",
+        text: "Что значит союз <strong>doch</strong> в предложении: «Er war müde, doch er arbeitete weiter.»",
+        options: [
+          "потому что",
+          "и",
+          "но всё же / тем не менее",
+          "а не"
+        ],
+        answer: "но всё же / тем не менее",
+        hint: "«doch» как союз выражает контраст-уступку."
+      },
+      {
+        id: "q20", type: "mc",
+        text: "Порядок слов после <strong>koordinierende Konjunktionen</strong>:",
+        options: [
+          "Глагол уходит в конец предложения",
+          "Глагол стоит на втором месте (обычный порядок)",
+          "Подлежащее всегда в конце",
+          "Инфинитив идёт сразу после союза"
+        ],
+        answer: "Глагол стоит на втором месте (обычный порядок)",
+        hint: "В отличие от подчинительных союзов, координирующие не меняют порядок слов!"
+      }
+    ]
+  }
+];
+
+
+// ──────────────────────────────────────────────
+// RENDER
+// ──────────────────────────────────────────────
+const quiz = document.getElementById('quiz');
+let answered = {};
+
+sections.forEach(sec => {
+  const title = document.createElement('div');
+  title.className = 'section-title';
+  title.textContent = sec.title;
+  quiz.appendChild(title);
+
+  sec.questions.forEach((q, idx) => {
+    const card = document.createElement('div');
+    card.className = 'question-card';
+    card.id = 'card-' + q.id;
+
+    const num = document.createElement('div');
+    num.className = 'q-num';
+    num.textContent = 'Вопрос ' + (getGlobalIdx(q.id) + 1) + ' из 20';
+    card.appendChild(num);
+
+    const text = document.createElement('div');
+    text.className = 'q-text';
+    text.innerHTML = q.text.replace('___', '<strong style="color:#e2b96f">___</strong>');
+    card.appendChild(text);
+
+    const fb = document.createElement('div');
+    fb.className = 'feedback';
+    fb.id = 'fb-' + q.id;
+
+    if (q.type === 'mc') {
+      const opts = document.createElement('div');
+      opts.className = 'options';
+      q.options.forEach(opt => {
+        const btn = document.createElement('button');
+        btn.className = 'opt-btn';
+        btn.textContent = opt;
+        btn.onclick = () => selectMC(q.id, opt, q.answer, q.hint, btn, opts);
+        opts.appendChild(btn);
+      });
+      card.appendChild(opts);
+    } else {
+      const wrap = document.createElement('div');
+      wrap.className = 'fill-wrap';
+      const inp = document.createElement('input');
+      inp.className = 'fill-input';
+      inp.type = 'text';
+      inp.placeholder = '…';
+      inp.id = 'inp-' + q.id;
+      inp.addEventListener('keydown', e => { if(e.key==='Enter') checkFill(q.id, q.answer, q.hint); });
+      const btn = document.createElement('button');
+      btn.className = 'check-btn';
+      btn.id = 'chkbtn-' + q.id;
+      btn.textContent = 'OK';
+      btn.onclick = () => checkFill(q.id, q.answer, q.hint);
+      wrap.appendChild(inp);
+      wrap.appendChild(btn);
+      card.appendChild(wrap);
+    }
+
+    card.appendChild(fb);
+    quiz.appendChild(card);
+  });
+});
+
+function getGlobalIdx(id) {
+  let i = 0;
+  for (const s of sections) {
+    for (const q of s.questions) {
+      if (q.id === id) return i;
+      i++;
+    }
+  }
+  return 0;
+}
+
+function selectMC(id, chosen, correct, hint, btn, opts) {
+  if (answered[id]) return;
+  answered[id] = chosen === correct;
+  Array.from(opts.children).forEach(b => {
+    b.disabled = true;
+    if (b.textContent === correct) b.classList.add('reveal-correct');
+  });
+  if (chosen === correct) {
+    btn.classList.add('selected-correct');
+    showFB(id, '✓ Richtig!', true);
+    document.getElementById('card-' + id).classList.add('correct');
+  } else {
+    btn.classList.add('selected-wrong');
+    showFB(id, `✗ Falsch. Richtig: „${correct}" — ${hint}`, false);
+    document.getElementById('card-' + id).classList.add('wrong');
+  }
+}
+
+function checkFill(id, correct, hint) {
+  if (answered[id] !== undefined) return;
+  const inp = document.getElementById('inp-' + id);
+  const val = inp.value.trim().toLowerCase();
+  const isOk = val === correct.toLowerCase();
+  answered[id] = isOk;
+  inp.disabled = true;
+  document.getElementById('chkbtn-' + id).disabled = true;
+  inp.classList.add(isOk ? 'correct' : 'wrong');
+  showFB(id, isOk ? '✓ Richtig!' : `✗ Falsch. Richtig: „${correct}" — ${hint}`, isOk);
+  document.getElementById('card-' + id).classList.add(isOk ? 'correct' : 'wrong');
+}
+
+function showFB(id, msg, ok) {
+  const fb = document.getElementById('fb-' + id);
+  fb.textContent = msg;
+  fb.className = 'feedback ' + (ok ? 'ok' : 'err');
+}
+
+function submitAll() {
+  // force-check unanswered fills
+  sections.forEach(s => s.questions.forEach(q => {
+    if (q.type === 'fill' && answered[q.id] === undefined) {
+      checkFill(q.id, q.answer, q.hint);
+    }
+    if (q.type === 'mc' && answered[q.id] === undefined) {
+      answered[q.id] = false;
+      const card = document.getElementById('card-' + q.id);
+      card.classList.add('wrong');
+      const opts = card.querySelector('.options');
+      if (opts) Array.from(opts.children).forEach(b => {
+        b.disabled = true;
+        if (b.textContent === q.answer) b.classList.add('reveal-correct');
+      });
+      showFB(q.id, `✗ Не отвечено. Правильно: „${q.answer}" — ${q.hint}`, false);
+    }
+  }));
+
+  const total = 20;
+  const correct = Object.values(answered).filter(Boolean).length;
+  const pct = Math.round(correct / total * 100);
+
+  const msgs = [
+    [90, '🏆 Отлично! Союзы освоены!'],
+    [70, '👍 Хорошо! Осталось немного подтянуть.'],
+    [50, '📚 Неплохо, но стоит повторить.'],
+    [0,  '💪 Не сдавайся, повтори материал!']
+  ];
+  const msg = msgs.find(([t]) => pct >= t)[1];
+
+  document.getElementById('score-big').textContent = `${correct} / ${total}`;
+  document.getElementById('score-big').style.color = pct >= 70 ? '#a5d6a7' : pct >= 50 ? '#e2b96f' : '#ef9a9a';
+  document.getElementById('score-msg').textContent = `${pct}% — ${msg}`;
+  const box = document.getElementById('results');
+  box.style.display = 'block';
+  box.scrollIntoView({ behavior: 'smooth' });
+  document.querySelector('.submit-btn').disabled = true;
+}
+</script>
+</body>
+</html>
