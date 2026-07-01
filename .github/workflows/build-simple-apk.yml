@@ -1,0 +1,48 @@
+name: Build Simple APK
+
+on:
+  push:
+    paths:
+      - 'simple-apk/**'
+      - '.github/workflows/build-simple-apk.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: simple-apk
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: simple-apk-debug
+          path: simple-apk/app/build/outputs/apk/debug/*.apk
+
+      - name: Create GitHub Release with APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: simple-apk-${{ github.run_number }}
+          name: Simple APK build #${{ github.run_number }}
+          files: simple-apk/app/build/outputs/apk/debug/*.apk
+          body: |
+            Автоматически собранный лёгкий тестовый APK.
+            Скачай файл `app-debug.apk` ниже и установи на Android.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Simple APK</string>
+    <string name="hello_message">Привет! Это лёгкий тестовый APK 🎉\n\nСобран автоматически через GitHub Actions.</string>
+</resources>
