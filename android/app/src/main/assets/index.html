@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#2F7D53">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="B1 Wortschatz">
+<title>Deutsch B1 · Wortschatz</title>
+<style>
+  :root{
+    --bg:#EEF2E9;
+    --bg2:#E6EBDD;
+    --surface:#FFFFFF;
+    --line:#DCE2D2;
+    --ink:#1B2620;
+    --muted:#5E6B5C;
+    --faint:#8B9587;
+    --green:#2F7D53;
+    --green-d:#215A3C;
+    --green-l:#E1EEE3;
+    --green-tint:#F1F7EF;
+    --brass:#B07C34;
+    --brass-l:#F6EBD6;
+    --shadow:0 1px 2px rgba(27,38,32,.05),0 6px 20px rgba(27,38,32,.06);
+    --serif:'Iowan Old Style','Palatino Linotype',Palatino,'Book Antiqua',Georgia,'Times New Roman',serif;
+    --sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,system-ui,sans-serif;
+    --mono:'SF Mono','JetBrains Mono',ui-monospace,'Roboto Mono','DejaVu Sans Mono',monospace;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:var(--sans);
+    background:linear-gradient(180deg,var(--bg) 0%,var(--bg2) 100%);
+    background-attachment:fixed;
+    color:var(--ink);
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+    padding:0 0 40px;
+    min-height:100vh;
+  }
+  .wrap{max-width:560px;margin:0 auto;padding:0 16px}
+
+  /* header */
+  header{
+    position:sticky;top:0;z-index:20;
+    background:linear-gradient(180deg,var(--bg) 65%,rgba(238,242,233,0));
+    padding:calc(env(safe-area-inset-top,0) + 14px) 0 10px;
+    margin:0 0 4px;
+  }
+  .head-row{display:flex;align-items:center;justify-content:space-between;gap:12px;max-width:560px;margin:0 auto;padding:0 16px}
+  .brand{display:flex;flex-direction:column;gap:1px;min-width:0}
+  .brand h1{
+    font-family:var(--serif);font-weight:600;font-size:19px;letter-spacing:.1px;
+    margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink);
+  }
+  .brand span{font-size:11.5px;color:var(--faint);letter-spacing:.3px;text-transform:uppercase;font-weight:600}
+  .tools{display:flex;gap:8px;flex-shrink:0}
+  .icon-btn{
+    width:38px;height:38px;border-radius:11px;border:1px solid var(--line);
+    background:var(--surface);color:var(--green-d);display:grid;place-items:center;
+    cursor:pointer;transition:transform .12s ease,background .12s ease;
+  }
+  .icon-btn:active{transform:scale(.94);background:var(--green-tint)}
+  .icon-btn svg{width:19px;height:19px}
+
+  /* hero */
+  .hero{
+    background:var(--surface);border:1px solid var(--line);border-radius:20px;
+    padding:20px 20px 22px;box-shadow:var(--shadow);margin-top:6px;
+  }
+  .hero .eyebrow{font-size:11.5px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:var(--green);margin-bottom:10px}
+  .count{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .count .big{font-family:var(--mono);font-size:42px;font-weight:600;letter-spacing:-1px;color:var(--ink);line-height:1}
+  .count .of{font-family:var(--mono);font-size:17px;color:var(--faint);font-weight:500}
+  .count .pct{margin-left:auto;font-family:var(--mono);font-size:16px;font-weight:600;color:var(--green-d);background:var(--green-l);padding:5px 11px;border-radius:999px}
+  .bar{height:12px;border-radius:999px;background:var(--bg2);margin:16px 0 12px;overflow:hidden;position:relative}
+  .bar>i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#3E9463,#2F7D53);width:0;transition:width .6s cubic-bezier(.22,.61,.36,1)}
+  .hero .sub{display:flex;justify-content:space-between;font-size:13.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .hero .sub b{color:var(--ink);font-weight:600}
+
+  /* section label */
+  .slabel{display:flex;align-items:center;gap:10px;margin:26px 4px 12px}
+  .slabel span{font-family:var(--serif);font-size:15px;font-weight:600;color:var(--ink)}
+  .slabel small{font-size:12px;color:var(--faint);font-weight:600;letter-spacing:.3px}
+  .slabel .rule{flex:1;height:1px;background:var(--line)}
+
+  /* today card */
+  .today{
+    background:var(--surface);border:1px solid var(--line);border-radius:20px;
+    padding:18px 18px 18px;box-shadow:var(--shadow);
+    border-left:4px solid var(--brass);
+  }
+  .today.done{border-left-color:var(--green)}
+  .today .date{font-size:13px;color:var(--muted);font-weight:600;text-transform:capitalize;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+  .today .date .dot{width:8px;height:8px;border-radius:50%;background:var(--brass);box-shadow:0 0 0 4px var(--brass-l)}
+  .today.done .date .dot{background:var(--green);box-shadow:0 0 0 4px var(--green-l)}
+  .goal-line{display:flex;align-items:baseline;gap:9px;margin-bottom:4px;flex-wrap:wrap}
+  .goal-line .lab{font-size:14px;color:var(--muted)}
+  .goal-line .num{font-family:var(--mono);font-size:28px;font-weight:600;color:var(--ink);line-height:1.1}
+  .goal-sub{font-size:13.5px;color:var(--muted);margin-bottom:16px}
+  .goal-sub b{color:var(--green-d);font-weight:700;font-family:var(--mono)}
+
+  .field{margin-bottom:12px}
+  .field label{display:block;font-size:12.5px;color:var(--faint);font-weight:600;margin:0 0 7px 2px;letter-spacing:.2px}
+  .input-row{display:flex;gap:8px;align-items:stretch}
+  .input-row input{
+    flex:1;min-width:0;font-family:var(--mono);font-size:22px;font-weight:600;color:var(--ink);
+    border:1.5px solid var(--line);background:var(--green-tint);border-radius:13px;
+    padding:12px 14px;outline:none;transition:border-color .12s ease,background .12s ease;text-align:center;
+    -moz-appearance:textfield;
+  }
+  .input-row input::-webkit-outer-spin-button,.input-row input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  .input-row input:focus{border-color:var(--green);background:#fff}
+  .input-suffix{display:grid;place-items:center;padding:0 14px;font-family:var(--mono);font-size:14px;color:var(--faint);background:var(--bg2);border-radius:13px;white-space:nowrap}
+
+  .btns{display:flex;gap:9px;margin-top:4px}
+  .btn{flex:1;border:none;border-radius:13px;padding:13px 12px;font-family:var(--sans);font-size:14.5px;font-weight:600;cursor:pointer;transition:transform .1s ease,filter .12s ease;display:flex;align-items:center;justify-content:center;gap:7px}
+  .btn:active{transform:scale(.97)}
+  .btn-primary{background:var(--green);color:#fff}
+  .btn-primary:active{filter:brightness(1.06)}
+  .btn-ghost{background:var(--green-l);color:var(--green-d)}
+  .btn svg{width:17px;height:17px}
+  .hint{font-size:12.5px;color:var(--faint);margin:12px 2px 0;line-height:1.45}
+
+  .done-banner{display:flex;align-items:center;gap:11px;background:var(--green-tint);border:1px solid var(--green-l);border-radius:14px;padding:13px 14px;margin-top:2px}
+  .done-banner .chk{width:30px;height:30px;border-radius:50%;background:var(--green);display:grid;place-items:center;flex-shrink:0}
+  .done-banner .chk svg{width:17px;height:17px;color:#fff}
+  .done-banner .t{font-size:14px;color:var(--ink);font-weight:600}
+  .done-banner .t small{display:block;font-weight:500;color:var(--muted);font-size:12.5px;margin-top:1px}
+  .relog{margin-top:11px;text-align:center}
+  .relog button{background:none;border:none;color:var(--faint);font-size:12.5px;font-family:var(--sans);cursor:pointer;text-decoration:underline;text-underline-offset:2px;padding:4px}
+
+  /* stat strip */
+  .strip{display:flex;gap:10px;margin-top:14px}
+  .stat{flex:1;background:var(--surface);border:1px solid var(--line);border-radius:15px;padding:13px 14px}
+  .stat .k{font-size:11px;color:var(--faint);font-weight:600;letter-spacing:.3px;text-transform:uppercase;margin-bottom:5px}
+  .stat .v{font-family:var(--mono);font-size:19px;font-weight:600;color:var(--ink);line-height:1}
+  .stat .v small{font-family:var(--sans);font-size:12px;font-weight:500;color:var(--muted)}
+
+  /* schedule */
+  .sched{background:var(--surface);border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+  .row{display:grid;grid-template-columns:26px 1fr auto auto 16px;align-items:center;gap:12px;padding:12px 15px;border-bottom:1px solid var(--line);position:relative;cursor:pointer;-webkit-user-select:none;user-select:none;transition:background .12s ease}
+  .row:last-child{border-bottom:none}
+  .row:active{background:var(--green-tint)}
+  .row.today:active{background:#F2E4C9}
+  .row .chev{display:grid;place-items:center;opacity:.4}
+  .row .chev svg{width:15px;height:15px;color:var(--faint)}
+  .row .g{width:20px;height:20px;display:grid;place-items:center;flex-shrink:0}
+  .row .g svg{width:18px;height:18px}
+  .row .g .ring{width:9px;height:9px;border-radius:50%;border:2px solid var(--line)}
+  .row .d{min-width:0}
+  .row .d .dd{font-size:14.5px;color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+  .row .d .wd{font-size:11.5px;color:var(--faint);text-transform:capitalize;font-weight:500}
+  .row .cum{font-family:var(--mono);font-size:15px;font-weight:600;color:var(--ink);text-align:right}
+  .row .nw{font-family:var(--mono);font-size:12.5px;color:var(--faint);text-align:right;min-width:42px}
+  .row.past{background:var(--green-tint)}
+  .row.past .g svg{color:var(--green)}
+  .row.past .cum{color:var(--green-d)}
+  .row.miss .cum{color:var(--brass)}
+  .row.today{background:var(--brass-l)}
+  .row.today::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--brass)}
+  .row.today .g .ring{border-color:var(--brass);background:var(--brass)}
+  .row.today .badge{position:absolute;right:15px;top:-1px}
+  .sched-foot{padding:11px 15px;text-align:center;font-size:12px;color:var(--faint);background:var(--green-tint)}
+
+  /* editor sheet */
+  .overlay{position:fixed;inset:0;background:rgba(20,28,22,.42);opacity:0;pointer-events:none;transition:opacity .25s ease;z-index:40}
+  .overlay.show{opacity:1;pointer-events:auto}
+  .sheet{position:fixed;left:0;right:0;bottom:0;z-index:45;background:var(--surface);border-radius:24px 24px 0 0;padding:10px 20px calc(env(safe-area-inset-bottom,0) + 24px);box-shadow:0 -10px 44px rgba(0,0,0,.20);transform:translateY(115%);transition:transform .32s cubic-bezier(.22,.61,.36,1)}
+  .sheet.show{transform:translateY(0)}
+  .sheet-inner{max-width:560px;margin:0 auto}
+  .sheet .handle{width:42px;height:4px;border-radius:99px;background:var(--line);margin:2px auto 18px}
+  .sheet .s-date{font-family:var(--serif);font-size:21px;font-weight:600;text-transform:capitalize;margin:0 0 10px}
+  .s-badge{display:inline-block;font-size:11.5px;font-weight:700;letter-spacing:.2px;padding:4px 11px;border-radius:99px;margin-bottom:12px}
+  .s-badge.logged{background:var(--green-l);color:var(--green-d)}
+  .s-badge.empty{background:var(--bg2);color:var(--muted)}
+  .sheet .s-ctx{font-size:13.5px;color:var(--muted);margin:0 0 16px}
+  .sheet .s-ctx b{color:var(--green-d);font-family:var(--mono);font-weight:700}
+  .s-clear{width:100%;margin-top:12px;background:var(--brass-l);border:none;color:var(--brass);font-size:13.5px;font-weight:600;font-family:var(--sans);cursor:pointer;padding:12px;border-radius:12px;transition:transform .1s ease}
+  .s-clear:active{transform:scale(.98)}
+  .s-cancel{width:100%;margin-top:6px;background:none;border:none;color:var(--faint);font-size:13.5px;font-family:var(--sans);cursor:pointer;padding:10px}
+
+  /* toast */
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;padding:12px 18px;border-radius:13px;font-size:14px;font-weight:500;box-shadow:0 8px 30px rgba(0,0,0,.25);opacity:0;pointer-events:none;transition:opacity .25s ease,transform .25s ease;z-index:50;display:flex;align-items:center;gap:9px;max-width:90vw}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast svg{width:18px;height:18px;flex-shrink:0}
+  .toast.good svg{color:#7BD6A0}
+
+  .footnote{text-align:center;font-size:11.5px;color:var(--faint);margin:22px 8px 0;line-height:1.5}
+  .footnote b{color:var(--muted)}
+
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+  @media (max-width:380px){
+    .count .big{font-size:36px}
+    .goal-line .num{font-size:24px}
+    .btn{font-size:13.5px}
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="head-row">
+    <div class="brand">
+      <h1>Deutsch B1 · Wortschatz</h1>
+      <span>Progress-Tracker</span>
+    </div>
+    <div class="tools">
+      <button class="icon-btn" id="exportBtn" title="Скачать прогресс" aria-label="Скачать прогресс">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 12 5 5 5-5"/><path d="M5 21h14"/></svg>
+      </button>
+      <button class="icon-btn" id="importBtn" title="Загрузить прогресс" aria-label="Загрузить прогресс">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17V5"/><path d="m7 8 5-5 5 5"/><path d="M5 21h14"/></svg>
+      </button>
+      <input type="file" id="fileInput" accept="application/json,.json" style="display:none">
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <!-- HERO -->
+  <div class="hero">
+    <div class="eyebrow">Всего выучено</div>
+    <div class="count">
+      <span class="big" id="curCount">200</span>
+      <span class="of" id="ofCount">/ 2869</span>
+      <span class="pct" id="pct">7%</span>
+    </div>
+    <div class="bar"><i id="barFill"></i></div>
+    <div class="sub">
+      <span>осталось <b id="remWords">2669</b> слов</span>
+      <span><b id="remDays">56</b> дней до финиша</span>
+    </div>
+  </div>
+
+  <!-- TODAY -->
+  <div class="slabel"><span>Сегодня</span><div class="rule"></div><small id="todayTag"></small></div>
+  <div class="today" id="todayCard"><!-- filled by JS --></div>
+
+  <!-- STATS -->
+  <div class="strip">
+    <div class="stat"><div class="k">Темп нужен</div><div class="v" id="pace">48 <small>сл/день</small></div></div>
+    <div class="stat"><div class="k">Финиш</div><div class="v" id="finish">31.08</div></div>
+    <div class="stat"><div class="k">Отметок</div><div class="v" id="doneDays">0 <small>дн.</small></div></div>
+  </div>
+
+  <!-- SCHEDULE -->
+  <div class="slabel"><span>План по дням</span><div class="rule"></div><small>нажми на день →</small></div>
+  <div class="sched" id="sched"></div>
+
+  <div class="footnote">
+    Числа — <b>накопительный итог из 2869</b>, как в твоём приложении.<br>
+    План пересчитывается сам после каждой отметки. Делай <b>резервную копию</b> кнопкой ↓ наверху.
+  </div>
+</div>
+
+<div class="overlay" id="overlay"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true"><div class="sheet-inner" id="sheetInner"></div></div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+  const TOTAL=2869, BASELINE=200;
+  const START=new Date(2026,6,7), END=new Date(2026,7,31); // 7 июля – 31 августа 2026
+  const KEY='b1wortschatz_v1';
+  const WD=['вс','пн','вт','ср','чт','пт','сб'];
+  const MON=['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+
+  // ---- storage (graceful fallback if blocked) ----
+  let mem=null;
+  function load(){
+    try{const s=localStorage.getItem(KEY);return s?JSON.parse(s):{logs:{}};}
+    catch(e){return mem||{logs:{}};}
+  }
+  function save(data){
+    mem=data;
+    try{localStorage.setItem(KEY,JSON.stringify(data));}catch(e){}
+  }
+  let state=load();
+  if(!state.logs)state.logs={};
+
+  // ---- date helpers ----
+  function ymd(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+  function dateList(){const a=[];let d=new Date(START);while(d<=END){a.push(ymd(d));d.setDate(d.getDate()+1);}return a;}
+  function parse(s){const p=s.split('-');return new Date(+p[0],+p[1]-1,+p[2]);}
+  function fmtShort(s){const d=parse(s);return String(d.getDate()).padStart(2,'0')+'.'+String(d.getMonth()+1).padStart(2,'0');}
+  function fmtLong(s){const d=parse(s);return WD[d.getDay()]+', '+d.getDate()+' '+MON[d.getMonth()];}
+  function nf(n){return Number(n).toLocaleString('ru-RU');}
+
+  function todayStr(){
+    const t=ymd(new Date());
+    const list=dateList();
+    if(t<list[0])return list[0];
+    if(t>list[list.length-1])return list[list.length-1];
+    return t;
+  }
+
+  // ---- core schedule ----
+  function build(){
+    const ds=dateList(),N=ds.length;
+    let anchor=-1,anchorKnown=BASELINE;
+    for(let i=0;i<N;i++){if(state.logs[ds[i]]!=null){anchor=i;anchorKnown=state.logs[ds[i]];}}
+    const futureDays=N-1-anchor;
+    const per=futureDays>0?(TOTAL-anchorKnown)/futureDays:0;
+    const rows=[];let prev=BASELINE;
+    for(let i=0;i<N;i++){
+      let cum;
+      const logged=state.logs[ds[i]]!=null;
+      if(i<=anchor){cum=logged?state.logs[ds[i]]:prev;}
+      else{cum=Math.round(anchorKnown+per*(i-anchor));if(i===N-1)cum=TOTAL;}
+      if(cum>TOTAL)cum=TOTAL;
+      rows.push({date:ds[i],i,logged,cum,nw:cum-prev,prev});
+      prev=cum;
+    }
+    return {rows,anchor,anchorKnown,N,per,ds};
+  }
+
+  // ---- render ----
+  function render(){
+    const b=build();
+    const tStr=todayStr();
+    const tIdx=b.ds.indexOf(tStr);
+    const trow=b.rows[tIdx];
+    const current=b.anchorKnown;                 // фактически знаешь сейчас
+    const remWords=TOTAL-current;
+    const afterEnd=ymd(new Date())>b.ds[b.N-1];
+
+    // hero
+    document.getElementById('curCount').textContent=nf(current);
+    document.getElementById('ofCount').textContent='/ '+nf(TOTAL);
+    const pctv=(current/TOTAL*100);
+    document.getElementById('pct').textContent=(pctv<10?pctv.toFixed(1):Math.round(pctv))+'%';
+    document.getElementById('remWords').textContent=nf(remWords);
+    const daysLeft=b.N-1-tIdx + (state.logs[tStr]!=null?0:1); // приблиз. оставшиеся дни включая сегодня
+    // точнее: сколько дней с сегодня до конца включительно
+    const daysInclToday=b.N-tIdx;
+    document.getElementById('remDays').textContent=nf(daysInclToday);
+    document.getElementById('barFill').style.width=Math.max(1.5,pctv)+'%';
+
+    // stats
+    const paceNeeded= daysInclToday>0? Math.ceil(remWords/daysInclToday):0;
+    document.getElementById('pace').innerHTML=nf(paceNeeded)+' <small>сл/день</small>';
+    document.getElementById('finish').textContent='31.08';
+    const doneCount=Object.keys(state.logs).length;
+    document.getElementById('doneDays').innerHTML=nf(doneCount)+' <small>дн.</small>';
+    document.getElementById('todayTag').textContent=afterEnd?'курс завершён':'обновляется само';
+
+    // today card
+    const card=document.getElementById('todayCard');
+    const loggedToday=state.logs[tStr]!=null;
+    const goalCum=trow.cum;
+    const needNew=Math.max(0,goalCum-current);
+
+    if(current>=TOTAL){
+      card.classList.add('done');
+      card.innerHTML=
+        '<div class="date"><span class="dot"></span>'+fmtLong(tStr)+'</div>'+
+        '<div class="done-banner"><div class="chk">'+checkSVG()+'</div>'+
+        '<div class="t">Все 2869 слов выучены! 🎉<small>Цель на лето выполнена.</small></div></div>'+
+        relogHTML(loggedToday);
+    } else if(loggedToday){
+      card.classList.add('done');
+      const val=state.logs[tStr];
+      const planned=plannedForToday(tIdx);
+      const met=val>=planned;
+      card.innerHTML=
+        '<div class="date"><span class="dot"></span>'+fmtLong(tStr)+'</div>'+
+        '<div class="done-banner"><div class="chk">'+checkSVG()+'</div>'+
+        '<div class="t">Отмечено: '+nf(val)+' из 2869'+
+        '<small>'+(met?'Цель дня выполнена. Дальше план обновлён.':'Ниже цели — остаток раскидан на след. дни.')+'</small>'+
+        '</div></div>'+relogHTML(true);
+    } else {
+      card.classList.remove('done');
+      card.innerHTML=
+        '<div class="date"><span class="dot"></span>'+fmtLong(tStr)+'</div>'+
+        '<div class="goal-line"><span class="lab">Дойти сегодня до</span><span class="num">'+nf(goalCum)+'</span></div>'+
+        '<div class="goal-sub">это <b>+'+nf(needNew)+'</b> новых слов от текущих '+nf(current)+'</div>'+
+        '<div class="field"><label>Сколько слов знаешь всего? (из 2869)</label>'+
+          '<div class="input-row">'+
+            '<input type="number" inputmode="numeric" id="totalInput" min="0" max="2869" value="'+goalCum+'">'+
+            '<div class="input-suffix">/ 2869</div>'+
+          '</div>'+
+        '</div>'+
+        '<div class="btns">'+
+          '<button class="btn btn-ghost" id="metBtn">'+checkSVG()+'Выучил как надо</button>'+
+          '<button class="btn btn-primary" id="saveBtn">Сохранить</button>'+
+        '</div>'+
+        '<p class="hint">«Выучил как надо» = дошёл ровно до цели ('+nf(goalCum)+'). Или впиши своё число — план на остальные дни пересчитается сам.</p>';
+    }
+
+    // wire today buttons
+    const saveBtn=document.getElementById('saveBtn');
+    if(saveBtn){
+      saveBtn.onclick=function(){
+        const v=parseInt(document.getElementById('totalInput').value,10);
+        commit(tStr,v);
+      };
+    }
+    const metBtn=document.getElementById('metBtn');
+    if(metBtn){metBtn.onclick=function(){commit(tStr,goalCum);};}
+    const relogBtn=document.getElementById('relogBtn');
+    if(relogBtn){relogBtn.onclick=function(){delete state.logs[tStr];save(state);render();};}
+
+    // schedule
+    renderSched(b,tIdx);
+  }
+
+  function plannedForToday(tIdx){
+    // цель, посчитанная без сегодняшней записи (чтобы понять, выполнил ли)
+    const ds=dateList(),N=ds.length;
+    let anchor=-1,anchorKnown=BASELINE;
+    for(let i=0;i<N;i++){if(i<tIdx&&state.logs[ds[i]]!=null){anchor=i;anchorKnown=state.logs[ds[i]];}}
+    const futureDays=N-1-anchor;
+    const per=futureDays>0?(TOTAL-anchorKnown)/futureDays:0;
+    let cum=Math.round(anchorKnown+per*(tIdx-anchor));
+    if(tIdx===N-1)cum=TOTAL;
+    return cum;
+  }
+
+  function renderSched(b,tIdx){
+    const el=document.getElementById('sched');
+    let html='';
+    b.rows.forEach(function(r){
+      const isToday=r.i===tIdx;
+      const isPast=r.i<tIdx;
+      let cls='row';
+      let glyph='<span class="ring"></span>';
+      if(r.logged){glyph=checkSVG();cls+=' past';
+        const planned=plannedForTodayAt(r.i);
+        if(r.cum<planned)cls+=' miss';
+      }
+      if(isToday){cls+=' today';if(!r.logged)glyph='<span class="ring"></span>';}
+      html+='<div class="'+cls+'" data-idx="'+r.i+'">'+
+        '<div class="g">'+glyph+'</div>'+
+        '<div class="d"><div class="dd">'+fmtShort(r.date)+'</div><div class="wd">'+fmtLong(r.date).split(',')[0]+'</div></div>'+
+        '<div class="cum">'+nf(r.cum)+'</div>'+
+        '<div class="nw">'+(r.nw>0?'+'+r.nw:'—')+'</div>'+
+        '<div class="chev">'+chevSVG()+'</div>'+
+      '</div>';
+    });
+    el.innerHTML=html;
+  }
+
+  function plannedForTodayAt(idx){
+    const ds=dateList(),N=ds.length;
+    let anchor=-1,anchorKnown=BASELINE;
+    for(let i=0;i<N;i++){if(i<idx&&state.logs[ds[i]]!=null){anchor=i;anchorKnown=state.logs[ds[i]];}}
+    const futureDays=N-1-anchor;
+    const per=futureDays>0?(TOTAL-anchorKnown)/futureDays:0;
+    let cum=Math.round(anchorKnown+per*(idx-anchor));
+    if(idx===N-1)cum=TOTAL;
+    return cum;
+  }
+
+  // ---- day editor sheet ----
+  function openSheet(idx){
+    const ds=dateList();
+    const dateStr=ds[idx];
+    const logged=state.logs[dateStr]!=null;
+    const planned=plannedForTodayAt(idx);
+    const cur=logged?state.logs[dateStr]:planned;
+    const inner=document.getElementById('sheetInner');
+    inner.innerHTML=
+      '<div class="handle"></div>'+
+      '<div class="s-date">'+fmtLong(dateStr)+'</div>'+
+      '<span class="s-badge '+(logged?'logged':'empty')+'">'+(logged?'записано: '+nf(state.logs[dateStr])+' слов':'ещё не заполнено')+'</span>'+
+      '<div class="s-ctx">По плану к этому дню: <b>'+nf(planned)+'</b> из 2869</div>'+
+      '<div class="field"><label>Сколько слов всего было выучено в этот день? (из 2869)</label>'+
+        '<div class="input-row"><input type="number" inputmode="numeric" id="sheetInput" min="0" max="2869" value="'+cur+'"><div class="input-suffix">/ 2869</div></div>'+
+      '</div>'+
+      '<div class="btns">'+
+        '<button class="btn btn-ghost" id="sheetMet">'+checkSVG()+'Как по плану</button>'+
+        '<button class="btn btn-primary" id="sheetSave">Сохранить</button>'+
+      '</div>'+
+      (logged?'<button class="s-clear" id="sheetClear">Очистить этот день</button>':'')+
+      '<button class="s-cancel" id="sheetCancel">Отмена</button>';
+
+    document.getElementById('overlay').classList.add('show');
+    document.getElementById('sheet').classList.add('show');
+
+    const inp=document.getElementById('sheetInput');
+    document.getElementById('sheetSave').onclick=function(){commit(dateStr,parseInt(inp.value,10));closeSheet();};
+    document.getElementById('sheetMet').onclick=function(){commit(dateStr,planned);closeSheet();};
+    document.getElementById('sheetCancel').onclick=closeSheet;
+    const cl=document.getElementById('sheetClear');
+    if(cl)cl.onclick=function(){delete state.logs[dateStr];save(state);render();closeSheet();toast('День очищен','good');};
+  }
+  function closeSheet(){
+    document.getElementById('overlay').classList.remove('show');
+    document.getElementById('sheet').classList.remove('show');
+  }
+  function chevSVG(){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>';}
+
+  function commit(dateStr,val){
+    if(isNaN(val)){toast('Впиши число','bad');return;}
+    if(val<0)val=0; if(val>TOTAL)val=TOTAL;
+    const prevBaseline=(function(){const b=build();return b.anchorKnown;})();
+    state.logs[dateStr]=val;
+    save(state);
+    render();
+    const b=build();
+    const planned=plannedForTodayAt(dateList().indexOf(dateStr));
+    if(val>=TOTAL)toast('Готово — все 2869! 🎉','good');
+    else if(val>=planned)toast('Отлично, цель дня выполнена','good');
+    else toast('Записано — остаток раскидан дальше','good');
+  }
+
+  function relogHTML(show){
+    return show?'<div class="relog"><button id="relogBtn">изменить / отменить запись</button></div>':'';
+  }
+  function checkSVG(){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';}
+
+  // ---- toast ----
+  let toastTimer;
+  function toast(msg,kind){
+    const el=document.getElementById('toast');
+    el.className='toast'+(kind==='good'?' good':'');
+    el.innerHTML=(kind==='good'?checkSVG():'')+'<span>'+msg+'</span>';
+    requestAnimationFrame(()=>el.classList.add('show'));
+    clearTimeout(toastTimer);
+    toastTimer=setTimeout(()=>el.classList.remove('show'),2200);
+  }
+
+  // ---- export / import ----
+  document.getElementById('exportBtn').onclick=function(){
+    const payload={app:'b1wortschatz',version:1,total:TOTAL,exported:new Date().toISOString(),logs:state.logs};
+    const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;a.download='b1-progress-'+ymd(new Date())+'.json';
+    document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+    toast('Файл прогресса сохранён','good');
+  };
+  // open editor for any day
+  document.getElementById('sched').addEventListener('click',function(e){
+    const row=e.target.closest('.row');
+    if(!row)return;
+    const idx=parseInt(row.getAttribute('data-idx'),10);
+    if(!isNaN(idx))openSheet(idx);
+  });
+  document.getElementById('overlay').addEventListener('click',closeSheet);
+
+  document.getElementById('importBtn').onclick=function(){document.getElementById('fileInput').click();};
+  document.getElementById('fileInput').onchange=function(e){
+    const f=e.target.files[0];if(!f)return;
+    const r=new FileReader();
+    r.onload=function(){
+      try{
+        const data=JSON.parse(r.result);
+        const logs=data.logs||data; // допускаем и голый объект logs
+        if(typeof logs!=='object')throw 0;
+        // валидация
+        const clean={};
+        Object.keys(logs).forEach(function(k){
+          const v=parseInt(logs[k],10);
+          if(/^\d{4}-\d{2}-\d{2}$/.test(k)&&!isNaN(v))clean[k]=Math.max(0,Math.min(TOTAL,v));
+        });
+        state.logs=clean;save(state);render();
+        toast('Прогресс восстановлен','good');
+      }catch(err){toast('Не удалось прочитать файл','bad');}
+    };
+    r.readAsText(f);
+    e.target.value='';
+  };
+
+  render();
+})();
+</script>
+</body>
+</html>
