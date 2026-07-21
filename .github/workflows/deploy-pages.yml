@@ -1,0 +1,58 @@
+name: Deploy Game to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - hidden-object-game
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Prepare site directory
+        run: |
+          mkdir -p _site
+          # Copy the game entry point
+          cp index.html _site/index.html
+          # Copy the 5 game images if they exist in the repo root
+          for f in image_4.png image.png image_5.png image_3.png image_2.png; do
+            if [ -f "$f" ]; then cp "$f" _site/; fi
+          done
+          # Also copy any other png/jpg assets that may have been added
+          shopt -s nullglob
+          for f in *.png *.jpg *.jpeg *.webp; do cp "$f" _site/ 2>/dev/null || true; done
+          # Disable Jekyll processing (filenames contain underscores)
+          touch _site/.nojekyll
+          echo "Prepared site contents:" && ls -la _site
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
