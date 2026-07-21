@@ -162,6 +162,23 @@
   #start h1{font-size:clamp(26px,6vw,64px);margin:0;font-weight:900;color:var(--gold);text-shadow:0 3px 0 #7a5410, 0 6px 16px rgba(0,0,0,0.6);}
   #start p{font-size:clamp(15px,3vw,30px);max-width:80%;color:var(--cream);font-weight:600;margin:0;line-height:1.4;}
   .home-emoji{font-size:clamp(46px,10vw,120px);line-height:1;filter:drop-shadow(0 6px 10px rgba(0,0,0,0.5));}
+  #photo-btn{background:linear-gradient(180deg,#8fb8e8 0%,#5f86c9 100%);color:#fff;box-shadow:0 5px 0 #3a5a97, var(--shadow);}
+  #photo-status{margin-top:0.3em;color:var(--gold);font-weight:800;font-size:clamp(12px,2vw,22px);text-shadow:0 2px 4px #000;min-height:1.1em;}
+
+  /* ---------- Photo upload panel ---------- */
+  #photo-setup{position:absolute;inset:0;z-index:60;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.68);padding:3%;}
+  .ps-box{background:linear-gradient(180deg,#fff7e6,#ffeec9);color:var(--ink);border:5px solid var(--gold-deep);border-radius:22px;box-shadow:0 20px 60px rgba(0,0,0,0.6);padding:3% 3.5%;width:min(780px,95%);max-height:94%;overflow-y:auto;}
+  .ps-box h2{margin:0 0 0.15em;font-size:clamp(20px,3.6vw,34px);text-align:center;}
+  .ps-sub{margin:0 0 1em;font-size:clamp(13px,2.2vw,20px);font-weight:600;text-align:center;line-height:1.35;}
+  .pslot{display:flex;align-items:center;gap:0.7em;padding:0.55em;border:2px solid #e0c48a;border-radius:14px;margin-bottom:0.55em;background:rgba(255,255,255,0.55);}
+  .ps-thumb{flex:0 0 auto;width:clamp(54px,12vw,92px);aspect-ratio:16/10;border-radius:8px;background:#d8c8a8 center/cover no-repeat;display:flex;align-items:center;justify-content:center;font-weight:900;color:#8a6a2a;font-size:clamp(16px,3vw,26px);border:2px solid #c8b48f;}
+  .ps-info{flex:1 1 auto;min-width:0;}
+  .ps-name{font-weight:800;font-size:clamp(13px,2.2vw,20px);line-height:1.2;}
+  .ps-hint{font-size:clamp(11px,1.8vw,15px);color:#6a5636;}
+  .ps-choose{flex:0 0 auto;font-size:clamp(13px,2vw,20px);padding:0.5em 0.8em;cursor:pointer;margin:0;}
+  .ps-check{flex:0 0 auto;width:1.6em;height:1.6em;line-height:1.6em;text-align:center;border-radius:50%;background:#c9c2b4;color:#fff;font-weight:900;opacity:0.6;}
+  .ps-check.on{background:var(--green);opacity:1;}
+  .ps-actions{display:flex;gap:0.8em;justify-content:center;margin-top:0.7em;flex-wrap:wrap;}
   .hidden{display:none !important;}
 </style>
 </head>
@@ -216,6 +233,21 @@
       <h1>Уютный Дом</h1>
       <p>Найдите спрятанные предметы на чердаке, заработайте монеты и сделайте ремонт старого дома. Спокойная игра без таймера — играйте в своё удовольствие.</p>
       <button class="btn green big" id="start-btn">▶ Начать игру</button>
+      <button class="btn big" id="photo-btn">🖼️ Вставить свои фото</button>
+      <div id="photo-status"></div>
+    </div>
+
+    <!-- Photo upload panel -->
+    <div id="photo-setup">
+      <div class="ps-box">
+        <h2>🖼️ Ваши фотографии</h2>
+        <p class="ps-sub">Выберите 5 фото со своего устройства — игра станет точь-в-точь как на них. Это необязательно. Фото сохранятся на этом устройстве, выбирать нужно один раз. Порядок важен:</p>
+        <div class="ps-list"></div>
+        <div class="ps-actions">
+          <button class="btn green big" id="ps-done">Готово ✓</button>
+          <button class="btn big" id="ps-clear">Очистить фото</button>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -307,6 +339,103 @@
     test.onload = ()=>{ const el=document.getElementById(id); if(el){ el.style.backgroundImage="url('"+IMAGES[key]+"')"; el.textContent=""; } };
     test.src = IMAGES[key];
   });
+
+  // ============================================================
+  //  USER PHOTO UPLOAD (choose your own pictures, saved on device)
+  // ============================================================
+  const SLOTS = [
+    {key:"attic",       n:1, label:"Чердак — поиск предметов",        hint:"фото с лампой, мишкой, скрипкой, чемоданами"},
+    {key:"dilapidated", n:2, label:"Старая комната (до ремонта)",     hint:"тёмная запущенная комната с паутиной"},
+    {key:"provence",    n:3, label:"Ремонт: Уютный Прованс",          hint:"светлая комната, цветы, белый камин"},
+    {key:"library",     n:4, label:"Ремонт: Классическая Библиотека", hint:"тёмное дерево, много книг, лестницы"},
+    {key:"house",       n:5, label:"Финал: дом с садом",              hint:"домик снаружи среди цветов"}
+  ];
+  const LS_PREFIX = "cozyhome_img_";
+
+  function fileToDataURL(file, maxW, cb){
+    const reader = new FileReader();
+    reader.onload = (e)=>{
+      const img = new Image();
+      img.onload = ()=>{
+        let w=img.width, h=img.height;
+        if(w>maxW){ h=Math.round(h*maxW/w); w=maxW; }
+        try{
+          const c=document.createElement("canvas"); c.width=w; c.height=h;
+          c.getContext("2d").drawImage(img,0,0,w,h);
+          cb(c.toDataURL("image/jpeg",0.82));
+        }catch(err){ cb(e.target.result); }
+      };
+      img.onerror=()=>cb(null);
+      img.src=e.target.result;
+    };
+    reader.onerror=()=>cb(null);
+    reader.readAsDataURL(file);
+  }
+  function applyImageDataURL(key, dataURL){
+    const img=new Image();
+    img.onload=()=>{ loaded[key]={img,ok:true}; refreshChoiceThumb(key,dataURL); };
+    img.src=dataURL;
+  }
+  function saveImg(key,dataURL){ try{ localStorage.setItem(LS_PREFIX+key,dataURL); return true; }catch(e){ return false; } }
+  function refreshChoiceThumb(key,dataURL){
+    if(key==="provence"){ const el=document.getElementById("thumb-provence"); if(el){ el.style.backgroundImage="url('"+dataURL+"')"; el.textContent=""; } }
+    if(key==="library"){ const el=document.getElementById("thumb-library"); if(el){ el.style.backgroundImage="url('"+dataURL+"')"; el.textContent=""; } }
+  }
+  function markSlotLoaded(key,dataURL){
+    const t=document.getElementById("psthumb-"+key);
+    if(t){ t.style.backgroundImage="url('"+dataURL+"')"; t.textContent=""; }
+    const c=document.getElementById("pscheck-"+key);
+    if(c) c.classList.add("on");
+  }
+  function countLoaded(){ return SLOTS.filter(s=>loaded[s.key]&&loaded[s.key].ok).length; }
+  function updatePhotoStatus(){
+    const n=countLoaded();
+    const st=document.getElementById("photo-status");
+    if(st) st.textContent = n>0 ? ("Ваших фото загружено: "+n+" из 5 ✓") : "";
+  }
+  function buildPhotoSlots(){
+    const list=document.querySelector("#photo-setup .ps-list");
+    if(!list || list.dataset.built) return;
+    list.dataset.built="1";
+    SLOTS.forEach(s=>{
+      const row=document.createElement("div"); row.className="pslot";
+      row.innerHTML=
+        '<div class="ps-thumb" id="psthumb-'+s.key+'">'+s.n+'</div>'+
+        '<div class="ps-info"><div class="ps-name">'+s.n+'. '+s.label+'</div><div class="ps-hint">'+s.hint+'</div></div>'+
+        '<label class="btn ps-choose">Выбрать<input type="file" accept="image/*" style="display:none" id="psfile-'+s.key+'"></label>'+
+        '<span class="ps-check" id="pscheck-'+s.key+'">✓</span>';
+      list.appendChild(row);
+      row.querySelector("#psfile-"+s.key).addEventListener("change",(ev)=>{
+        const f=ev.target.files && ev.target.files[0];
+        if(!f) return;
+        fileToDataURL(f,1920,(dataURL)=>{
+          if(!dataURL){ alert("Не удалось прочитать это фото. Попробуйте другое."); return; }
+          applyImageDataURL(s.key,dataURL);
+          markSlotLoaded(s.key,dataURL);
+          saveImg(s.key,dataURL);
+          updatePhotoStatus();
+        });
+      });
+    });
+  }
+  function loadSavedImages(){
+    SLOTS.forEach(s=>{
+      let d=null; try{ d=localStorage.getItem(LS_PREFIX+s.key); }catch(e){}
+      if(d){ applyImageDataURL(s.key,d); markSlotLoaded(s.key,d); }
+    });
+    updatePhotoStatus();
+  }
+  function clearAllImages(){
+    SLOTS.forEach(s=>{
+      try{ localStorage.removeItem(LS_PREFIX+s.key); }catch(e){}
+      loaded[s.key]={img:null,ok:false};
+      const t=document.getElementById("psthumb-"+s.key); if(t){ t.style.backgroundImage=""; t.textContent=String(s.n); }
+      const c=document.getElementById("pscheck-"+s.key); if(c) c.classList.remove("on");
+    });
+    const p=document.getElementById("thumb-provence"); if(p){ p.style.backgroundImage=""; p.textContent="🌷"; }
+    const l=document.getElementById("thumb-library"); if(l){ l.style.backgroundImage=""; l.textContent="📚"; }
+    updatePhotoStatus();
+  }
 
   // ============================================================
   //  DRAWING HELPERS
@@ -746,6 +875,14 @@
     card.addEventListener("click",()=>{SFX.click();chooseStyle(card.dataset.style);});
   });
   muteBtn.addEventListener("click",()=>{ muted=!muted; muteBtn.textContent=muted?"🔇":"🔊"; if(!muted){ensureAudio();SFX.click();} });
+
+  document.getElementById("photo-btn").addEventListener("click",()=>{ buildPhotoSlots(); document.getElementById("photo-setup").style.display="flex"; });
+  document.getElementById("ps-done").addEventListener("click",()=>{ document.getElementById("photo-setup").style.display="none"; });
+  document.getElementById("ps-clear").addEventListener("click",()=>{ if(confirm("Удалить все загруженные фото и вернуть нарисованные сцены?")) clearAllImages(); });
+
+  // Load any previously saved photos on this device
+  buildPhotoSlots();
+  loadSavedImages();
 
   requestAnimationFrame(render);
 })();
