@@ -360,6 +360,32 @@ body {
   height: auto;
 }
 
+#reno-overlay-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.reno-overlay-full {
+  position: absolute;
+  inset: 0;
+}
+
+/* left/top/width/height are set inline per furniture piece; the color itself
+   is a radial gradient fading to transparent, so it blends onto the photo
+   without a hard-edged shape (clip-path + filter:blur fought mix-blend-mode
+   and produced a washed-out blob instead of a soft edge) */
+.reno-overlay-region {
+  position: absolute;
+}
+
+.reno-mood-dark   { background: rgba(8, 14, 30, .45);   mix-blend-mode: multiply; }
+.reno-mood-light  { background: rgba(255, 246, 222, .55); mix-blend-mode: soft-light; }
+
+.reno-color-black { mix-blend-mode: multiply; opacity: .68; }
+.reno-color-white { mix-blend-mode: screen;   opacity: .55; }
+.reno-color-gray  { mix-blend-mode: color;    opacity: .9; }
+
 .reno-slots {
   width: 300px;
   flex: 0 0 300px;

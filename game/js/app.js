@@ -41,6 +41,18 @@
     },
   };
 
+  // hand-mapped bounding boxes (percent left,top,width,height) locating each
+  // recolorable piece of furniture in room-before.jpg, found with the same
+  // pixel-grid method used for the hidden-object hotspots
+  const RENO_REGIONS = {
+    table:     { left: 44.4, top: 44.9, width: 19.9, height: 35.6 },
+    armchairs: { left: 79.6, top: 47.9, width: 13.1, height: 32.2 },
+    bookshelf: { left: 72.4, top: 24.1, width: 13.1, height: 21.5 },
+    lamp:      { left: 91.6, top: 33.2, width: 8.4,  height: 10.4 },
+  };
+
+  const SWATCH_HEX = { light: "#f3ecd8", dark: "#232c3a", white: "#ffffff", gray: "#8a8a8a", black: "#1a1a1a" };
+
   const el = {
     menu: document.getElementById("screen-menu"),
     game: document.getElementById("screen-game"),
@@ -50,6 +62,7 @@
     tabLevels: document.getElementById("tab-levels"),
     tabRenovation: document.getElementById("tab-renovation"),
     renoSlots: document.getElementById("reno-slots"),
+    renoOverlay: document.getElementById("reno-overlay-layer"),
     renoModal: document.getElementById("reno-modal"),
     renoModalCard: document.getElementById("reno-modal-card"),
     image: document.getElementById("game-image"),
@@ -393,6 +406,36 @@
     });
 
     el.renoSlots.innerHTML = parts.join("");
+    renderRenoVisuals(reno);
+  }
+
+  function addRegionOverlay(regionKey, colorKey, full) {
+    if (full) {
+      const div = document.createElement("div");
+      div.className = "reno-overlay-full reno-mood-" + colorKey;
+      el.renoOverlay.appendChild(div);
+      return;
+    }
+    const box = RENO_REGIONS[regionKey];
+    const color = SWATCH_HEX[colorKey];
+    const div = document.createElement("div");
+    div.className = "reno-overlay-region reno-color-" + colorKey;
+    div.style.left = box.left + "%";
+    div.style.top = box.top + "%";
+    div.style.width = box.width + "%";
+    div.style.height = box.height + "%";
+    div.style.background =
+      "radial-gradient(ellipse closest-side at 50% 50%, " + color + " 0%, " + color + " 45%, transparent 100%)";
+    el.renoOverlay.appendChild(div);
+  }
+
+  function renderRenoVisuals(reno) {
+    el.renoOverlay.innerHTML = "";
+    if (reno.stage1) addRegionOverlay(null, reno.stage1, true);
+    if (reno.stage2) addRegionOverlay("table", reno.stage2, false);
+    if (reno.stage3.armchairs) addRegionOverlay("armchairs", reno.stage3.armchairs, false);
+    if (reno.stage3.bookshelf) addRegionOverlay("bookshelf", reno.stage3.bookshelf, false);
+    if (reno.stage3.lamp) addRegionOverlay("lamp", reno.stage3.lamp, false);
   }
 
   function openRenoModal(stageKey, categoryKey) {
