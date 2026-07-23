@@ -4,11 +4,54 @@
   const STORAGE_PREFIX = "hog_progress_";
   const HIT_PAD = 2.5; // percentage points of forgiveness added around each hotspot
 
+  // levels that gate the room renovation: finishing N of them unlocks stage N
+  const GATING_LEVELS = ["library", "beach", "castle"];
+  const RENOVATION_KEY = "hog_renovation";
+
+  const STAGE_CONFIG = {
+    stage1: {
+      title: "Ремонт 1: Стены и мебель",
+      sub: "Выберите настроение комнаты",
+      hologram: true,
+      options: [
+        { key: "light", label: "Светлая", bg: "#f3ecd8", fg: "#3a2f1d" },
+        { key: "dark", label: "Тёмная", bg: "#232c3a", fg: "#f0f0f0" },
+      ],
+    },
+    stage2: {
+      title: "Ремонт 2: Стол",
+      sub: "Выберите цвет стола",
+      options: [
+        { key: "white", label: "Белый", bg: "#ffffff", fg: "#333333" },
+        { key: "gray", label: "Серый", bg: "#9a9a9a", fg: "#ffffff" },
+      ],
+    },
+    stage3: {
+      title: "Ремонт 3: Мебель",
+      sub: "Выберите цвет",
+      options: [
+        { key: "black", label: "Чёрный", bg: "#1a1a1a", fg: "#ffffff" },
+        { key: "white", label: "Белый", bg: "#ffffff", fg: "#333333" },
+      ],
+      categories: [
+        { key: "armchairs", label: "Кресла" },
+        { key: "bookshelf", label: "Стеллаж" },
+        { key: "lamp", label: "Лампа" },
+      ],
+    },
+  };
+
   const el = {
     menu: document.getElementById("screen-menu"),
     game: document.getElementById("screen-game"),
+    renovation: document.getElementById("screen-renovation"),
     grid: document.getElementById("level-grid"),
     btnMenu: document.getElementById("btn-menu"),
+    tabLevels: document.getElementById("tab-levels"),
+    tabRenovation: document.getElementById("tab-renovation"),
+    renoSlots: document.getElementById("reno-slots"),
+    renoModal: document.getElementById("reno-modal"),
+    renoModalCard: document.getElementById("reno-modal-card"),
     image: document.getElementById("game-image"),
     imageWrap: document.getElementById("image-wrap"),
     markers: document.getElementById("markers-layer"),
@@ -99,7 +142,11 @@
   function showScreen(name) {
     el.menu.classList.toggle("hidden", name !== "menu");
     el.game.classList.toggle("hidden", name !== "game");
+    el.renovation.classList.toggle("hidden", name !== "renovation");
     el.btnMenu.classList.toggle("hidden", name !== "game");
+    el.tabLevels.parentElement.classList.toggle("hidden", name === "game");
+    el.tabLevels.classList.toggle("active", name === "menu");
+    el.tabRenovation.classList.toggle("active", name === "renovation");
   }
 
   // ---------- Game ----------
@@ -218,9 +265,13 @@
   }
 
   function showWin() {
-    el.winStats.textContent =
+    let text =
       "Найдено предметов: " + level.objects.length +
       ". Подсказок использовано: " + hintsUsed + ".";
+    if (GATING_LEVELS.includes(level.id)) {
+      text += " Открыт новый шаг ремонта — загляните в раздел «🏠 Ремонт»!";
+    }
+    el.winStats.textContent = text;
     el.winOverlay.classList.remove("hidden");
   }
 
@@ -265,6 +316,149 @@
     startLevel();
   }
 
+  // ---------- Renovation ----------
+
+  function getRenovation() {
+    try {
+      const raw = localStorage.getItem(RENOVATION_KEY);
+      if (!raw) throw new Error("empty");
+      const parsed = JSON.parse(raw);
+      parsed.stage3 = parsed.stage3 || {};
+      return parsed;
+    } catch (e) {
+      return { stage1: null, stage2: null, stage3: { armchairs: null, bookshelf: null, lamp: null } };
+    }
+  }
+
+  function saveRenovation(data) {
+    localStorage.setItem(RENOVATION_KEY, JSON.stringify(data));
+  }
+
+  function completedLevelsCount() {
+    return GATING_LEVELS.filter((id) => getProgress(id).completed).length;
+  }
+
+  function findOption(stageKey, optionKey) {
+    return STAGE_CONFIG[stageKey].options.find((o) => o.key === optionKey);
+  }
+
+  function renoChoiceChipHTML(stageKey, categoryKey, optionKey) {
+    const opt = findOption(stageKey, optionKey);
+    const catAttr = categoryKey ? ` data-category="${categoryKey}"` : "";
+    return (
+      '<span class="reno-choice-chip">' +
+      '<span class="swatch-dot" style="background:' + opt.bg + '"></span>' +
+      opt.label +
+      '<button type="button" class="reno-x" data-action="reset" data-stage="' + stageKey + '"' + catAttr + '>✕</button>' +
+      "</span>"
+    );
+  }
+
+  function renderRenovation() {
+    const count = completedLevelsCount();
+    const reno = getRenovation();
+    const parts = [];
+
+    [1, 2, 3].forEach((stageNum) => {
+      const stageKey = "stage" + stageNum;
+      const cfg = STAGE_CONFIG[stageKey];
+      const unlocked = count >= stageNum;
+
+      let inner;
+      if (!unlocked) {
+        inner = '<p class="reno-hint">🔒 Откроется после ' + stageNum + ' пройденных уровней (сейчас: ' + count + ')</p>';
+      } else if (stageKey === "stage3") {
+        inner = cfg.categories
+          .map((cat) => {
+            const chosen = reno.stage3[cat.key];
+            const right = chosen
+              ? renoChoiceChipHTML(stageKey, cat.key, chosen)
+              : '<button type="button" class="reno-pick-btn" data-action="pick" data-stage="' + stageKey + '" data-category="' + cat.key + '">Выбрать</button>';
+            return '<div class="reno-row"><span class="reno-cat-label">' + cat.label + "</span>" + right + "</div>";
+          })
+          .join("");
+      } else {
+        const chosen = reno[stageKey];
+        inner = chosen
+          ? '<div class="reno-row">' + renoChoiceChipHTML(stageKey, null, chosen) + "</div>"
+          : '<button type="button" class="reno-pick-btn" data-action="pick" data-stage="' + stageKey + '">Выбрать</button>';
+      }
+
+      parts.push(
+        '<div class="reno-slot' + (unlocked ? "" : " locked") + '">' +
+        "<h4>" + cfg.title + "</h4>" +
+        inner +
+        "</div>"
+      );
+    });
+
+    el.renoSlots.innerHTML = parts.join("");
+  }
+
+  function openRenoModal(stageKey, categoryKey) {
+    const cfg = STAGE_CONFIG[stageKey];
+    const catAttr = categoryKey ? ' data-category="' + categoryKey + '"' : "";
+    const swatches = cfg.options
+      .map(
+        (o) =>
+          '<button type="button" class="swatch-btn" style="background:' + o.bg + ";color:" + o.fg + '" data-option="' + o.key + '">' + o.label + "</button>"
+      )
+      .join("");
+    const category = categoryKey ? cfg.categories.find((c) => c.key === categoryKey) : null;
+
+    el.renoModalCard.innerHTML =
+      "<h3>" + cfg.title + "</h3>" +
+      '<p class="reno-modal-sub">' + (category ? category.label + " — " + cfg.sub : cfg.sub) + "</p>" +
+      '<div class="' + (cfg.hologram ? "reno-hologram" : "") + '">' +
+      '<div class="swatch-row" data-stage="' + stageKey + '"' + catAttr + ">" + swatches + "</div>" +
+      "</div>" +
+      '<button type="button" class="reno-modal-close">Отмена</button>';
+
+    el.renoModalCard.querySelectorAll(".swatch-btn").forEach((btn) => {
+      btn.addEventListener("click", () => chooseRenoOption(stageKey, categoryKey, btn.dataset.option));
+    });
+    el.renoModalCard.querySelector(".reno-modal-close").addEventListener("click", closeRenoModal);
+
+    el.renoModal.classList.remove("hidden");
+  }
+
+  function closeRenoModal() {
+    el.renoModal.classList.add("hidden");
+  }
+
+  function chooseRenoOption(stageKey, categoryKey, optionKey) {
+    const reno = getRenovation();
+    if (stageKey === "stage3") {
+      reno.stage3[categoryKey] = optionKey;
+    } else {
+      reno[stageKey] = optionKey;
+    }
+    saveRenovation(reno);
+    closeRenoModal();
+    renderRenovation();
+  }
+
+  function resetRenoChoice(stageKey, categoryKey) {
+    const reno = getRenovation();
+    if (stageKey === "stage3") {
+      reno.stage3[categoryKey] = null;
+    } else {
+      reno[stageKey] = null;
+    }
+    saveRenovation(reno);
+    renderRenovation();
+    openRenoModal(stageKey, categoryKey);
+  }
+
+  el.renoSlots.addEventListener("click", (evt) => {
+    const btn = evt.target.closest("[data-action]");
+    if (!btn) return;
+    const stageKey = btn.dataset.stage;
+    const categoryKey = btn.dataset.category || null;
+    if (btn.dataset.action === "pick") openRenoModal(stageKey, categoryKey);
+    else if (btn.dataset.action === "reset") resetRenoChoice(stageKey, categoryKey);
+  });
+
   // ---------- Wiring ----------
 
   el.image.addEventListener("click", handleImageClick);
@@ -282,6 +476,14 @@
   el.btnReplay.addEventListener("click", () => {
     el.winOverlay.classList.add("hidden");
     handleReset();
+  });
+  el.tabLevels.addEventListener("click", () => {
+    showScreen("menu");
+    renderMenu();
+  });
+  el.tabRenovation.addEventListener("click", () => {
+    showScreen("renovation");
+    renderRenovation();
   });
 
   fetch("data/levels.json")

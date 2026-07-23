@@ -11,6 +11,10 @@
 
   <header class="app-header">
     <h1>🔍 Найди предмет</h1>
+    <nav class="tabs" id="top-tabs">
+      <button id="tab-levels" class="tab-btn">Уровни</button>
+      <button id="tab-renovation" class="tab-btn">🏠 Ремонт</button>
+    </nav>
     <button id="btn-menu" class="btn-ghost hidden">← В меню</button>
   </header>
 
@@ -18,6 +22,20 @@
     <p class="subtitle">Выберите уровень, чтобы начать поиск</p>
     <div id="level-grid" class="level-grid"></div>
   </main>
+
+  <main id="screen-renovation" class="screen hidden">
+    <p class="subtitle">Проходите уровни поиска предметов, чтобы открывать новые решения для ремонта</p>
+    <div class="reno-layout">
+      <div class="reno-image-wrap">
+        <img src="assets/images/room-before.jpg" alt="Комната, которую нужно отремонтировать">
+      </div>
+      <div class="reno-slots" id="reno-slots"></div>
+    </div>
+  </main>
+
+  <div id="reno-modal" class="overlay hidden">
+    <div class="overlay-card reno-modal-card" id="reno-modal-card"></div>
+  </div>
 
   <main id="screen-game" class="screen hidden">
     <div class="game-layout">

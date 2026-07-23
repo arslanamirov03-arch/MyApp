@@ -53,6 +53,28 @@ body {
 
 .hidden { display: none !important; }
 
+.tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.tab-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.tab-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
 .subtitle { color: var(--muted); margin-top: 0; }
 
 /* ---------- Menu ---------- */
@@ -313,6 +335,181 @@ body {
   color: var(--text);
 }
 
+/* ---------- Renovation ---------- */
+
+.reno-layout {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.reno-image-wrap {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.reno-image-wrap img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.reno-slots {
+  width: 300px;
+  flex: 0 0 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.reno-slot {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+
+.reno-slot.locked {
+  opacity: 0.55;
+}
+
+.reno-slot h4 {
+  margin: 0 0 6px;
+  font-size: 1rem;
+}
+
+.reno-slot .reno-hint {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin: 0;
+}
+
+.reno-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.reno-row:first-of-type {
+  margin-top: 10px;
+}
+
+.reno-row .reno-cat-label {
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.reno-pick-btn {
+  background: var(--accent);
+  color: white;
+  border: none;
+  padding: 7px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.reno-choice-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px 5px 12px;
+  border-radius: 20px;
+  background: var(--bg);
+  font-size: 0.85rem;
+}
+
+.reno-choice-chip .swatch-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid rgba(0,0,0,.15);
+  display: inline-block;
+}
+
+.reno-choice-chip button.reno-x {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--miss);
+  font-weight: bold;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 2px 4px;
+}
+
+.reno-modal-card {
+  max-width: 380px;
+}
+
+.reno-modal-card h3 {
+  margin: 0 0 4px;
+}
+
+.reno-modal-card .reno-modal-sub {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin: 0 0 6px;
+}
+
+.swatch-row {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  margin: 18px 0 8px;
+}
+
+.swatch-btn {
+  width: 96px;
+  height: 96px;
+  border-radius: 12px;
+  border: 3px solid transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  box-shadow: 0 3px 10px rgba(0,0,0,.2);
+  transition: transform .15s ease, border-color .15s ease;
+}
+
+.swatch-btn:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent);
+}
+
+.reno-hologram {
+  background-image:
+    linear-gradient(rgba(72,220,255,.25) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(72,220,255,.25) 1px, transparent 1px);
+  background-size: 18px 18px;
+  border: 1px solid rgba(72,220,255,.5);
+  box-shadow: 0 0 18px rgba(72,220,255,.35) inset;
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.reno-modal-close {
+  margin-top: 6px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.85rem;
+  text-decoration: underline;
+}
+
 /* ---------- Responsive ---------- */
 
 @media (max-width: 860px) {
@@ -329,5 +526,12 @@ body {
   }
   .object-list li {
     flex: 0 0 auto;
+  }
+  .reno-layout {
+    flex-direction: column;
+  }
+  .reno-slots {
+    width: 100%;
+    flex: 1 1 auto;
   }
 }
