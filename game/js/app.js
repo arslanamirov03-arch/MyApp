@@ -165,14 +165,22 @@
     });
   }
 
+  // an object is normally one hotspot ({x,y,w,h}), but some scenes have the
+  // same item appear twice (e.g. two turtles) - "regions" lets either count
+  function getRegions(obj) {
+    return obj.regions && obj.regions.length ? obj.regions : [{ x: obj.x, y: obj.y, w: obj.w, h: obj.h }];
+  }
+
   function drawFoundRing(obj) {
-    const ring = document.createElement("div");
-    ring.className = "found-ring";
-    ring.style.left = obj.x + "%";
-    ring.style.top = obj.y + "%";
-    ring.style.width = obj.w + "%";
-    ring.style.height = obj.h + "%";
-    el.markers.appendChild(ring);
+    getRegions(obj).forEach((r) => {
+      const ring = document.createElement("div");
+      ring.className = "found-ring";
+      ring.style.left = r.x + "%";
+      ring.style.top = r.y + "%";
+      ring.style.width = r.w + "%";
+      ring.style.height = r.h + "%";
+      el.markers.appendChild(ring);
+    });
   }
 
   function drawMissMarker(xPct, yPct) {
@@ -186,12 +194,14 @@
   }
 
   function drawHintMarker(obj) {
-    const marker = document.createElement("div");
-    marker.className = "hint-marker";
-    marker.style.left = (obj.x + obj.w / 2) + "%";
-    marker.style.top = (obj.y + obj.h / 2) + "%";
-    el.markers.appendChild(marker);
-    setTimeout(() => marker.remove(), 2500);
+    getRegions(obj).forEach((r) => {
+      const marker = document.createElement("div");
+      marker.className = "hint-marker";
+      marker.style.left = (r.x + r.w / 2) + "%";
+      marker.style.top = (r.y + r.h / 2) + "%";
+      el.markers.appendChild(marker);
+      setTimeout(() => marker.remove(), 2500);
+    });
   }
 
   function markFound(obj) {
@@ -222,13 +232,15 @@
 
     for (const obj of level.objects) {
       if (foundSet.has(obj.id)) continue;
-      const x0 = obj.x - HIT_PAD;
-      const y0 = obj.y - HIT_PAD;
-      const x1 = obj.x + obj.w + HIT_PAD;
-      const y1 = obj.y + obj.h + HIT_PAD;
-      if (clickX >= x0 && clickX <= x1 && clickY >= y0 && clickY <= y1) {
-        markFound(obj);
-        return;
+      for (const r of getRegions(obj)) {
+        const x0 = r.x - HIT_PAD;
+        const y0 = r.y - HIT_PAD;
+        const x1 = r.x + r.w + HIT_PAD;
+        const y1 = r.y + r.h + HIT_PAD;
+        if (clickX >= x0 && clickX <= x1 && clickY >= y0 && clickY <= y1) {
+          markFound(obj);
+          return;
+        }
       }
     }
     drawMissMarker(clickX, clickY);
