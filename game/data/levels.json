@@ -1,0 +1,9 @@
+[
+  {
+    "id": "demo",
+    "title": "Демо: Стол с вещами",
+    "image": "assets/images/demo-scene.svg",
+    "file": "data/levels/demo.json",
+    "objectCount": 8
+  }
+]
