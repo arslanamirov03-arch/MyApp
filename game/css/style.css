@@ -1,0 +1,563 @@
+:root {
+  --bg: #fbf3e3;
+  --panel: #ffffff;
+  --accent: #2f8f7c;
+  --accent-dark: #226b5c;
+  --text: #33302b;
+  --muted: #8a8478;
+  --border: #ead9b8;
+  --found: #2ecc71;
+  --miss: #e0413a;
+  --hint: #f1c40f;
+  --radius: 14px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+#app {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 16px 32px;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 0;
+}
+
+.app-header h1 {
+  font-size: 1.5rem;
+  margin: 0;
+}
+
+.btn-ghost {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+.btn-ghost:hover { background: var(--border); }
+.btn-ghost.small { padding: 6px 10px; font-size: 0.85rem; }
+
+.hidden { display: none !important; }
+
+.tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.tab-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.tab-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+.subtitle { color: var(--muted); margin-top: 0; }
+
+/* ---------- Menu ---------- */
+
+.level-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 18px;
+}
+
+.level-card {
+  background: var(--panel);
+  border-radius: var(--radius);
+  overflow: hidden;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.level-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(0,0,0,.08);
+}
+
+.level-card .thumb {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  display: block;
+  background: var(--border);
+}
+
+.level-card .card-body {
+  padding: 12px 14px;
+}
+
+.level-card h3 {
+  margin: 0 0 6px;
+  font-size: 1.05rem;
+}
+
+.level-card .card-meta {
+  font-size: 0.85rem;
+  color: var(--muted);
+  display: flex;
+  justify-content: space-between;
+}
+
+.badge-done {
+  color: var(--accent-dark);
+  font-weight: 600;
+}
+
+/* ---------- Game screen ---------- */
+
+.game-layout {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.image-wrap {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  cursor: crosshair;
+  user-select: none;
+}
+
+.image-wrap img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+#markers-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.sidebar {
+  width: 280px;
+  flex: 0 0 280px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+
+.sidebar h2 {
+  margin-top: 0;
+  font-size: 1.1rem;
+}
+
+.hint-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+#btn-hint {
+  flex: 1;
+  background: var(--hint);
+  border: none;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  color: #4a3b00;
+}
+#btn-hint:disabled {
+  opacity: .4;
+  cursor: not-allowed;
+}
+
+.progress-text {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin: 6px 0 12px;
+}
+
+.object-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.object-list li {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--bg);
+  font-size: 0.95rem;
+}
+
+.object-list li::before {
+  content: "• ";
+  color: var(--muted);
+}
+
+.object-list li.found {
+  text-decoration: line-through;
+  color: var(--muted);
+  background: transparent;
+}
+
+.object-list li.found::before {
+  content: "✓ ";
+  color: var(--found);
+  text-decoration: none;
+}
+
+/* ---------- Markers on the image ---------- */
+
+.found-ring {
+  position: absolute;
+  border: 3px solid var(--found);
+  border-radius: 50%;
+  box-sizing: border-box;
+  box-shadow: 0 0 14px rgba(46,204,113,.7);
+  animation: foundPop .35s ease-out;
+  pointer-events: none;
+}
+
+@keyframes foundPop {
+  from { transform: scale(0.4); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.miss-marker {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(224,65,58,.15);
+  border: 2px solid var(--miss);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  color: var(--miss);
+  animation: missFade .6s ease-out forwards;
+  pointer-events: none;
+}
+
+@keyframes missFade {
+  0%   { transform: translate(-50%, -50%) scale(0.3); opacity: 1; }
+  60%  { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(1.3); opacity: 0; }
+}
+
+.hint-marker {
+  position: absolute;
+  width: 15%;
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  border: 3px solid var(--hint);
+  transform: translate(-50%, -50%);
+  animation: hintPulse 1s ease-out infinite;
+  pointer-events: none;
+}
+
+@keyframes hintPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(241,196,15,.7); }
+  70%  { box-shadow: 0 0 0 22px rgba(241,196,15,0); }
+  100% { box-shadow: 0 0 0 0 rgba(241,196,15,0); }
+}
+
+/* ---------- Win overlay ---------- */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.overlay-card {
+  background: var(--panel);
+  border-radius: var(--radius);
+  padding: 28px 32px;
+  text-align: center;
+  max-width: 340px;
+}
+
+.overlay-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+.overlay-actions button {
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+#btn-replay {
+  background: var(--accent);
+  color: white;
+}
+
+#btn-back-menu {
+  background: var(--border);
+  color: var(--text);
+}
+
+/* ---------- Renovation ---------- */
+
+.reno-layout {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.reno-image-wrap {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.reno-image-wrap img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+#reno-overlay-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.reno-overlay-full {
+  position: absolute;
+  inset: 0;
+}
+
+/* left/top/width/height are set inline per furniture piece; the color itself
+   is a radial gradient fading to transparent, so it blends onto the photo
+   without a hard-edged shape (clip-path + filter:blur fought mix-blend-mode
+   and produced a washed-out blob instead of a soft edge) */
+.reno-overlay-region {
+  position: absolute;
+}
+
+.reno-mood-dark   { background: rgba(8, 14, 30, .45);   mix-blend-mode: multiply; }
+.reno-mood-light  { background: rgba(255, 246, 222, .55); mix-blend-mode: soft-light; }
+
+.reno-color-black { mix-blend-mode: multiply; opacity: .68; }
+.reno-color-white { mix-blend-mode: screen;   opacity: .55; }
+.reno-color-gray  { mix-blend-mode: color;    opacity: .9; }
+
+.reno-slots {
+  width: 300px;
+  flex: 0 0 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.reno-slot {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+
+.reno-slot.locked {
+  opacity: 0.55;
+}
+
+.reno-slot h4 {
+  margin: 0 0 6px;
+  font-size: 1rem;
+}
+
+.reno-slot .reno-hint {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin: 0;
+}
+
+.reno-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.reno-row:first-of-type {
+  margin-top: 10px;
+}
+
+.reno-row .reno-cat-label {
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.reno-pick-btn {
+  background: var(--accent);
+  color: white;
+  border: none;
+  padding: 7px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.reno-choice-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px 5px 12px;
+  border-radius: 20px;
+  background: var(--bg);
+  font-size: 0.85rem;
+}
+
+.reno-choice-chip .swatch-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid rgba(0,0,0,.15);
+  display: inline-block;
+}
+
+.reno-choice-chip button.reno-x {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--miss);
+  font-weight: bold;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 2px 4px;
+}
+
+.reno-modal-card {
+  max-width: 380px;
+}
+
+.reno-modal-card h3 {
+  margin: 0 0 4px;
+}
+
+.reno-modal-card .reno-modal-sub {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin: 0 0 6px;
+}
+
+.swatch-row {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  margin: 18px 0 8px;
+}
+
+.swatch-btn {
+  width: 96px;
+  height: 96px;
+  border-radius: 12px;
+  border: 3px solid transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  box-shadow: 0 3px 10px rgba(0,0,0,.2);
+  transition: transform .15s ease, border-color .15s ease;
+}
+
+.swatch-btn:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent);
+}
+
+.reno-hologram {
+  background-image:
+    linear-gradient(rgba(72,220,255,.25) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(72,220,255,.25) 1px, transparent 1px);
+  background-size: 18px 18px;
+  border: 1px solid rgba(72,220,255,.5);
+  box-shadow: 0 0 18px rgba(72,220,255,.35) inset;
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.reno-modal-close {
+  margin-top: 6px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.85rem;
+  text-decoration: underline;
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 860px) {
+  .game-layout {
+    flex-direction: column;
+  }
+  .sidebar {
+    width: 100%;
+    flex: 1 1 auto;
+  }
+  .object-list {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .object-list li {
+    flex: 0 0 auto;
+  }
+  .reno-layout {
+    flex-direction: column;
+  }
+  .reno-slots {
+    width: 100%;
+    flex: 1 1 auto;
+  }
+}

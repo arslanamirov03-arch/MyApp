@@ -1,0 +1,30 @@
+[
+  {
+    "id": "demo",
+    "title": "Демо: Стол с вещами",
+    "image": "assets/images/demo-scene.svg",
+    "file": "data/levels/demo.json",
+    "objectCount": 8
+  },
+  {
+    "id": "library",
+    "title": "Старая библиотека",
+    "image": "assets/images/library.jpg",
+    "file": "data/levels/library.json",
+    "objectCount": 8
+  },
+  {
+    "id": "beach",
+    "title": "Пляж",
+    "image": "assets/images/beach.jpg",
+    "file": "data/levels/beach.json",
+    "objectCount": 8
+  },
+  {
+    "id": "castle",
+    "title": "Рыцарский зал",
+    "image": "assets/images/castle.jpg",
+    "file": "data/levels/castle.json",
+    "objectCount": 8
+  }
+]
