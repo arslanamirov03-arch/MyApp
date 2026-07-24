@@ -65,7 +65,31 @@
     box-shadow:inset 0 0 140px 40px rgba(150,10,10,.9); mix-blend-mode:screen; }
   .flash-red{ animation:redflash .12s; }
   @keyframes redflash{ from{background:rgba(160,0,0,.5)} to{background:transparent} }
-  #touch{ position:absolute; inset:0; z-index:12; display:none; }
+
+  /* ===== Сенсорное управление (планшет/телефон) ===== */
+  canvas#game{ touch-action:none; }
+  #touch{ position:absolute; inset:0; z-index:16; display:none; pointer-events:none; }
+  #touch.on{ display:block; }
+  /* динамический джойстик — появляется под пальцем */
+  #joy{ position:absolute; width:130px; height:130px; margin:-65px 0 0 -65px; display:none;
+    border:2px solid rgba(210,185,150,.35); border-radius:50%;
+    background:radial-gradient(circle,rgba(40,28,20,.35),rgba(10,7,5,.15)); pointer-events:none; }
+  #joyKnob{ position:absolute; left:50%; top:50%; width:56px; height:56px; margin:-28px 0 0 -28px;
+    border-radius:50%; background:radial-gradient(circle,#f0c078,#b56a24);
+    box-shadow:0 0 18px rgba(230,120,40,.7); }
+  .tbtn{ position:absolute; pointer-events:auto; border-radius:50%; touch-action:none;
+    border:2px solid #6a4a3a; background:rgba(30,18,12,.5); color:#e5c98a;
+    font-size:12px; letter-spacing:.06em; text-transform:uppercase; text-align:center; line-height:1.1;
+    display:flex; align-items:center; justify-content:center; -webkit-user-select:none; user-select:none;
+    box-shadow:inset 0 0 14px rgba(0,0,0,.5), 0 0 10px rgba(0,0,0,.4); }
+  .tbtn:active,.tbtn.active{ background:rgba(130,45,20,.75); border-color:#d0662a; color:#fff;
+    box-shadow:inset 0 0 14px rgba(0,0,0,.4), 0 0 16px rgba(200,60,20,.5); }
+  #runBtn{ right:20px; bottom:150px; width:92px; height:92px; font-size:14px; }
+  #crouchBtn{ right:118px; bottom:66px; width:78px; height:78px; }
+  #mapBtn{ right:24px; bottom:260px; width:60px; height:60px; font-size:11px; }
+  .touchOnly{ display:none; }
+  body.touch .touchOnly{ display:block; }
+  body.touch #crosshair{ display:none; }
 </style>
 </head>
 <body>
@@ -84,6 +108,14 @@
     <div id="vignette"></div>
   </div>
 
+  <!-- Сенсорное управление (появляется в игре на планшете/телефоне) -->
+  <div id="touch">
+    <div id="joy"><div id="joyKnob"></div></div>
+    <div id="runBtn" class="tbtn">БЕГ</div>
+    <div id="crouchBtn" class="tbtn">Красться</div>
+    <div id="mapBtn" class="tbtn">Карта</div>
+  </div>
+
   <!-- Start menu -->
   <div id="menu" class="screen">
     <h1>ЛАБИРИНТ<span class="sub">Т В А Р Ь &nbsp; В О &nbsp; Т Ь М Е</span></h1>
@@ -100,6 +132,7 @@
     </div>
     <button class="btn" id="playBtn">Играть</button>
     <p class="lead" style="margin-top:22px;font-size:12px;color:#5a544a">Нажми «Играть» и разреши захват мыши. Esc — освободить курсор.</p>
+    <p class="lead touchOnly" style="margin-top:6px;font-size:13px;color:#c98a4a">📱 На планшете: <b style="color:#e5a95a">левая половина</b> экрана — движение (джойстик), <b style="color:#e5a95a">правая</b> — обзор пальцем. Кнопки <b style="color:#e5a95a">БЕГ</b> / <b style="color:#e5a95a">Красться</b> / <b style="color:#e5a95a">Карта</b> — справа.</p>
   </div>
 
   <!-- Game over -->
@@ -955,11 +988,88 @@ window.addEventListener('keydown',e=>{
 window.addEventListener('keyup',e=>{ keys[e.code]=false; });
 
 let pointerLocked=false;
-cv.addEventListener('click',()=>{ if(state==='play' && !pointerLocked) cv.requestPointerLock(); });
+cv.addEventListener('click',()=>{ if(state==='play' && !pointerLocked && !isTouch) cv.requestPointerLock(); });
 document.addEventListener('pointerlockchange',()=>{ pointerLocked=(document.pointerLockElement===cv); });
 document.addEventListener('mousemove',e=>{
   if(pointerLocked && state==='play'){ player.a += e.movementX*0.0022; }
 });
+
+/* ------------------------------------------------------------------ */
+/*  СЕНСОРНОЕ УПРАВЛЕНИЕ (планшет/телефон)                             */
+/*  Левая половина экрана — виртуальный джойстик движения (аналоговый).*/
+/*  Правая половина — обзор пальцем (поворот камеры).                  */
+/*  Кнопки БЕГ / Красться / Карта — справа. Мультитач через            */
+/*  идентификаторы касаний, чтобы двигаться и осматриваться сразу.     */
+/* ------------------------------------------------------------------ */
+const isTouch = matchMedia('(pointer:coarse)').matches || ('ontouchstart' in window) || navigator.maxTouchPoints>0;
+const touchState={ moveId:null, sx:0, sy:0, dx:0, dy:0, lookId:null, lookX:0, run:false, crouch:false };
+const joyEl   = document.getElementById('joy');
+const joyKnob = document.getElementById('joyKnob');
+const touchLayer = document.getElementById('touch');
+if(isTouch) document.body.classList.add('touch');
+
+const JOY_R=58;   // радиус джойстика (px) для нормировки
+function onTouchStart(e){
+  if(state!=='play') return;
+  const half=window.innerWidth*0.5;
+  for(const t of e.changedTouches){
+    if(t.clientX<half && touchState.moveId===null){
+      // джойстик движения — появляется под пальцем
+      touchState.moveId=t.identifier; touchState.sx=t.clientX; touchState.sy=t.clientY;
+      touchState.dx=0; touchState.dy=0;
+      joyEl.style.display='block'; joyEl.style.left=t.clientX+'px'; joyEl.style.top=t.clientY+'px';
+      joyKnob.style.left='50%'; joyKnob.style.top='50%';
+    } else if(touchState.lookId===null){
+      // обзор — правая половина (или второй палец)
+      touchState.lookId=t.identifier; touchState.lookX=t.clientX;
+    }
+  }
+  e.preventDefault();
+}
+function onTouchMove(e){
+  for(const t of e.changedTouches){
+    if(t.identifier===touchState.moveId){
+      let dx=t.clientX-touchState.sx, dy=t.clientY-touchState.sy;
+      const d=Math.hypot(dx,dy); if(d>JOY_R){ dx=dx/d*JOY_R; dy=dy/d*JOY_R; }
+      touchState.dx=dx/JOY_R; touchState.dy=dy/JOY_R;         // -1..1 (аналог)
+      joyKnob.style.left=(50+touchState.dx*42)+'%';
+      joyKnob.style.top =(50+touchState.dy*42)+'%';
+    } else if(t.identifier===touchState.lookId){
+      player.a += (t.clientX-touchState.lookX)*0.006;         // поворот камеры
+      touchState.lookX=t.clientX;
+    }
+  }
+  e.preventDefault();
+}
+function onTouchEnd(e){
+  for(const t of e.changedTouches){
+    if(t.identifier===touchState.moveId){
+      touchState.moveId=null; touchState.dx=0; touchState.dy=0; joyEl.style.display='none';
+    } else if(t.identifier===touchState.lookId){
+      touchState.lookId=null;
+    }
+  }
+}
+cv.addEventListener('touchstart', onTouchStart, {passive:false});
+cv.addEventListener('touchmove',  onTouchMove,  {passive:false});
+cv.addEventListener('touchend',   onTouchEnd);
+cv.addEventListener('touchcancel',onTouchEnd);
+
+// кнопки «зажать и держать»
+function bindHold(id, setter){
+  const el=document.getElementById(id);
+  const on =e=>{ setter(true);  el.classList.add('active'); e.preventDefault(); e.stopPropagation(); };
+  const off=e=>{ setter(false); el.classList.remove('active'); e.stopPropagation(); };
+  el.addEventListener('touchstart',on,{passive:false});
+  el.addEventListener('touchend',  off);
+  el.addEventListener('touchcancel',off);
+}
+bindHold('runBtn',    v=>touchState.run=v);
+bindHold('crouchBtn', v=>touchState.crouch=v);
+document.getElementById('mapBtn').addEventListener('touchstart',e=>{
+  mm.style.display = (mm.style.display==='none') ? 'block' : 'none';
+  e.preventDefault(); e.stopPropagation();
+},{passive:false});
 
 /* ------------------------------------------------------------------ */
 /*  ДВИЖЕНИЕ + КОЛЛИЗИИ                                                */
@@ -987,11 +1097,16 @@ function updatePlayer(dt){
   if(keys.KeyD) s+=1;
   if(keys.ArrowLeft) player.a-=1.8*dt;
   if(keys.ArrowRight) player.a+=1.8*dt;
+  // сенсорный джойстик (аналоговый вклад): вверх = вперёд, вбок = стрейф
+  if(touchState.moveId!==null){ f += -touchState.dy; s += touchState.dx; }
+
+  const wantRun    = keys.ShiftLeft||keys.ShiftRight || touchState.run;
+  const wantCrouch = keys.ControlLeft||keys.ControlRight || touchState.crouch;
+  const moving = Math.abs(f)>0.02 || Math.abs(s)>0.02;
 
   running=false; let speed=WALK;
-  const crouch=keys.ControlLeft||keys.ControlRight;
-  if(crouch){ speed=CROUCH; }
-  else if((keys.ShiftLeft||keys.ShiftRight) && player.stamina>0.05 && (f!==0||s!==0)){ speed=RUN; running=true; }
+  if(wantCrouch){ speed=CROUCH; }
+  else if(wantRun && player.stamina>0.05 && moving){ speed=RUN; running=true; }
   curSpeed=speed;
 
   // стамина
@@ -999,9 +1114,10 @@ function updatePlayer(dt){
   else { player.stamina=clamp(player.stamina+dt*0.22,0,1); }
 
   const len=Math.hypot(f,s)||1;
-  const mvx=(Math.cos(player.a)*f + Math.cos(player.a+Math.PI/2)*s)/len*speed*dt;
-  const mvy=(Math.sin(player.a)*f + Math.sin(player.a+Math.PI/2)*s)/len*speed*dt;
-  if(f!==0||s!==0) tryMove(player.x+mvx, player.y+mvy);
+  const mag=Math.min(1,len);                    // аналоговая величина (для джойстика)
+  const mvx=(Math.cos(player.a)*f + Math.cos(player.a+Math.PI/2)*s)/len*speed*mag*dt;
+  const mvy=(Math.sin(player.a)*f + Math.sin(player.a+Math.PI/2)*s)/len*speed*mag*dt;
+  if(moving) tryMove(player.x+mvx, player.y+mvy);
 
   // достигли выхода?
   if(Math.hypot(player.x-exitPos.x,player.y-exitPos.y)<0.7){ winGame(); }
@@ -1102,12 +1218,20 @@ function startPlay(){
   state='play';
   menuEl.classList.add('hidden'); goEl.classList.add('hidden'); winEl.classList.add('hidden');
   hudEl.classList.remove('hidden');
-  cv.requestPointerLock();
+  // сброс сенсорного состояния между заходами
+  touchState.moveId=null; touchState.lookId=null; touchState.dx=0; touchState.dy=0;
+  touchState.run=false; touchState.crouch=false;
+  document.getElementById('runBtn').classList.remove('active');
+  document.getElementById('crouchBtn').classList.remove('active');
+  joyEl.style.display='none';
+  if(isTouch){ touchLayer.classList.add('on'); }   // показать сенсорные органы управления
+  else cv.requestPointerLock();                     // на ПК — захват мыши
 }
 
 function deadGame(){
   state='dead';
   hudEl.classList.add('hidden');
+  touchLayer.classList.remove('on');
   goEl.classList.remove('hidden');
   if(document.pointerLockElement) document.exitPointerLock();
   cv.style.filter='';
@@ -1118,6 +1242,7 @@ function winGame(){
   const secs=((performance.now()-startTime)/1000).toFixed(1);
   document.getElementById('winTime').textContent='Время: '+secs+' c';
   hudEl.classList.add('hidden');
+  touchLayer.classList.remove('on');
   winEl.classList.remove('hidden');
   chime(660); setTimeout(()=>chime(880),160); setTimeout(()=>chime(1100),340);
   if(document.pointerLockElement) document.exitPointerLock();
