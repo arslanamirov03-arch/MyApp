@@ -1,0 +1,1294 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<title>Лабиринт: Тварь во тьме</title>
+<style>
+  :root{ --blood:#7a0d0d; }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{ width:100%; height:100%; background:#000; overflow:hidden;
+    font-family:"Trebuchet MS",Verdana,sans-serif; color:#d8d0c4; -webkit-user-select:none; user-select:none; }
+  #wrap{ position:fixed; inset:0; background:#000; }
+  canvas#game{ position:absolute; inset:0; width:100%; height:100%; display:block; image-rendering:auto; cursor:none; }
+
+  /* ===== Overlays ===== */
+  .screen{ position:absolute; inset:0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; text-align:center; z-index:20;
+    background:radial-gradient(ellipse at center, #140a0a 0%, #050303 70%, #000 100%); }
+  .screen.hidden{ display:none; }
+  h1{ font-size:clamp(30px,7vw,68px); letter-spacing:.06em; color:#c9c2b4;
+    text-shadow:0 0 22px rgba(150,20,20,.65), 0 3px 0 #000; margin-bottom:.2em; }
+  h1 .sub{ display:block; font-size:.4em; letter-spacing:.35em; color:#8a2a2a; margin-top:.5em; }
+  p.lead{ max-width:640px; line-height:1.6; color:#9a9184; margin:0 20px 26px; font-size:clamp(13px,2.4vw,17px); }
+  .keys{ display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin-bottom:28px; }
+  .key{ border:1px solid #4a3f38; background:#1a1512; border-radius:8px; padding:8px 12px;
+    font-size:13px; color:#c3b8a6; box-shadow:inset 0 -2px 0 #000; }
+  .key b{ color:#e5a95a; }
+  button.btn{ font-family:inherit; font-size:clamp(16px,3vw,21px); letter-spacing:.14em;
+    color:#f0e6d6; background:linear-gradient(#3a1010,#1a0707); border:1px solid #7a2020;
+    padding:15px 44px; border-radius:10px; cursor:pointer; text-transform:uppercase;
+    box-shadow:0 0 26px rgba(150,20,20,.35), inset 0 0 18px rgba(0,0,0,.6); transition:transform .1s, box-shadow .2s; }
+  button.btn:hover{ transform:translateY(-2px); box-shadow:0 0 40px rgba(190,30,30,.6), inset 0 0 18px rgba(0,0,0,.6); }
+  button.btn:active{ transform:translateY(0); }
+  #gameover h1{ color:#c11414; text-shadow:0 0 30px #c11414, 0 0 60px #500; animation:shakeText .5s infinite; }
+  @keyframes shakeText{ 0%,100%{transform:translate(0,0)} 25%{transform:translate(-2px,1px)} 75%{transform:translate(2px,-1px)} }
+  #win h1{ color:#e0c060; text-shadow:0 0 26px rgba(224,192,96,.6); }
+  .stat{ font-size:22px; color:#e5a95a; margin-bottom:24px; }
+
+  /* ===== HUD ===== */
+  #hud{ position:absolute; inset:0; z-index:10; pointer-events:none; }
+  #hud.hidden{ display:none; }
+  #minimap{ position:absolute; top:14px; right:14px; border:1px solid #3a2f28;
+    background:rgba(6,4,4,.55); border-radius:6px; box-shadow:0 0 12px rgba(0,0,0,.6); }
+  #danger{ position:absolute; left:50%; bottom:22px; transform:translateX(-50%);
+    width:min(46vw,340px); height:12px; border:1px solid #3a2020; border-radius:7px;
+    background:rgba(20,8,8,.6); overflow:hidden; }
+  #dangerFill{ height:100%; width:0%; background:linear-gradient(90deg,#5a1010,#e02020);
+    transition:width .12s linear; box-shadow:0 0 12px #e02020; }
+  #dangerLabel{ position:absolute; left:50%; bottom:38px; transform:translateX(-50%);
+    font-size:11px; letter-spacing:.3em; color:#8a4a4a; text-transform:uppercase; }
+  #crosshair{ position:absolute; left:50%; top:50%; width:6px; height:6px; margin:-3px 0 0 -3px;
+    border-radius:50%; background:rgba(220,200,170,.35); box-shadow:0 0 4px #000; }
+  #msg{ position:absolute; left:50%; top:64%; transform:translateX(-50%); text-align:center;
+    color:#e5c98a; font-size:clamp(14px,2.4vw,18px); text-shadow:0 0 10px #000, 0 2px 4px #000;
+    opacity:0; transition:opacity .4s; max-width:80vw; }
+  #msg.show{ opacity:1; }
+  #stamina{ position:absolute; left:22px; bottom:22px; width:min(30vw,190px); height:8px;
+    border:1px solid #2a3a2a; border-radius:6px; background:rgba(8,14,8,.6); overflow:hidden; }
+  #staminaFill{ height:100%; width:100%; background:linear-gradient(90deg,#2a5a2a,#6ac06a); }
+  #hint{ position:absolute; left:18px; top:14px; font-size:12px; color:#7a7266; line-height:1.5;
+    text-shadow:0 1px 2px #000; }
+  #hint b{ color:#e5a95a; }
+  /* Red damage vignette that intensifies with danger */
+  #vignette{ position:absolute; inset:0; z-index:15; pointer-events:none; opacity:0;
+    box-shadow:inset 0 0 140px 40px rgba(150,10,10,.9); mix-blend-mode:screen; }
+  .flash-red{ animation:redflash .12s; }
+  @keyframes redflash{ from{background:rgba(160,0,0,.5)} to{background:transparent} }
+
+  /* ===== Сенсорное управление (планшет/телефон) ===== */
+  canvas#game{ touch-action:none; }
+  #touch{ position:absolute; inset:0; z-index:16; display:none; pointer-events:none; }
+  #touch.on{ display:block; }
+  /* динамический джойстик — появляется под пальцем */
+  #joy{ position:absolute; width:130px; height:130px; margin:-65px 0 0 -65px; display:none;
+    border:2px solid rgba(210,185,150,.35); border-radius:50%;
+    background:radial-gradient(circle,rgba(40,28,20,.35),rgba(10,7,5,.15)); pointer-events:none; }
+  #joyKnob{ position:absolute; left:50%; top:50%; width:56px; height:56px; margin:-28px 0 0 -28px;
+    border-radius:50%; background:radial-gradient(circle,#f0c078,#b56a24);
+    box-shadow:0 0 18px rgba(230,120,40,.7); }
+  .tbtn{ position:absolute; pointer-events:auto; border-radius:50%; touch-action:none;
+    border:2px solid #6a4a3a; background:rgba(30,18,12,.5); color:#e5c98a;
+    font-size:12px; letter-spacing:.06em; text-transform:uppercase; text-align:center; line-height:1.1;
+    display:flex; align-items:center; justify-content:center; -webkit-user-select:none; user-select:none;
+    box-shadow:inset 0 0 14px rgba(0,0,0,.5), 0 0 10px rgba(0,0,0,.4); }
+  .tbtn:active,.tbtn.active{ background:rgba(130,45,20,.75); border-color:#d0662a; color:#fff;
+    box-shadow:inset 0 0 14px rgba(0,0,0,.4), 0 0 16px rgba(200,60,20,.5); }
+  #runBtn{ right:20px; bottom:150px; width:92px; height:92px; font-size:14px; }
+  #crouchBtn{ right:118px; bottom:66px; width:78px; height:78px; }
+  #mapBtn{ right:24px; bottom:260px; width:60px; height:60px; font-size:11px; }
+  .touchOnly{ display:none; }
+  body.touch .touchOnly{ display:block; }
+  body.touch #crosshair{ display:none; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="game"></canvas>
+
+  <!-- HUD -->
+  <div id="hud" class="hidden">
+    <div id="hint">Найди <b>выход</b>. Следуй за рунами. Беги от твари.</div>
+    <canvas id="minimap" width="150" height="150"></canvas>
+    <div id="crosshair"></div>
+    <div id="msg"></div>
+    <div id="dangerLabel">опасность</div>
+    <div id="danger"><div id="dangerFill"></div></div>
+    <div id="stamina"><div id="staminaFill"></div></div>
+    <div id="vignette"></div>
+  </div>
+
+  <!-- Сенсорное управление (появляется в игре на планшете/телефоне) -->
+  <div id="touch">
+    <div id="joy"><div id="joyKnob"></div></div>
+    <div id="runBtn" class="tbtn">БЕГ</div>
+    <div id="crouchBtn" class="tbtn">Красться</div>
+    <div id="mapBtn" class="tbtn">Карта</div>
+  </div>
+
+  <!-- Start menu -->
+  <div id="menu" class="screen">
+    <h1>ЛАБИРИНТ<span class="sub">Т В А Р Ь &nbsp; В О &nbsp; Т Ь М Е</span></h1>
+    <p class="lead">Ты заперт в древнем каменном лабиринте. В темноте между факелами
+      бродит <b style="color:#c05a5a">Тварь</b> — многоглазое чудовище, что слышит твой бег
+      и чует твой страх. Найди единственный выход. Руны на стенах разгораются ярче,
+      когда путь верен. Если услышишь нарастающий стук — беги. Или замри.</p>
+    <div class="keys">
+      <span class="key"><b>WASD</b> / стрелки — движение</span>
+      <span class="key"><b>Мышь</b> — обзор</span>
+      <span class="key"><b>Shift</b> — бег (шумно!)</span>
+      <span class="key"><b>Ctrl</b> — красться</span>
+      <span class="key"><b>M</b> — карта</span>
+    </div>
+    <button class="btn" id="playBtn">Играть</button>
+    <p class="lead" style="margin-top:22px;font-size:12px;color:#5a544a">Нажми «Играть» и разреши захват мыши. Esc — освободить курсор.</p>
+    <p class="lead touchOnly" style="margin-top:6px;font-size:13px;color:#c98a4a">📱 На планшете: <b style="color:#e5a95a">левая половина</b> экрана — движение (джойстик), <b style="color:#e5a95a">правая</b> — обзор пальцем. Кнопки <b style="color:#e5a95a">БЕГ</b> / <b style="color:#e5a95a">Красться</b> / <b style="color:#e5a95a">Карта</b> — справа.</p>
+  </div>
+
+  <!-- Game over -->
+  <div id="gameover" class="screen hidden">
+    <h1>ТЫ ПОЙМАН</h1>
+    <p class="lead" id="goText">Тьма поглотила тебя. Тварь утащила твою душу в стены лабиринта.</p>
+    <button class="btn" id="retryBtn">Начать заново</button>
+  </div>
+
+  <!-- Win -->
+  <div id="win" class="screen hidden">
+    <h1>ТЫ ВЫРВАЛСЯ</h1>
+    <div class="stat" id="winTime">Время: 0.0 c</div>
+    <p class="lead">Ты нашёл выход и оставил тварь во тьме. Но лабиринт бесконечен...</p>
+    <button class="btn" id="againBtn">Ещё раз</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* =========================================================================
+   ЛАБИРИНТ: ТВАРЬ ВО ТЬМЕ
+   Полностью самодостаточная хоррор-игра от первого лица.
+   Движок: Canvas 2D raycasting (псевдо-3D в стиле DOOM), без внешних библиотек.
+   Все текстуры процедурные (offscreen canvas), весь звук — через Web Audio API.
+   ========================================================================= */
+
+/* ------------------------------------------------------------------ */
+/*  DOM                                                                */
+/* ------------------------------------------------------------------ */
+const cv   = document.getElementById('game');
+const ctx  = cv.getContext('2d', { alpha:false });
+const mm   = document.getElementById('minimap');
+const mmx  = mm.getContext('2d');
+const menuEl = document.getElementById('menu');
+const goEl   = document.getElementById('gameover');
+const winEl  = document.getElementById('win');
+const hudEl  = document.getElementById('hud');
+const dangerFill = document.getElementById('dangerFill');
+const staminaFill= document.getElementById('staminaFill');
+const vign   = document.getElementById('vignette');
+const msgEl  = document.getElementById('msg');
+
+/* ------------------------------------------------------------------ */
+/*  Утилиты                                                            */
+/* ------------------------------------------------------------------ */
+const TAU = Math.PI*2;
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+const lerp =(a,b,t)=>a+(b-a)*t;
+const rand =(a,b)=>a+Math.random()*(b-a);
+const randi=(a,b)=>Math.floor(rand(a,b));
+function angDiff(a,b){ let d=(a-b)%TAU; if(d>Math.PI)d-=TAU; if(d<-Math.PI)d+=TAU; return d; }
+
+/* ------------------------------------------------------------------ */
+/*  ГЕНЕРАЦИЯ ЛАБИРИНТА  (recursive backtracking)                      */
+/*  Клеточная сетка N×N -> стенная сетка (2N+1)×(2N+1).                */
+/*  1 = стена, 0 = проход. Гарантированно связный «идеальный» лабиринт */
+/* ------------------------------------------------------------------ */
+const CELLS = 27;                 // логических клеток по стороне (>=25)
+const MW = CELLS*2+1;             // ширина стенной карты
+const MH = CELLS*2+1;
+let map;                          // Uint8: 1 стена / 0 пол
+let exitCell;                     // {cx,cy} клетка выхода
+let exitPos;                      // мировые координаты выхода (центр клетки)
+
+function generateMaze(){
+  // всё — стены
+  map = new Uint8Array(MW*MH).fill(1);
+  const idx=(x,y)=>y*MW+x;
+  const visited = new Uint8Array(CELLS*CELLS);
+  const cidx=(cx,cy)=>cy*CELLS+cx;
+
+  // старт из клетки (0,0)
+  const stack=[[0,0]];
+  visited[cidx(0,0)]=1;
+  map[idx(1,1)]=0;
+  const dirs=[[0,-1],[1,0],[0,1],[-1,0]];
+
+  while(stack.length){
+    const [cx,cy]=stack[stack.length-1];
+    // случайно перемешиваем соседей
+    const order=[0,1,2,3];
+    for(let i=order.length-1;i>0;i--){ const j=randi(0,i+1); [order[i],order[j]]=[order[j],order[i]]; }
+    let moved=false;
+    for(const d of order){
+      const nx=cx+dirs[d][0], ny=cy+dirs[d][1];
+      if(nx<0||ny<0||nx>=CELLS||ny>=CELLS||visited[cidx(nx,ny)]) continue;
+      visited[cidx(nx,ny)]=1;
+      // прорубаем стену между клетками и саму клетку
+      map[idx(cx*2+1+dirs[d][0], cy*2+1+dirs[d][1])]=0;
+      map[idx(nx*2+1, ny*2+1)]=0;
+      stack.push([nx,ny]);
+      moved=true;
+      break;
+    }
+    if(!moved) stack.pop();
+  }
+
+  // Немного «сломать» идеальность: убрать несколько случайных стен -> петли,
+  // так у монстра появляются короткие пути, а игроку есть куда петлять.
+  let extra = Math.floor(CELLS*CELLS*0.06);
+  while(extra-- >0){
+    const x=randi(1,MW-1), y=randi(1,MH-1);
+    if(map[idx(x,y)]===1 && ((x%2===0)!==(y%2===0))) map[idx(x,y)]=0;
+  }
+
+  // Выход — дальний угол
+  exitCell={cx:CELLS-1, cy:CELLS-1};
+  exitPos ={x:exitCell.cx*2+1+0.5, y:exitCell.cy*2+1+0.5};
+}
+const isWall=(x,y)=> x<0||y<0||x>=MW||y>=MH ? true : map[y*MW+x]===1;
+
+/* ------------------------------------------------------------------ */
+/*  BFS-РАССТОЯНИЯ от выхода (по проходимым клеткам стенной карты).    */
+/*  Нужно для: (а) свечения рун к правильному пути; (б) можно и для    */
+/*  проверки. distField[y*MW+x] = число шагов до выхода (или -1).      */
+/* ------------------------------------------------------------------ */
+let distField;
+function computeDistField(){
+  distField=new Int32Array(MW*MH).fill(-1);
+  const q=[]; let head=0;
+  const sx=exitPos.x|0, sy=exitPos.y|0;
+  distField[sy*MW+sx]=0; q.push(sx,sy);
+  const N=[[0,-1],[1,0],[0,1],[-1,0]];
+  while(head<q.length){
+    const x=q[head++], y=q[head++]; const d=distField[y*MW+x];
+    for(const[dx,dy]of N){
+      const nx=x+dx, ny=y+dy;
+      if(nx<0||ny<0||nx>=MW||ny>=MH) continue;
+      if(map[ny*MW+nx]===1 || distField[ny*MW+nx]!==-1) continue;
+      distField[ny*MW+nx]=d+1; q.push(nx,ny);
+    }
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  BFS-ПОИСК ПУТИ для монстра: возвращает следующий шаг к цели.       */
+/*  Работает по проходимым ячейкам стенной карты. Кэшируется, чтобы    */
+/*  не считать каждый кадр.                                            */
+/* ------------------------------------------------------------------ */
+function bfsNext(sx,sy,tx,ty){
+  if(sx===tx&&sy===ty) return null;
+  const prev=new Int32Array(MW*MH).fill(-2);
+  const q=[]; let head=0;
+  prev[sy*MW+sx]=-1; q.push(sx,sy);
+  const N=[[0,-1],[1,0],[0,1],[-1,0]];
+  let found=false;
+  while(head<q.length){
+    const x=q[head++], y=q[head++];
+    if(x===tx&&y===ty){ found=true; break; }
+    for(const[dx,dy]of N){
+      const nx=x+dx, ny=y+dy;
+      if(nx<0||ny<0||nx>=MW||ny>=MH) continue;
+      if(map[ny*MW+nx]===1 || prev[ny*MW+nx]!==-2) continue;
+      prev[ny*MW+nx]=y*MW+x; q.push(nx,ny);
+    }
+  }
+  if(!found) return null;
+  // восстановим путь до первого шага
+  let cur=ty*MW+tx, first=cur;
+  while(prev[cur]!==-1 && prev[cur]>=0){ first=cur; cur=prev[cur]; }
+  return { x:first%MW, y:(first/MW)|0 };
+}
+
+/* ------------------------------------------------------------------ */
+/*  ПОДСКАЗКИ / РУНЫ                                                   */
+/*  4–6 светящихся рун на стенах. Свечение тем ярче, чем ближе руна    */
+/*  к «правильному» пути (меньше BFS-дистанция до выхода относительно  */
+/*  места игрока). Даёт игроку читаемое направление.                  */
+/* ------------------------------------------------------------------ */
+let hints=[];   // {x,y,side} — мировая позиция на полу у стены
+function placeHints(){
+  hints=[];
+  const count=randi(4,7);
+  const tries=count*60; let placed=0, t=0;
+  const seen=new Set();
+  while(placed<count && t++<tries){
+    const cx=randi(1,CELLS-1), cy=randi(1,CELLS-1);
+    const x=cx*2+1, y=cy*2+1;
+    const key=x+','+y;
+    if(map[y*MW+x]===1||seen.has(key)) continue;
+    const d=distField[y*MW+x];
+    if(d<8) continue;             // не ставим у самого выхода
+    seen.add(key);
+    hints.push({ x:x+0.5, y:y+0.5, phase:rand(0,TAU) });
+    placed++;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  ПРОЦЕДУРНЫЕ ТЕКСТУРЫ (offscreen canvas)                            */
+/* ------------------------------------------------------------------ */
+const TX=64;
+function makeCanvas(w,h){ const c=document.createElement('canvas'); c.width=w; c.height=h; return c; }
+
+// Каменная стена: грубый серый камень + трещины + мох
+function makeWallTexture(){
+  const c=makeCanvas(TX,TX), g=c.getContext('2d');
+  const img=g.createImageData(TX,TX), d=img.data;
+  for(let y=0;y<TX;y++)for(let x=0;x<TX;x++){
+    const i=(y*TX+x)*4;
+    // базовый шум камня
+    let n=110 + (Math.sin(x*0.7)*Math.cos(y*0.9))*10 + (Math.random()*30-15);
+    // «кирпичные» швы
+    const row=Math.floor(y/16);
+    const off=(row%2)?8:0;
+    const bx=(x+off)%32, by=y%16;
+    if(by<2||bx<2) n*=0.45;                 // тёмные швы
+    n=clamp(n,25,175);
+    let r=n*0.95, gg=n*0.93, b=n*0.9;
+    d[i]=r; d[i+1]=gg; d[i+2]=b; d[i+3]=255;
+  }
+  g.putImageData(img,0,0);
+  // трещины
+  g.strokeStyle='rgba(20,18,16,.55)'; g.lineWidth=1;
+  for(let k=0;k<5;k++){
+    g.beginPath(); let px=randi(0,TX), py=randi(0,TX); g.moveTo(px,py);
+    for(let s=0;s<6;s++){ px+=randi(-8,9); py+=randi(-8,9); g.lineTo(px,py); }
+    g.stroke();
+  }
+  // мох
+  for(let k=0;k<40;k++){
+    const mx=randi(0,TX), my=randi(0,TX);
+    g.fillStyle=`rgba(${randi(40,70)},${randi(70,110)},${randi(30,55)},${rand(.15,.4)})`;
+    g.fillRect(mx,my,randi(1,4),randi(1,4));
+  }
+  return c;
+}
+
+// Стена выхода — тёплое золотистое свечение вокруг арки
+function makeExitTexture(){
+  const c=makeCanvas(TX,TX), g=c.getContext('2d');
+  g.fillStyle='#0a0d0a'; g.fillRect(0,0,TX,TX);
+  const grd=g.createRadialGradient(TX/2,TX/2,4,TX/2,TX/2,TX/2);
+  grd.addColorStop(0,'#ffe9a8'); grd.addColorStop(.35,'#c98a2a');
+  grd.addColorStop(.7,'#4a2e10'); grd.addColorStop(1,'#0a0d0a');
+  g.fillStyle=grd; g.beginPath(); g.arc(TX/2,TX/2,TX/2-4,0,TAU); g.fill();
+  g.fillStyle='#120a06';
+  g.fillRect(TX/2-9, 14, 18, TX-18);         // тёмный дверной проём
+  g.beginPath(); g.arc(TX/2,14,9,Math.PI,0); g.fill();
+  return c;
+}
+
+const wallTex=[]; let exitTex;
+function buildTextures(){
+  wallTex.length=0;
+  for(let i=0;i<3;i++) wallTex.push(makeWallTexture()); // немного вариаций
+  exitTex=makeExitTexture();
+  // предварительно вытащим пиксели для быстрого чтения при рендере
+  for(const t of wallTex){ t.pix=t.getContext('2d').getImageData(0,0,TX,TX).data; }
+  exitTex.pix=exitTex.getContext('2d').getImageData(0,0,TX,TX).data;
+}
+
+/* ------------------------------------------------------------------ */
+/*  СПРАЙТ МОНСТРА  (по присланному фото)                              */
+/*  Многоглазая паукообразная тварь: череп-голова с 5 красными         */
+/*  глазами, огромная зубастая пасть, рваная роба, длинные тонкие      */
+/*  суставчатые ноги с когтями. Рисуем в offscreen; ноги анимируем     */
+/*  покадрово в реальном времени поверх статичного тела.               */
+/* ------------------------------------------------------------------ */
+const MSPR=256;
+let monsterBody;          // статичное тело (без ног) — кэш
+function buildMonsterBody(){
+  const c=makeCanvas(MSPR,MSPR), g=c.getContext('2d');
+  g.clearRect(0,0,MSPR,MSPR);
+  const cxp=MSPR/2;
+
+  // --- рваная тёмная роба / торс ---
+  g.fillStyle='#171310';
+  g.beginPath();
+  g.moveTo(cxp-46,150);
+  g.quadraticCurveTo(cxp-70,205, cxp-40,232);
+  g.lineTo(cxp-24,214); g.lineTo(cxp-10,236); g.lineTo(cxp+4,212);
+  g.lineTo(cxp+20,238); g.lineTo(cxp+34,214); g.lineTo(cxp+48,234);
+  g.quadraticCurveTo(cxp+70,200, cxp+46,150);
+  g.closePath(); g.fill();
+  // лохмотья / текстура робы
+  g.strokeStyle='rgba(60,52,44,.5)'; g.lineWidth=1.5;
+  for(let i=0;i<9;i++){ g.beginPath(); const x=cxp-40+i*10; g.moveTo(x,150); g.lineTo(x+rand(-6,6),225); g.stroke(); }
+
+  // --- шея-хребет ---
+  g.fillStyle='#2a221c';
+  g.beginPath(); g.moveTo(cxp-20,150); g.lineTo(cxp+20,150); g.lineTo(cxp+14,96); g.lineTo(cxp-14,96); g.closePath(); g.fill();
+
+  // --- ГОЛОВА-ЧЕРЕП (деформированная, бугристая) ---
+  const hy=70;
+  const headGrad=g.createRadialGradient(cxp-8,hy-8,4,cxp,hy,60);
+  headGrad.addColorStop(0,'#6b625a'); headGrad.addColorStop(.5,'#3c342d'); headGrad.addColorStop(1,'#191411');
+  g.fillStyle=headGrad;
+  g.beginPath();
+  g.moveTo(cxp-40,hy+6);
+  g.bezierCurveTo(cxp-52,hy-34, cxp-20,hy-52, cxp,hy-50);
+  g.bezierCurveTo(cxp+22,hy-52, cxp+52,hy-32, cxp+40,hy+8);
+  g.bezierCurveTo(cxp+34,hy+34, cxp+16,hy+42, cxp,hy+40);
+  g.bezierCurveTo(cxp-18,hy+42, cxp-34,hy+32, cxp-40,hy+6);
+  g.closePath(); g.fill();
+  // бугры/наросты на черепе
+  g.fillStyle='rgba(20,16,13,.5)';
+  for(let i=0;i<14;i++){ g.beginPath(); g.arc(cxp+rand(-34,34),hy+rand(-40,20),rand(2,6),0,TAU); g.fill(); }
+  g.fillStyle='rgba(120,110,98,.25)';
+  for(let i=0;i<10;i++){ g.beginPath(); g.arc(cxp+rand(-30,30),hy+rand(-38,0),rand(2,5),0,TAU); g.fill(); }
+
+  // --- ПАСТЬ: огромная, зубастая ---
+  const my=hy+34;
+  g.fillStyle='#0a0503';
+  g.beginPath(); g.ellipse(cxp,my+8,30,26,0,0,TAU); g.fill();
+  // верхние клыки
+  g.fillStyle='#d9cbae';
+  for(let i=0;i<9;i++){ const tx=cxp-26+i*6.5; g.beginPath(); g.moveTo(tx,my-8); g.lineTo(tx+3.2,my-8); g.lineTo(tx+1.6,my+rand(8,18)); g.closePath(); g.fill(); }
+  // нижние клыки
+  for(let i=0;i<8;i++){ const tx=cxp-22+i*6.3; g.beginPath(); g.moveTo(tx,my+30); g.lineTo(tx+3,my+30); g.lineTo(tx+1.5,my+30-rand(8,16)); g.closePath(); g.fill(); }
+  // слюна/кровь
+  g.strokeStyle='rgba(120,10,10,.6)'; g.lineWidth=2;
+  g.beginPath(); g.moveTo(cxp-4,my+22); g.lineTo(cxp-6,my+40); g.stroke();
+
+  // сохраняем позиции глаз, чтобы пульсировать их в рантайме
+  c.eyes=[
+    {x:cxp-20,y:hy-14,r:6}, {x:cxp+18,y:hy-16,r:6},
+    {x:cxp-30,y:hy+4,r:5},  {x:cxp+30,y:hy+2,r:5},
+    {x:cxp,   y:hy-4, r:7}
+  ];
+  monsterBody=c;
+}
+
+// Рисуем монстра целиком в переданный контекст (dst) с масштабом s,
+// с анимацией ног (walk) и пульсацией глаз (t — время).
+function drawMonster(dst, dx, dy, s, t, walk){
+  // ноги (рисуем первыми, за телом)
+  const cxp=dx, baseY=dy+ s*0.62;
+  dst.lineCap='round';
+  const legDefs=[  // угол наклона, длина, фаза
+    [-1.35,1.0,0],[-1.05,1.15,1.6],[-0.78,1.05,3.1],
+    [ 1.35,1.0,0.8],[ 1.05,1.15,2.3],[ 0.78,1.05,4.0]
+  ];
+  for(const[ang,len,ph]of legDefs){
+    const swing=Math.sin(t*8+ph)*0.18*walk;
+    const a=ang+swing;
+    const L=s*0.7*len;
+    const hipX=cxp+Math.sign(ang)*s*0.16, hipY=baseY-s*0.15;
+    const kneeX=hipX+Math.cos(a)*L*0.55, kneeY=hipY+Math.abs(Math.sin(a))*L*0.4 - s*0.1;
+    const footX=hipX+Math.cos(a)*L, footY=baseY+ s*0.34 + Math.sin(t*8+ph)*s*0.03*walk;
+    dst.strokeStyle='#0f0b09';
+    dst.lineWidth=Math.max(2,s*0.05);
+    dst.beginPath(); dst.moveTo(hipX,hipY); dst.lineTo(kneeX,kneeY); dst.lineTo(footX,footY); dst.stroke();
+    // коготь
+    dst.lineWidth=Math.max(1,s*0.02);
+    dst.beginPath(); dst.moveTo(footX,footY);
+    dst.lineTo(footX+Math.sign(ang)*s*0.05, footY+s*0.06); dst.stroke();
+  }
+  // тело (кэш)
+  const bw=s, bh=s;
+  dst.drawImage(monsterBody, dx-bw/2, dy-bh*0.62, bw, bh);
+  // светящиеся красные глаза (пульсация)
+  const eyes=monsterBody.eyes, k=bw/MSPR;
+  for(const e of eyes){
+    const ex=dx-bw/2 + e.x*k, ey=dy-bh*0.62 + e.y*k;
+    const pr=e.r*k*(1+0.25*Math.sin(t*6+e.x));
+    const gr=dst.createRadialGradient(ex,ey,0,ex,ey,pr*3);
+    gr.addColorStop(0,'rgba(255,120,90,1)');
+    gr.addColorStop(.4,'rgba(220,20,20,.9)');
+    gr.addColorStop(1,'rgba(120,0,0,0)');
+    dst.fillStyle=gr;
+    dst.beginPath(); dst.arc(ex,ey,pr*3,0,TAU); dst.fill();
+    dst.fillStyle='#fff2e0';
+    dst.beginPath(); dst.arc(ex,ey,pr*0.5,0,TAU); dst.fill();
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  ЗВУК  (Web Audio API — всё генерируется программно)                */
+/* ------------------------------------------------------------------ */
+let AC=null, masterGain=null, ambGain=null;
+let heartTimer=0;          // аккумулятор до следующего удара «бум»
+function initAudio(){
+  if(AC) return;
+  AC=new (window.AudioContext||window.webkitAudioContext)();
+  masterGain=AC.createGain(); masterGain.gain.value=0.9; masterGain.connect(AC.destination);
+  // фоновый низкий гул подземелья
+  ambGain=AC.createGain(); ambGain.gain.value=0.06; ambGain.connect(masterGain);
+  const drone=AC.createOscillator(); drone.type='sawtooth'; drone.frequency.value=42;
+  const df=AC.createBiquadFilter(); df.type='lowpass'; df.frequency.value=120;
+  drone.connect(df); df.connect(ambGain); drone.start();
+  const lfo=AC.createOscillator(); lfo.frequency.value=0.08;
+  const lfog=AC.createGain(); lfog.gain.value=0.03; lfo.connect(lfog); lfog.connect(ambGain.gain); lfo.start();
+}
+// одиночный «бум» — глухой удар сердца/шага, громкость v (0..1)
+function boom(v){
+  if(!AC) return;
+  const t=AC.currentTime;
+  const o=AC.createOscillator(); o.type='sine';
+  o.frequency.setValueAtTime(90,t); o.frequency.exponentialRampToValueAtTime(38,t+0.18);
+  const g=AC.createGain();
+  g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(clamp(v,0.02,1),t+0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+0.34);
+  o.connect(g); g.connect(masterGain); o.start(t); o.stop(t+0.4);
+  // добавим глухой «тук» верхом
+  const o2=AC.createOscillator(); o2.type='triangle'; o2.frequency.value=140;
+  const g2=AC.createGain(); g2.gain.setValueAtTime(v*0.25,t); g2.gain.exponentialRampToValueAtTime(0.0001,t+0.08);
+  o2.connect(g2); g2.connect(masterGain); o2.start(t); o2.stop(t+0.1);
+}
+// рёв/скрежет при поимке
+function roar(){
+  if(!AC) return;
+  const t=AC.currentTime;
+  // шумовой всплеск
+  const dur=1.4, N=AC.sampleRate*dur;
+  const buf=AC.createBuffer(1,N,AC.sampleRate); const dt=buf.getChannelData(0);
+  for(let i=0;i<N;i++){ const env=Math.pow(1-i/N,1.5); dt[i]=(Math.random()*2-1)*env; }
+  const src=AC.createBufferSource(); src.buffer=buf;
+  const bf=AC.createBiquadFilter(); bf.type='bandpass'; bf.frequency.value=600; bf.Q.value=0.7;
+  const ng=AC.createGain(); ng.gain.value=0.8;
+  src.connect(bf); bf.connect(ng); ng.connect(masterGain); src.start(t);
+  // низкий рёв — пила вниз
+  const o=AC.createOscillator(); o.type='sawtooth';
+  o.frequency.setValueAtTime(220,t); o.frequency.exponentialRampToValueAtTime(48,t+1.2);
+  const g=AC.createGain(); g.gain.setValueAtTime(0.5,t); g.gain.exponentialRampToValueAtTime(0.001,t+1.3);
+  const of=AC.createBiquadFilter(); of.type='lowpass'; of.frequency.value=900;
+  o.connect(of); of.connect(g); g.connect(masterGain); o.start(t); o.stop(t+1.4);
+}
+// короткий «звон» подсказки/победы
+function chime(freq){
+  if(!AC) return; const t=AC.currentTime;
+  const o=AC.createOscillator(); o.type='sine'; o.frequency.value=freq;
+  const g=AC.createGain(); g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(0.25,t+0.02); g.gain.exponentialRampToValueAtTime(0.0001,t+0.9);
+  o.connect(g); g.connect(masterGain); o.start(t); o.stop(t+1);
+}
+
+/* ------------------------------------------------------------------ */
+/*  ИГРОК                                                              */
+/* ------------------------------------------------------------------ */
+const player={ x:1.5, y:1.5, a:0, // позиция (клетки), угол взгляда
+  radius:0.22, stamina:1, catching:false };
+const WALK=1.9, RUN=3.5, CROUCH=1.05;   // скорости (клетки/сек)
+const MON_SPEED=2.9;                    // база скорости монстра (между ходьбой и бегом игрока)
+
+/* ------------------------------------------------------------------ */
+/*  МОНСТР + AI                                                        */
+/*  Состояния: PATROL (бродит), CHASE (гонится), SEARCH (ищет)        */
+/* ------------------------------------------------------------------ */
+const monster={ x:0, y:0, a:0, state:'PATROL',
+  target:null, path:null, repathT:0, lostT:0, walkAnim:0, speed:MON_SPEED };
+
+function resetMonster(){
+  // ставим монстра далеко от игрока
+  let best=null,bd=-1;
+  for(let k=0;k<40;k++){
+    const cx=randi(1,CELLS-1), cy=randi(1,CELLS-1);
+    const x=cx*2+1, y=cy*2+1; if(map[y*MW+x]===1) continue;
+    const d=Math.hypot(x-player.x,y-player.y);
+    if(d>bd){ bd=d; best={x:x+0.5,y:y+0.5}; }
+  }
+  monster.x=best.x; monster.y=best.y; monster.state='PATROL';
+  monster.target=null; monster.path=null; monster.repathT=0; monster.lostT=0; monster.speed=MON_SPEED;
+}
+
+// есть ли прямая видимость между монстром и игроком (без стен на луче)
+function hasLineOfSight(){
+  const dx=player.x-monster.x, dy=player.y-monster.y;
+  const dist=Math.hypot(dx,dy);
+  const steps=Math.ceil(dist/0.1);
+  for(let i=1;i<steps;i++){
+    const t=i/steps; const x=monster.x+dx*t, y=monster.y+dy*t;
+    if(isWall(x|0,y|0)) return false;
+  }
+  return true;
+}
+
+// выбрать случайную проходимую клетку для патруля
+function pickPatrolTarget(){
+  for(let k=0;k<50;k++){
+    const cx=randi(0,CELLS), cy=randi(0,CELLS);
+    const x=cx*2+1, y=cy*2+1;
+    if(map[y*MW+x]===0){ return {x, y}; }
+  }
+  return {x:1,y:1};
+}
+
+function updateMonster(dt, playerSpeed, isRunning){
+  const dx=player.x-monster.x, dy=player.y-monster.y;
+  const dist=Math.hypot(dx,dy);
+
+  // ---- обнаружение игрока ----
+  const los=hasLineOfSight();
+  const angToPlayer=Math.atan2(dy,dx);
+  const inFov=Math.abs(angDiff(angToPlayer,monster.a))<1.0;   // конус ~115°
+  const seesPlayer = los && (inFov && dist<12);
+  const hearsPlayer= dist< (isRunning?7.5: (playerSpeed<=CROUCH+0.01?1.6:3.4));
+
+  if(seesPlayer || hearsPlayer){
+    monster.state='CHASE'; monster.lostT=0;
+    monster.speed = isRunning ? RUN+0.15 : MON_SPEED;  // чуть быстрее бегущего, иначе средне
+  }
+
+  if(monster.state==='CHASE'){
+    if(!los){ monster.lostT+=dt; if(monster.lostT>3.5){ monster.state='SEARCH'; monster.target={x:player.x|0,y:player.y|0}; monster.path=null; } }
+    else monster.lostT=0;
+    // цель — клетка игрока
+    monster.repathT-=dt;
+    if(monster.repathT<=0){ monster.repathT=0.3;
+      const nx=bfsNext(monster.x|0,monster.y|0, player.x|0, player.y|0);
+      monster.path=nx;
+    }
+    stepTowardCell(monster, monster.path, dt);
+  }
+  else if(monster.state==='SEARCH'){
+    // идём к последней позиции игрока; если дошли — обратно в патруль
+    if(!monster.target) monster.state='PATROL';
+    else {
+      monster.repathT-=dt;
+      if(monster.repathT<=0){ monster.repathT=0.3; monster.path=bfsNext(monster.x|0,monster.y|0,monster.target.x,monster.target.y); }
+      stepTowardCell(monster, monster.path, dt);
+      const td=Math.hypot((monster.target.x+0.5)-monster.x,(monster.target.y+0.5)-monster.y);
+      if(td<0.4){ monster.state='PATROL'; monster.target=null; monster.path=null; }
+      if(seesPlayer||hearsPlayer){ monster.state='CHASE'; }
+    }
+    monster.speed=MON_SPEED*0.85;
+  }
+  else { // PATROL
+    monster.speed=MON_SPEED*0.7;
+    if(!monster.target || (Math.hypot((monster.target.x+0.5)-monster.x,(monster.target.y+0.5)-monster.y)<0.4)){
+      monster.target=pickPatrolTarget(); monster.path=null; monster.repathT=0;
+    }
+    monster.repathT-=dt;
+    if(monster.repathT<=0){ monster.repathT=0.5; monster.path=bfsNext(monster.x|0,monster.y|0,monster.target.x,monster.target.y); }
+    stepTowardCell(monster, monster.path, dt);
+  }
+
+  // анимация ходьбы (для покачивания ног)
+  monster.walkAnim += dt* (monster.state==='CHASE'?9:5);
+}
+
+// двигаем монстра к центру целевой клетки cell={x,y}
+function stepTowardCell(m, cell, dt){
+  if(!cell) return;
+  const tx=cell.x+0.5, ty=cell.y+0.5;
+  const dx=tx-m.x, dy=ty-m.y, d=Math.hypot(dx,dy);
+  if(d<0.001) return;
+  m.a=Math.atan2(dy,dx);
+  const step=m.speed*dt;
+  m.x+=dx/d*Math.min(step,d);
+  m.y+=dy/d*Math.min(step,d);
+}
+
+/* ------------------------------------------------------------------ */
+/*  ФАКЕЛЫ                                                             */
+/*  Размещаем вдоль коридоров с равным шагом; каждый мерцает.          */
+/*  Освещённость факела влияет на затенение стен/спрайтов рядом.       */
+/* ------------------------------------------------------------------ */
+let torches=[];
+function placeTorches(){
+  torches=[];
+  // Редко и с равными промежутками (каждые ~4 клетки) — чтобы между факелами
+  // оставались коридоры почти полной тьмы. Крепим к соседней стене.
+  for(let cy=0;cy<CELLS;cy+=4)for(let cx=0;cx<CELLS;cx+=4){
+    const x=cx*2+1, y=cy*2+1;
+    if(map[y*MW+x]===1) continue;
+    const nb=[[0,-1],[1,0],[0,1],[-1,0]];
+    for(const[dx,dy]of nb){
+      if(isWall(x+dx,y+dy)){
+        torches.push({ x:x+0.5-dx*0.34, y:y+0.5-dy*0.34, phase:rand(0,TAU) });
+        break;
+      }
+    }
+  }
+}
+// суммарная освещённость точки (wx,wy) от ближайших факелов + время t (для мерцания)
+function lightAt(wx,wy,t){
+  let L=0;
+  for(const tr of torches){
+    const dx=tr.x-wx, dy=tr.y-wy, d2=dx*dx+dy*dy;
+    if(d2>30) continue;                          // радиус ~5.5 клеток
+    const flick=0.78+0.22*Math.sin(t*7+tr.phase)+0.09*Math.sin(t*17+tr.phase*2);
+    L += flick* (1.6/(1+d2*0.85));               // резкий спад -> тёплые лужи света
+  }
+  return L;
+}
+
+/* ------------------------------------------------------------------ */
+/*  РЕНДЕР (raycasting)                                                */
+/* ------------------------------------------------------------------ */
+let W=0,H=0;                            // внутреннее разрешение рендера
+let zbuf;                               // глубина по столбцам (для перекрытия спрайтов)
+let frame, fdata;                       // ImageData полного кадра (быстрый пиксельный рендер)
+let ceilRow, floorRow;                  // кэш цветов пола/потолка по строкам
+const FOV=Math.PI/3;                    // 60°
+const MAXDIST=16;                       // предел прорисовки (для тумана/FPS)
+const MAXW=860;                         // ограничение внутренней ширины ради FPS
+
+function resize(){
+  // Внутреннее разрешение ограничиваем (raycaster дёшев по столбцам,
+  // но пиксельная заливка пропорциональна W*H). CSS растягивает на экран.
+  const scale=Math.min(1, MAXW/Math.max(1,window.innerWidth));
+  W=Math.max(2,Math.floor(window.innerWidth*scale));
+  H=Math.max(2,Math.floor(window.innerHeight*scale));
+  cv.width=W; cv.height=H;
+  zbuf=new Float32Array(W);
+  frame=ctx.createImageData(W,H); fdata=frame.data;
+  // предвычислим вертикальные градиенты потолка (верх) и пола (низ)
+  ceilRow=new Uint8Array(H*3); floorRow=new Uint8Array(H*3);
+  const half=H/2;
+  for(let y=0;y<H;y++){
+    if(y<half){ const t=y/half;   // потолок: почти чёрный
+      ceilRow[y*3]=lerp(5,11,t); ceilRow[y*3+1]=lerp(6,12,t); ceilRow[y*3+2]=lerp(7,16,t);
+    } else { const t=(y-half)/half; // пол: теплее к низу
+      floorRow[y*3]=lerp(10,24,t); floorRow[y*3+1]=lerp(9,19,t); floorRow[y*3+2]=lerp(8,16,t);
+    }
+  }
+}
+window.addEventListener('resize', resize);
+
+let gameTime=0;
+function render(t){
+  const w=W,h=H, half=h>>1;
+  const dirX=Math.cos(player.a), dirY=Math.sin(player.a);
+  const tanF=Math.tan(FOV/2);
+  const planeX=-dirY*tanF, planeY=dirX*tanF;
+  const px=player.x, py=player.y;
+
+  // ---- по столбцам: DDA raycast, запись прямо в ImageData ----
+  for(let x=0;x<w;x++){
+    const camX=2*x/w-1;
+    const rdx=dirX+planeX*camX, rdy=dirY+planeY*camX;
+    let mapX=px|0, mapY=py|0;
+    const ddx=Math.abs(1/rdx), ddy=Math.abs(1/rdy);
+    let stepX,stepY,sideDX,sideDY;
+    if(rdx<0){ stepX=-1; sideDX=(px-mapX)*ddx; } else { stepX=1; sideDX=(mapX+1-px)*ddx; }
+    if(rdy<0){ stepY=-1; sideDY=(py-mapY)*ddy; } else { stepY=1; sideDY=(mapY+1-py)*ddy; }
+    let hit=0, side=0, guard=0;
+    while(hit===0 && guard++<96){
+      if(sideDX<sideDY){ sideDX+=ddx; mapX+=stepX; side=0; } else { sideDY+=ddy; mapY+=stepY; side=1; }
+      if(mapX<0||mapY<0||mapX>=MW||mapY>=MH){ hit=1; break; }
+      if(map[mapY*MW+mapX]===1) hit=1;
+    }
+    let dist = side===0 ? (sideDX-ddx) : (sideDY-ddy);
+    if(dist<0.0001) dist=0.0001;
+    zbuf[x]=dist;
+
+    const lineH=Math.floor(h/dist);
+    const y0=(-lineH/2+half)|0, y1=(lineH/2+half)|0;
+    const drawY0=y0<0?0:y0, drawY1=y1>h?h:y1;
+
+    // --- пол/потолок для этого столбца (быстрый градиент из кэша) ---
+    for(let y=0;y<drawY0;y++){ const di=(y*w+x)*4, ci=y*3;
+      fdata[di]=ceilRow[ci]; fdata[di+1]=ceilRow[ci+1]; fdata[di+2]=ceilRow[ci+2]; fdata[di+3]=255; }
+    for(let y=drawY1;y<h;y++){ const di=(y*w+x)*4, ci=y*3;
+      fdata[di]=floorRow[ci]; fdata[di+1]=floorRow[ci+1]; fdata[di+2]=floorRow[ci+2]; fdata[di+3]=255; }
+
+    // --- текстура стены ---
+    const tex = wallTex[(mapX*7+mapY*3)%wallTex.length];
+    const pix = tex.pix;
+    let wallX = side===0 ? py+dist*rdy : px+dist*rdx;
+    wallX-=Math.floor(wallX);
+    let texX=(wallX*TX)|0;
+    if((side===0&&rdx>0)||(side===1&&rdy<0)) texX=TX-texX-1;
+
+    // освещённость: слабый ambient (быстро гаснет) + тёплые факелы + сторона + туман.
+    // Вне радиуса факелов почти полная тьма -> напряжение.
+    const wx=px+rdx*dist, wy=py+rdy*dist;
+    const torch=lightAt(wx,wy,t);
+    const ambient=0.10/(1+dist*dist*0.10);        // едва различимый общий свет
+    let shade = clamp(ambient + torch, 0, 1);
+    shade *= side===1?0.68:1;                      // боковые грани темнее -> объём
+    const fog=clamp(1-(dist/MAXDIST),0,1); shade*=fog*fog;
+    // цветовой оттенок: тёплый оранжевый в свете факела, холодный синий в тенях
+    const warm=clamp(torch*0.9,0,1);
+    const mR=shade*(1+warm*0.40);
+    const mG=shade*(1+warm*0.10);
+    const mB=shade*(1-warm*0.30) + (1-warm)*shade*0.10;
+
+    const invH=TX/lineH, texRow=texX*4;
+    for(let y=drawY0;y<drawY1;y++){
+      let texY=((y-y0)*invH)|0; if(texY<0)texY=0; else if(texY>=TX)texY=TX-1;
+      const pi=(texY*TX)*4+texRow;
+      const di=(y*w+x)*4;
+      let r=pix[pi]*mR, g=pix[pi+1]*mG, b=pix[pi+2]*mB;
+      fdata[di]  = r>255?255:r;
+      fdata[di+1]= g>255?255:g;
+      fdata[di+2]= b>255?255:b;
+      fdata[di+3]= 255;
+    }
+  }
+  ctx.putImageData(frame,0,0);
+
+  // ---- спрайты поверх кадра: выход-портал, факелы, руны, монстр ----
+  drawSprites(t);
+}
+
+// Общая проекция мирового спрайта на экран; возвращает null если сзади/скрыт
+function projectSprite(wx,wy){
+  const dx=wx-player.x, dy=wy-player.y;
+  const dirX=Math.cos(player.a), dirY=Math.sin(player.a);
+  const planeX=-dirY*Math.tan(FOV/2), planeY=dirX*Math.tan(FOV/2);
+  const invDet=1/(planeX*dirY-dirX*planeY);
+  const tx=invDet*(dirY*dx-dirX*dy);
+  const ty=invDet*(-planeY*dx+planeX*dy);   // «глубина» (вперёд>0)
+  if(ty<=0.05) return null;
+  const screenX=Math.floor((W/2)*(1+tx/ty));
+  return { sx:screenX, depth:ty };
+}
+
+function drawSprites(t){
+  const list=[];
+  // выход-портал (виден издалека сквозь коридоры как тёплое золотое сияние)
+  { const d=(exitPos.x-player.x)**2+(exitPos.y-player.y)**2; if(d<MAXDIST*MAXDIST) list.push({type:'exit',o:exitPos,d}); }
+  for(const tr of torches){ const d=(tr.x-player.x)**2+(tr.y-player.y)**2; if(d<64) list.push({type:'torch',o:tr,d}); }
+  for(const hn of hints){ const d=(hn.x-player.x)**2+(hn.y-player.y)**2; if(d<80) list.push({type:'hint',o:hn,d}); }
+  { const d=(monster.x-player.x)**2+(monster.y-player.y)**2; if(d<MAXDIST*MAXDIST) list.push({type:'monster',o:monster,d}); }
+  list.sort((a,b)=>b.d-a.d);   // дальние сначала
+
+  for(const it of list){
+    const p=projectSprite(it.o.x,it.o.y); if(!p) continue;
+    const {sx,depth}=p;
+    if(sx<-200||sx>W+200) continue;
+
+    if(it.type==='exit'){
+      // золотой портал-арка: заметная цель. Слегка пульсирует.
+      if(depth> (zbuf[clamp(sx,0,W-1)]||MAXDIST)+0.4) continue;
+      const size=clamp(H/depth*0.9, 10, H*2.2);
+      const y=H/2 + size*0.05;
+      const pulse=0.75+0.25*Math.sin(t*2.5);
+      ctx.globalCompositeOperation='lighter';
+      const gr=ctx.createRadialGradient(sx,y,0,sx,y,size*0.9);
+      gr.addColorStop(0,'rgba(255,235,170,'+(0.75*pulse)+')');
+      gr.addColorStop(.4,'rgba(220,150,50,'+(0.4*pulse)+')');
+      gr.addColorStop(1,'rgba(80,40,0,0)');
+      ctx.fillStyle=gr; ctx.beginPath(); ctx.arc(sx,y,size*0.9,0,TAU); ctx.fill();
+      // тёмный дверной проём в центре сияния
+      ctx.globalCompositeOperation='source-over';
+      ctx.fillStyle='rgba(10,6,3,.9)';
+      ctx.beginPath();
+      ctx.moveTo(sx-size*0.16,y+size*0.42);
+      ctx.lineTo(sx-size*0.16,y-size*0.1);
+      ctx.quadraticCurveTo(sx,y-size*0.42, sx+size*0.16,y-size*0.1);
+      ctx.lineTo(sx+size*0.16,y+size*0.42);
+      ctx.closePath(); ctx.fill();
+      continue;
+    }
+    if(it.type==='torch'){
+      const size=clamp(H/depth*0.22, 4, H);
+      // видим только если столбец не перекрыт стеной
+      if(depth> (zbuf[clamp(sx,0,W-1)]||MAXDIST)+0.3) continue;
+      const flick=0.7+0.3*Math.sin(t*7+it.o.phase)+0.1*Math.sin(t*23+it.o.phase);
+      const y=H/2 - size*0.1;
+      // ореол
+      const gr=ctx.createRadialGradient(sx,y,0,sx,y,size*2.2*flick);
+      gr.addColorStop(0,'rgba(255,180,80,'+(0.55*flick)+')');
+      gr.addColorStop(.4,'rgba(230,110,30,'+(0.28*flick)+')');
+      gr.addColorStop(1,'rgba(120,40,0,0)');
+      ctx.globalCompositeOperation='lighter';
+      ctx.fillStyle=gr; ctx.beginPath(); ctx.arc(sx,y,size*2.2*flick,0,TAU); ctx.fill();
+      // само пламя
+      ctx.fillStyle='rgba(255,220,150,'+flick+')';
+      ctx.beginPath(); ctx.ellipse(sx,y,size*0.14,size*0.3*flick,0,0,TAU); ctx.fill();
+      ctx.globalCompositeOperation='source-over';
+      // держатель
+      ctx.fillStyle='#20160e'; ctx.fillRect(sx-size*0.04,y,size*0.08,size*0.5);
+    }
+    else if(it.type==='hint'){
+      if(depth> (zbuf[clamp(sx,0,W-1)]||MAXDIST)+0.3) continue;
+      // яркость руны зависит от того, насколько она ближе к выходу, чем игрок:
+      // ближе к правильному пути -> ярче (подсказка направления).
+      const hd=distField[(it.o.y|0)*MW+(it.o.x|0)];
+      const pd=distField[(player.y|0)*MW+(player.x|0)]||1;
+      const guide=clamp(1-(hd/Math.max(pd,1))*0.6, 0.25, 1);
+      const size=clamp(H/depth*0.20, 6, H*0.6);
+      const y=H/2 + size*0.4;
+      const pulse=0.6+0.4*Math.sin(t*3+it.o.phase);
+      const alpha=guide*pulse;
+      ctx.globalCompositeOperation='lighter';
+      const gr=ctx.createRadialGradient(sx,y,0,sx,y,size);
+      gr.addColorStop(0,'rgba(120,220,255,'+(0.5*alpha)+')');
+      gr.addColorStop(.5,'rgba(60,150,230,'+(0.25*alpha)+')');
+      gr.addColorStop(1,'rgba(20,60,120,0)');
+      ctx.fillStyle=gr; ctx.beginPath(); ctx.arc(sx,y,size,0,TAU); ctx.fill();
+      // символ-руна (стрелка вверх = «сюда»)
+      ctx.strokeStyle='rgba(180,240,255,'+alpha+')'; ctx.lineWidth=Math.max(1.5,size*0.06);
+      ctx.beginPath();
+      ctx.moveTo(sx,y-size*0.35); ctx.lineTo(sx,y+size*0.3);
+      ctx.moveTo(sx-size*0.2,y-size*0.1); ctx.lineTo(sx,y-size*0.38); ctx.lineTo(sx+size*0.2,y-size*0.1);
+      ctx.stroke();
+      ctx.globalCompositeOperation='source-over';
+    }
+    else if(it.type==='monster'){
+      const dist=Math.sqrt(it.d);
+      // монстр виден, если столбец в центре его не полностью за стеной
+      const size=clamp(H/depth*0.95, 20, H*3);
+      const y=H/2 + size*0.14;
+      // проверка перекрытия по центральному столбцу
+      if(depth> (zbuf[clamp(sx,0,W-1)]||MAXDIST)+0.4){
+        // сильно за стеной — только зловещее свечение глаз сквозь щель
+      }
+      const walk = monster.state==='CHASE'?1:0.6;
+      // затемнение по расстоянию/туману, но глаза всегда светятся
+      const seen=clamp(1-(dist/MAXDIST),0,1);
+      ctx.save();
+      ctx.globalAlpha=clamp(0.25+seen,0,1);
+      drawMonster(ctx, sx, y, size, t, walk);
+      ctx.restore();
+    }
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  МИНИКАРТА (только исследованное)                                   */
+/* ------------------------------------------------------------------ */
+let explored;
+function initExplored(){ explored=new Uint8Array(MW*MH); }
+function markExplored(){
+  const px=player.x|0, py=player.y|0, R=4;
+  for(let y=-R;y<=R;y++)for(let x=-R;x<=R;x++){
+    const nx=px+x, ny=py+y;
+    if(nx<0||ny<0||nx>=MW||ny>=MH) continue;
+    if(x*x+y*y<=R*R) explored[ny*MW+nx]=1;
+  }
+}
+function drawMinimap(){
+  const S=mm.width, cell=S/MW;
+  mmx.clearRect(0,0,S,S);
+  mmx.fillStyle='rgba(6,4,4,.5)'; mmx.fillRect(0,0,S,S);
+  for(let y=0;y<MH;y++)for(let x=0;x<MW;x++){
+    if(!explored[y*MW+x]) continue;
+    if(map[y*MW+x]===1){ mmx.fillStyle='#4a4038'; }
+    else { mmx.fillStyle='#12100e'; }
+    mmx.fillRect(x*cell,y*cell,cell+0.5,cell+0.5);
+  }
+  // выход
+  if(explored[(exitPos.y|0)*MW+(exitPos.x|0)]){
+    mmx.fillStyle='#e0c060'; mmx.fillRect((exitPos.x-0.5)*cell,(exitPos.y-0.5)*cell,cell*1.2,cell*1.2);
+  }
+  // монстр (виден на карте только если исследована его клетка)
+  if(explored[(monster.y|0)*MW+(monster.x|0)]){
+    mmx.fillStyle='#e02020';
+    mmx.beginPath(); mmx.arc(monster.x*cell,monster.y*cell,cell*0.7,0,TAU); mmx.fill();
+  }
+  // игрок + направление
+  mmx.fillStyle='#6ac0ff';
+  mmx.beginPath(); mmx.arc(player.x*cell,player.y*cell,cell*0.7,0,TAU); mmx.fill();
+  mmx.strokeStyle='#6ac0ff'; mmx.lineWidth=1.5;
+  mmx.beginPath(); mmx.moveTo(player.x*cell,player.y*cell);
+  mmx.lineTo((player.x+Math.cos(player.a)*1.5)*cell,(player.y+Math.sin(player.a)*1.5)*cell); mmx.stroke();
+}
+
+/* ------------------------------------------------------------------ */
+/*  ВВОД                                                               */
+/* ------------------------------------------------------------------ */
+const keys={};
+window.addEventListener('keydown',e=>{
+  keys[e.code]=true;
+  if(e.code==='KeyM'){ mm.style.display = mm.style.display==='none'?'block':'none'; }
+});
+window.addEventListener('keyup',e=>{ keys[e.code]=false; });
+
+let pointerLocked=false;
+cv.addEventListener('click',()=>{ if(state==='play' && !pointerLocked && !isTouch) cv.requestPointerLock(); });
+document.addEventListener('pointerlockchange',()=>{ pointerLocked=(document.pointerLockElement===cv); });
+document.addEventListener('mousemove',e=>{
+  if(pointerLocked && state==='play'){ player.a += e.movementX*0.0022; }
+});
+
+/* ------------------------------------------------------------------ */
+/*  СЕНСОРНОЕ УПРАВЛЕНИЕ (планшет/телефон)                             */
+/*  Левая половина экрана — виртуальный джойстик движения (аналоговый).*/
+/*  Правая половина — обзор пальцем (поворот камеры).                  */
+/*  Кнопки БЕГ / Красться / Карта — справа. Мультитач через            */
+/*  идентификаторы касаний, чтобы двигаться и осматриваться сразу.     */
+/* ------------------------------------------------------------------ */
+const isTouch = matchMedia('(pointer:coarse)').matches || ('ontouchstart' in window) || navigator.maxTouchPoints>0;
+const touchState={ moveId:null, sx:0, sy:0, dx:0, dy:0, lookId:null, lookX:0, run:false, crouch:false };
+const joyEl   = document.getElementById('joy');
+const joyKnob = document.getElementById('joyKnob');
+const touchLayer = document.getElementById('touch');
+if(isTouch) document.body.classList.add('touch');
+
+const JOY_R=58;   // радиус джойстика (px) для нормировки
+function onTouchStart(e){
+  if(state!=='play') return;
+  const half=window.innerWidth*0.5;
+  for(const t of e.changedTouches){
+    if(t.clientX<half && touchState.moveId===null){
+      // джойстик движения — появляется под пальцем
+      touchState.moveId=t.identifier; touchState.sx=t.clientX; touchState.sy=t.clientY;
+      touchState.dx=0; touchState.dy=0;
+      joyEl.style.display='block'; joyEl.style.left=t.clientX+'px'; joyEl.style.top=t.clientY+'px';
+      joyKnob.style.left='50%'; joyKnob.style.top='50%';
+    } else if(touchState.lookId===null){
+      // обзор — правая половина (или второй палец)
+      touchState.lookId=t.identifier; touchState.lookX=t.clientX;
+    }
+  }
+  e.preventDefault();
+}
+function onTouchMove(e){
+  for(const t of e.changedTouches){
+    if(t.identifier===touchState.moveId){
+      let dx=t.clientX-touchState.sx, dy=t.clientY-touchState.sy;
+      const d=Math.hypot(dx,dy); if(d>JOY_R){ dx=dx/d*JOY_R; dy=dy/d*JOY_R; }
+      touchState.dx=dx/JOY_R; touchState.dy=dy/JOY_R;         // -1..1 (аналог)
+      joyKnob.style.left=(50+touchState.dx*42)+'%';
+      joyKnob.style.top =(50+touchState.dy*42)+'%';
+    } else if(t.identifier===touchState.lookId){
+      player.a += (t.clientX-touchState.lookX)*0.006;         // поворот камеры
+      touchState.lookX=t.clientX;
+    }
+  }
+  e.preventDefault();
+}
+function onTouchEnd(e){
+  for(const t of e.changedTouches){
+    if(t.identifier===touchState.moveId){
+      touchState.moveId=null; touchState.dx=0; touchState.dy=0; joyEl.style.display='none';
+    } else if(t.identifier===touchState.lookId){
+      touchState.lookId=null;
+    }
+  }
+}
+cv.addEventListener('touchstart', onTouchStart, {passive:false});
+cv.addEventListener('touchmove',  onTouchMove,  {passive:false});
+cv.addEventListener('touchend',   onTouchEnd);
+cv.addEventListener('touchcancel',onTouchEnd);
+
+// кнопки «зажать и держать»
+function bindHold(id, setter){
+  const el=document.getElementById(id);
+  const on =e=>{ setter(true);  el.classList.add('active'); e.preventDefault(); e.stopPropagation(); };
+  const off=e=>{ setter(false); el.classList.remove('active'); e.stopPropagation(); };
+  el.addEventListener('touchstart',on,{passive:false});
+  el.addEventListener('touchend',  off);
+  el.addEventListener('touchcancel',off);
+}
+bindHold('runBtn',    v=>touchState.run=v);
+bindHold('crouchBtn', v=>touchState.crouch=v);
+document.getElementById('mapBtn').addEventListener('touchstart',e=>{
+  mm.style.display = (mm.style.display==='none') ? 'block' : 'none';
+  e.preventDefault(); e.stopPropagation();
+},{passive:false});
+
+/* ------------------------------------------------------------------ */
+/*  ДВИЖЕНИЕ + КОЛЛИЗИИ                                                */
+/* ------------------------------------------------------------------ */
+function tryMove(nx,ny){
+  const r=player.radius;
+  // проверяем 4 угла вокруг новой позиции для скольжения по осям
+  if(!collide(nx,player.y)) player.x=nx;
+  if(!collide(player.x,ny)) player.y=ny;
+}
+function collide(x,y){
+  const r=player.radius;
+  for(const[ox,oy]of [[-r,-r],[r,-r],[-r,r],[r,r]]){
+    if(isWall((x+ox)|0,(y+oy)|0)) return true;
+  }
+  return false;
+}
+
+let curSpeed=WALK, running=false;
+function updatePlayer(dt){
+  let f=0,s=0;
+  if(keys.KeyW||keys.ArrowUp) f+=1;
+  if(keys.KeyS||keys.ArrowDown) f-=1;
+  if(keys.KeyA) s-=1;
+  if(keys.KeyD) s+=1;
+  if(keys.ArrowLeft) player.a-=1.8*dt;
+  if(keys.ArrowRight) player.a+=1.8*dt;
+  // сенсорный джойстик (аналоговый вклад): вверх = вперёд, вбок = стрейф
+  if(touchState.moveId!==null){ f += -touchState.dy; s += touchState.dx; }
+
+  const wantRun    = keys.ShiftLeft||keys.ShiftRight || touchState.run;
+  const wantCrouch = keys.ControlLeft||keys.ControlRight || touchState.crouch;
+  const moving = Math.abs(f)>0.02 || Math.abs(s)>0.02;
+
+  running=false; let speed=WALK;
+  if(wantCrouch){ speed=CROUCH; }
+  else if(wantRun && player.stamina>0.05 && moving){ speed=RUN; running=true; }
+  curSpeed=speed;
+
+  // стамина
+  if(running){ player.stamina=clamp(player.stamina-dt*0.35,0,1); if(player.stamina<=0.05) running=false; }
+  else { player.stamina=clamp(player.stamina+dt*0.22,0,1); }
+
+  const len=Math.hypot(f,s)||1;
+  const mag=Math.min(1,len);                    // аналоговая величина (для джойстика)
+  const mvx=(Math.cos(player.a)*f + Math.cos(player.a+Math.PI/2)*s)/len*speed*mag*dt;
+  const mvy=(Math.sin(player.a)*f + Math.sin(player.a+Math.PI/2)*s)/len*speed*mag*dt;
+  if(moving) tryMove(player.x+mvx, player.y+mvy);
+
+  // достигли выхода?
+  if(Math.hypot(player.x-exitPos.x,player.y-exitPos.y)<0.7){ winGame(); }
+}
+
+/* ------------------------------------------------------------------ */
+/*  ОПАСНОСТЬ / ПОИМКА                                                 */
+/* ------------------------------------------------------------------ */
+let jumpScare=0;      // таймер jump-scare (сек)
+function updateDanger(dt){
+  const dist=Math.hypot(player.x-monster.x, player.y-monster.y);
+
+  // индикатор опасности (по расстоянию, чем ближе — тем краснее)
+  const danger=clamp(1-(dist/9),0,1);
+  dangerFill.style.width=(danger*100)+'%';
+  vign.style.opacity = (danger*danger*0.85).toFixed(3);
+  // лёгкая пульсация экрана при высокой опасности
+  if(danger>0.55){ cv.style.filter=`saturate(${1+danger*0.4}) contrast(${1+danger*0.15})`; }
+  else cv.style.filter='';
+
+  // ---- звук «бум-бум-бум»: период и громкость растут при сближении ----
+  if(AC){
+    const active = dist<11;
+    if(active){
+      // интервал между ударами: далеко ~1.1с, вплотную ~0.24с
+      const interval = lerp(1.15, 0.24, danger);
+      heartTimer-=dt;
+      if(heartTimer<=0){ heartTimer=interval; boom(lerp(0.08,1.0,danger)); }
+    } else heartTimer=0;
+  }
+
+  // ---- поимка ----
+  if(dist<0.55 && jumpScare<=0 && state==='play'){
+    triggerCatch();
+  }
+}
+
+function triggerCatch(){
+  jumpScare=1.4; player.catching=true;
+  roar();
+  document.body.classList.add('flash-red');
+  setTimeout(()=>document.body.classList.remove('flash-red'),140);
+}
+
+// отрисовка jump-scare (морда крупным планом + тряска + красная заливка)
+function renderJumpScare(t){
+  const k=1-(jumpScare/1.4);   // 0..1 прогресс
+  // тряска
+  const shake=(1-k)*26;
+  ctx.save();
+  ctx.translate(rand(-shake,shake), rand(-shake,shake));
+  // красная заливка усиливается
+  ctx.fillStyle='rgba(60,0,0,'+(0.5+0.5*k)+')'; ctx.fillRect(-40,-40,W+80,H+80);
+  // морда наезжает
+  const size=lerp(H*0.8, H*3.6, k);
+  drawMonster(ctx, W/2+rand(-shake,shake), H/2+size*0.15, size, t*3, 1);
+  // искажение — полосы
+  ctx.globalCompositeOperation='overlay';
+  for(let i=0;i<12;i++){ ctx.fillStyle='rgba(120,0,0,'+rand(0.05,0.2)+')'; const yy=rand(0,H); ctx.fillRect(0,yy,W,rand(2,10)); }
+  ctx.globalCompositeOperation='source-over';
+  ctx.restore();
+}
+
+/* ------------------------------------------------------------------ */
+/*  СООБЩЕНИЯ (подсказки-намёки)                                       */
+/* ------------------------------------------------------------------ */
+let msgTimer=0;
+function showMsg(txt,dur=3){ msgEl.textContent=txt; msgEl.classList.add('show'); msgTimer=dur; }
+function updateMsg(dt){ if(msgTimer>0){ msgTimer-=dt; if(msgTimer<=0) msgEl.classList.remove('show'); } }
+
+/* ------------------------------------------------------------------ */
+/*  СОСТОЯНИЕ ИГРЫ / ЦИКЛ                                              */
+/* ------------------------------------------------------------------ */
+let state='menu';     // menu | play | dead | win
+let startTime=0, lastT=0;
+
+function newGame(){
+  generateMaze();
+  computeDistField();
+  buildTextures();
+  buildMonsterBody();
+  placeTorches();
+  placeHints();
+  initExplored();
+  // старт игрока в клетке (1,1)
+  player.x=1.5; player.y=1.5; player.a=0.3; player.stamina=1; player.catching=false;
+  resetMonster();
+  jumpScare=0; heartTimer=0; gameTime=0;
+  resize();
+  startTime=performance.now();
+  showMsg('Найди выход. Руны укажут путь. Беги от твари...',5);
+}
+
+function startPlay(){
+  initAudio();
+  if(AC && AC.state==='suspended') AC.resume();
+  newGame();
+  state='play';
+  menuEl.classList.add('hidden'); goEl.classList.add('hidden'); winEl.classList.add('hidden');
+  hudEl.classList.remove('hidden');
+  // сброс сенсорного состояния между заходами
+  touchState.moveId=null; touchState.lookId=null; touchState.dx=0; touchState.dy=0;
+  touchState.run=false; touchState.crouch=false;
+  document.getElementById('runBtn').classList.remove('active');
+  document.getElementById('crouchBtn').classList.remove('active');
+  joyEl.style.display='none';
+  if(isTouch){ touchLayer.classList.add('on'); }   // показать сенсорные органы управления
+  else cv.requestPointerLock();                     // на ПК — захват мыши
+}
+
+function deadGame(){
+  state='dead';
+  hudEl.classList.add('hidden');
+  touchLayer.classList.remove('on');
+  goEl.classList.remove('hidden');
+  if(document.pointerLockElement) document.exitPointerLock();
+  cv.style.filter='';
+}
+function winGame(){
+  if(state!=='play') return;
+  state='win';
+  const secs=((performance.now()-startTime)/1000).toFixed(1);
+  document.getElementById('winTime').textContent='Время: '+secs+' c';
+  hudEl.classList.add('hidden');
+  touchLayer.classList.remove('on');
+  winEl.classList.remove('hidden');
+  chime(660); setTimeout(()=>chime(880),160); setTimeout(()=>chime(1100),340);
+  if(document.pointerLockElement) document.exitPointerLock();
+  cv.style.filter='';
+}
+
+function loop(now){
+  requestAnimationFrame(loop);
+  let dt=(now-lastT)/1000; lastT=now;
+  if(!isFinite(dt)||dt>0.1) dt=0.1;         // защита от больших скачков
+  gameTime+=dt;
+
+  if(state==='play'){
+    if(jumpScare>0){
+      // идёт jump-scare: замораживаем управление, крутим страшную сцену
+      render(gameTime);
+      renderJumpScare(gameTime);
+      jumpScare-=dt;
+      if(jumpScare<=0){ player.catching=false; deadGame(); }
+    } else {
+      updatePlayer(dt);
+      updateMonster(dt, curSpeed, running);
+      updateDanger(dt);
+      markExplored();
+      updateMsg(dt);
+      render(gameTime);
+      drawMinimap();
+      staminaFill.style.width=(player.stamina*100)+'%';
+      staminaFill.style.background = player.stamina<0.2 ? 'linear-gradient(90deg,#5a2a2a,#c06a6a)' : 'linear-gradient(90deg,#2a5a2a,#6ac06a)';
+      // подсказки-намёки о состоянии монстра
+      if(monster.state==='CHASE' && msgTimer<=0 && Math.random()<0.004) showMsg('Она видит тебя! БЕГИ!',1.5);
+    }
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  КНОПКИ МЕНЮ                                                        */
+/* ------------------------------------------------------------------ */
+document.getElementById('playBtn').addEventListener('click', startPlay);
+document.getElementById('retryBtn').addEventListener('click', startPlay);
+document.getElementById('againBtn').addEventListener('click', startPlay);
+
+// init
+resize();
+lastT=performance.now();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
