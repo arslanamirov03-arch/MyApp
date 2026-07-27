@@ -1,6 +1,12 @@
 name: Build Android APK
 on:
   push:
+    # Scoped to this project's own sources. The repository now holds a second
+    # Gradle project (silt-abyss/), and the `find . -name gradlew` step below
+    # would pick up both and fail.
+    paths:
+      - '*.zip'
+      - '.github/workflows/build.yml'
   workflow_dispatch:
 
 jobs:

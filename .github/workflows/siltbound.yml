@@ -1,0 +1,61 @@
+name: Siltbound APK
+
+on:
+  push:
+    paths:
+      - 'silt-abyss/**'
+      - '.github/workflows/siltbound.yml'
+  pull_request:
+    paths:
+      - 'silt-abyss/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: silt-abyss
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Validate every level is solvable
+        run: python3 tools/levels.py --check
+
+      - name: Check the generated level table is in sync
+        run: |
+          python3 tools/levels.py
+          git diff --exit-code app/src/main/java/com/abyss/silt/level/Levels.java
+
+      - name: Unit tests
+        run: ./gradlew testReleaseUnitTest --no-daemon
+
+      - name: Build APK
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Name the APK
+        run: cp app/build/outputs/apk/release/app-release.apk Siltbound.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Siltbound-apk
+          path: silt-abyss/Siltbound.apk
+
+      - name: Publish a release when a version tag is pushed
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: silt-abyss/Siltbound.apk
