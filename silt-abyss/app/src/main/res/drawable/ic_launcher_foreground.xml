@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A gaping silhouette with one pale eye: the game's whole visual thesis. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- head -->
+    <path
+        android:fillColor="#0B0B0B"
+        android:pathData="M22,54 C22,40 36,29 55,29 C74,29 88,39 92,54 C88,69 74,79 55,79 C36,79 22,68 22,54 Z" />
+
+    <!-- upper tooth row -->
+    <path
+        android:fillColor="#0B0B0B"
+        android:pathData="M30,48 l6,9 3,-10 6,10 3,-11 6,11 3,-11 6,11 3,-10 6,10 3,-9 -45,0 Z" />
+
+    <!-- lower tooth row -->
+    <path
+        android:fillColor="#0B0B0B"
+        android:pathData="M30,62 l6,-9 3,10 6,-10 3,11 6,-11 3,11 6,-11 3,10 6,-10 3,9 -45,0 Z" />
+
+    <!-- eye -->
+    <path
+        android:fillColor="#F2F2F2"
+        android:pathData="M70,45 m-5,0 a5,5 0 1,0 10,0 a5,5 0 1,0 -10,0" />
+    <path
+        android:fillColor="#0B0B0B"
+        android:pathData="M70,45 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0" />
+</vector>
