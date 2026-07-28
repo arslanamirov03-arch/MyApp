@@ -1,0 +1,10 @@
+id,role,type,description,size/ratio,style line ref,source
+bg_milkyway,"Revealed-territory layer: painted across the whole world grid and unmasked cell-by-cell as the player claims space; also the deploy thumbnail / OG image",background,the blazing galactic core of the Milky Way with dust lanes and nebula clouds,2k 16:9,STYLE FORMULA v1,generate
+bg_void,"Unclaimed-space layer: dark void drawn under the play field with parallax star layers and drifting dust, animated (twinkle + drift)",background,empty deep intergalactic void with sparse faint stars and thin cold dust,procedural / world-sized,STYLE FORMULA v1,generate (procedural canvas)
+sheet_planets,"Enemy sprites: 12 celestial bodies keyed to alpha and cut into individual round sprites (Sun, Mercury, Venus, Earth, Moon, Mars, Jupiter, Saturn, Uranus, Neptune, lava exoplanet, icy ringed exoplanet)",sprite,twelve celestial bodies in a strict 4x3 grid on a green key background,2k 1:1 -> 12 x 192px sprites,STYLE FORMULA v1,generate
+sprite_ship,"Player craft: drawn at the player position, rotated to the heading, with an additive engine plume behind it",sprite,an unusual alien-engineered starship seen from directly above,1k 1:1 -> 256px sprite,STYLE FORMULA v1,generate
+fx_trail,"Player trail: additive glowing energy line left across unclaimed space, pulsing; drawn in code",sprite,glowing cyan energy trail segment,procedural,STYLE FORMULA v1,generate (procedural canvas)
+fx_explosion,"Death and capture feedback: particle burst of sparks and dust",sprite,burst of white-hot sparks fading to amber dust,procedural,STYLE FORMULA v1,generate (procedural canvas)
+ui_hud,"HUD: claimed-percent bar, lives, level, score, minimap of the whole field",ui,thin luminous glass HUD with cyan accents,procedural,STYLE FORMULA v1,generate (procedural canvas)
+favicon,"Site favicon and catalog icon: keyed ship sprite composited over a cosmic disc",ui,ship over a cosmic disc,256px 1:1,STYLE FORMULA v1,composed from sprite_ship
+sfx_all,"Audio feedback: thrust hum, capture chime, planet bounce, death boom, level-up sting",audio,WebAudio-synthesised tones,procedural,n/a,generate (procedural WebAudio)
