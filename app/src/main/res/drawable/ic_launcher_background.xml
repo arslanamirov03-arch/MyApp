@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <path
+        android:fillColor="#B02A20"
+        android:pathData="M0,0 H108 V108 H0 Z" />
+
+    <!-- лучи, расходящиеся из центра -->
+    <path
+        android:fillColor="#7A140E"
+        android:pathData="M54,54 L108,0 H72 Z" />
+    <path
+        android:fillColor="#7A140E"
+        android:pathData="M54,54 L108,108 V72 Z" />
+    <path
+        android:fillColor="#7A140E"
+        android:pathData="M54,54 L0,108 H36 Z" />
+    <path
+        android:fillColor="#7A140E"
+        android:pathData="M54,54 L0,0 V36 Z" />
+</vector>

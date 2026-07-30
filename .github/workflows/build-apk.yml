@@ -1,0 +1,57 @@
+name: Build APK
+
+on:
+  push:
+    branches:
+      - main
+      - claude/german-listening-practice-app-w1n2hx
+  workflow_dispatch:
+
+# Нужно, чтобы шаг публикации мог создать и обновить релиз.
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # Только тесты математики плана. Экранные тесты на Robolectric гоняются
+      # локально: в CI они тянут отдельные android-all артефакты во время
+      # выполнения, и их сбой заблокировал бы публикацию APK.
+      - name: Run plan tests
+        run: ./gradlew testDebugUnitTest --no-daemon --tests "com.discipline.hoeren.PlanTest"
+
+      - name: Build release APK
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Rename APK
+        run: cp app/build/outputs/apk/release/app-release.apk Disziplin-Hoeren.apk
+
+      # Тег постоянный: ссылка на файл не меняется от сборки к сборке,
+      # каждая новая сборка заменяет вложение по тому же адресу.
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-latest
+          name: ДИСЦИПЛИНА · HÖREN — последняя сборка
+          body: |
+            Приложение для учёта слуховой практики немецкого языка.
+            План: 60 часов с 1 по 31 августа 2026 года.
+
+            Прямая ссылка на скачивание:
+            https://github.com/${{ github.repository }}/releases/download/apk-latest/Disziplin-Hoeren.apk
+          files: Disziplin-Hoeren.apk
+          make_latest: true
