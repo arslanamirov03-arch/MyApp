@@ -8,10 +8,17 @@ Android-приложение для учёта активной слуховой
 
 Прямая ссылка — клик начинает загрузку файла сразу:
 
-**https://github.com/arslanamirov03-arch/MyApp/releases/download/apk-latest/Disziplin-Hoeren.apk**
+**https://raw.githubusercontent.com/arslanamirov03-arch/MyApp/claude/german-listening-practice-app-w1n2hx/Disziplin-Hoeren.apk**
 
-Адрес постоянный: каждая новая сборка заменяет файл по тому же адресу, поэтому
-ссылку можно сохранить в закладки.
+Готовый APK лежит в репозитории файлом `Disziplin-Hoeren.apk`, поэтому ссылка
+работает без входа в GitHub и без промежуточных страниц.
+
+> Обычно APK публиковался бы в релиз с постоянным тегом `apk-latest` — для этого
+> в репозитории есть `.github/workflows/build-apk.yml`. Сейчас GitHub Actions на
+> аккаунте не запускается: «The job was not started because your account is
+> locked due to a billing issue». Как только оплата будет восстановлена, workflow
+> начнёт собирать и публиковать релиз сам, и появится второй постоянный адрес:
+> `https://github.com/arslanamirov03-arch/MyApp/releases/download/apk-latest/Disziplin-Hoeren.apk`
 
 Установка: открыть скачанный файл и разрешить установку из этого источника
 (Android спросит об этом один раз). Приложение подписано постоянным ключом, так
