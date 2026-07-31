@@ -72,14 +72,26 @@ for (const [selector, name] of [['[data-export="pdf"]', 'spisok.pdf'], ['[data-e
   await download.saveAs(join(outDir, name));
 }
 
-/* 4. Разбор: новые слова доступны сразу */
-check(await page.locator('[data-start-drill]').count() === 1, 'Нет кнопки начала разбора');
-await page.click('[data-start-drill]');
+/* 4. Новые слова: сначала знакомство, потом сразу проверка */
+check(await page.locator('[data-start-learn]').count() === 1, 'Нет кнопки «Учить»');
+check(await page.locator('[data-start-drill]').count() === 0, 'Новые слова попали сразу в разбор');
+await page.click('[data-start-learn]');
 await page.waitForTimeout(400);
 
+check((await page.locator('.drill__eyebrow').textContent()).includes('1 из 6'),
+  'Знакомство начинается не с первого слова');
+check(await page.locator('.learn__translation').count() === 1, 'На карточке знакомства нет перевода');
+await page.screenshot({ path: join(outDir, '05-learn.png'), fullPage: false });
+
+/* Шесть карточек знакомства, последняя ведёт к проверке */
+for (let i = 0; i < 6; i++) {
+  await page.click('[data-learn-next]');
+  await page.waitForTimeout(850);
+}
+
 const prompt = (await page.locator('.drill__prompt').textContent()).trim();
-check(await page.locator('#drill-input').count() === 1, 'Нет поля для ответа');
-await page.screenshot({ path: join(outDir, '05-drill.png'), fullPage: false });
+check(await page.locator('#drill-input').count() === 1, 'После знакомства не началась проверка');
+await page.screenshot({ path: join(outDir, '06-drill.png'), fullPage: false });
 
 /* Верный ответ по показанному переводу */
 const pairs = {
@@ -97,7 +109,7 @@ await page.waitForTimeout(350);
 check(await page.locator('.verdict--right').count() === 1, 'Верный ответ не засчитан');
 const nextNote = await page.locator('.verdict__next').textContent();
 check(/через 1 день/i.test(nextNote), `Ожидался срок «через 1 день», получено «${nextNote}»`);
-await page.screenshot({ path: join(outDir, '06-right.png'), fullPage: false });
+await page.screenshot({ path: join(outDir, '07-right.png'), fullPage: false });
 
 await page.click('[data-next]');
 await page.waitForTimeout(900);
@@ -113,7 +125,7 @@ check(await page.locator('[data-outcome="typo"]').count() === 1, 'Нет кно�
 check(await page.locator('[data-outcome="forgot"]').count() === 1, 'Нет кнопки «забыл слово»');
 check((await page.locator('.verdict__word').textContent()).trim() === pairs[prompt2],
   'Показано не то правильное слово');
-await page.screenshot({ path: join(outDir, '07-wrong.png'), fullPage: false });
+await page.screenshot({ path: join(outDir, '08-wrong.png'), fullPage: false });
 
 /* «Забыл» возвращает слово в начало лестницы и в конец очереди */
 const queueBefore = await page.evaluate(() => document.querySelector('.drill__eyebrow').textContent);
@@ -130,7 +142,10 @@ check(forgotten.lapses === 1, 'Не засчитан срыв');
 
 /* 5. Лестница интервалов на данных: 1 → 3 → 7 → 14 → 30 → 60 → освоено */
 const ladder = await page.evaluate(() => {
-  const word = window.Store.getState().blocks[0].sets[0].words[0];
+  /* Лестницу проверяем на отдельном слове: остальные уже прошли проверку. */
+  const block = window.Store.getState().blocks[0];
+  window.Store.addWord(block.id, block.sets[0].id, 'die Leiter', 'стремянка');
+  const word = block.sets[0].words.find((w) => w.de === 'die Leiter');
   const steps = [];
   for (let i = 0; i < 7; i++) {
     const r = window.Store.reviewWord(word.id, 'correct');
@@ -143,7 +158,7 @@ check(JSON.stringify(ladder) === JSON.stringify([1, 3, 7, 14, 30, 60, 'осво�
 
 /* Слово со сбросом после 60 дней уходит в самое начало */
 const reset = await page.evaluate(() => {
-  const word = window.Store.getState().blocks[0].sets[0].words[0];
+  const word = window.Store.getState().blocks[0].sets[0].words.find((w) => w.de === 'die Leiter');
   window.Store.reviewWord(word.id, 'forgot');
   return { level: word.level, mastered: word.mastered };
 });
@@ -166,7 +181,7 @@ await page.evaluate(() => {
   while (set.words.length < 500) {
     set.words.push({
       id: 'x' + set.words.length, de: 'Wort' + set.words.length, ru: 'слово',
-      createdAt: Date.now(), level: 0, due: Date.now() + 9e9, reps: 0, lapses: 0, mastered: false
+      createdAt: Date.now(), level: 1, due: Date.now() + 9e9, reps: 1, lapses: 0, mastered: false
     });
   }
   window.Store.save();

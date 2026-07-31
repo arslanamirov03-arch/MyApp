@@ -673,6 +673,68 @@ body::after {
 .icon-btn:hover { color: var(--accent); transform: scale(1.08); }
 .icon-btn:active { transform: scale(.9); }
 
+/* ---------- Картинки к словам ---------- */
+
+.picture {
+  display: block;
+  background-size: cover;
+  background-position: center;
+  background-color: var(--surface-2);
+  border: 1px solid var(--glass-edge);
+  box-shadow: inset 0 1px 0 var(--glass-inner);
+}
+
+.picture--thumb {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  flex: 0 0 auto;
+}
+
+.picture--slot {
+  width: 66px;
+  height: 66px;
+  border-radius: var(--radius-sm);
+  flex: 0 0 auto;
+}
+
+.picture--empty {
+  border-style: dashed;
+  border-color: rgba(122, 96, 70, .3);
+  background-color: transparent;
+  box-shadow: none;
+}
+
+.picture--card {
+  width: min(240px, 68vw);
+  height: min(240px, 68vw);
+  margin: 4px auto 16px;
+  border-radius: var(--radius-md);
+}
+
+.photo-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 11px;
+}
+
+.photo-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.modal .photo-row { margin: 4px 0 6px; }
+
+/* Перевод на карточке знакомства — крупнее подписи, но тише слова. */
+.learn__translation {
+  margin: 0 0 16px;
+  font-size: 17px;
+  color: var(--ink-soft);
+  text-wrap: balance;
+}
+
 /* Свёрнутый список слов: занимает одну строку и не мешает. */
 .folded {
   display: flex;

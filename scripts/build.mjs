@@ -14,6 +14,7 @@ const SCRIPTS = [
   'src/js/pdf.js',
   'src/js/docx.js',
   'src/js/export.js',
+  'src/js/media.js',
   'src/js/store.js',
   'src/js/ui.js'
 ];

@@ -14,6 +14,8 @@ window.Store = (function () {
   var LEGACY_KEY = 'wortkabinett.v1';
   var DB_NAME = 'wortschatz';
   var DB_STORE = 'state';
+  var DB_IMAGES = 'images';
+  var DB_VERSION = 2;
 
   var MAX_WORDS = 500;
 
@@ -140,7 +142,8 @@ window.Store = (function () {
       reps: w.reps || 0,
       lapses: w.lapses || 0,
       lastReviewed: w.lastReviewed || null,
-      mastered: !!w.mastered
+      mastered: !!w.mastered,
+      image: w.image && w.image.id ? { id: w.image.id, kind: w.image.kind || 'photo' } : null
     };
   }
 
@@ -186,10 +189,12 @@ window.Store = (function () {
   function openDatabase(callback) {
     try {
       if (!window.indexedDB) { callback(null); return; }
-      var request = indexedDB.open(DB_NAME, 1);
+      var request = indexedDB.open(DB_NAME, DB_VERSION);
       request.onupgradeneeded = function () {
         var db = request.result;
         if (!db.objectStoreNames.contains(DB_STORE)) db.createObjectStore(DB_STORE);
+        /* Картинки живут отдельно от состояния: их много и они тяжёлые. */
+        if (!db.objectStoreNames.contains(DB_IMAGES)) db.createObjectStore(DB_IMAGES);
       };
       request.onsuccess = function () { callback(request.result); };
       request.onerror = function () { callback(null); };
@@ -227,6 +232,73 @@ window.Store = (function () {
         };
       } catch (e) { /* восстановление не удалось — работаем с тем, что есть */ }
     });
+  }
+
+  /* ---------- Картинки ---------- */
+
+  /* Картинки лежат в базе данных, а не в обычном хранилище: их сотни,
+     и в localStorage они бы просто не поместились. */
+  function imageSave(id, dataUrl) {
+    return new Promise(function (resolve, reject) {
+      openDatabase(function (db) {
+        if (!db) { reject(new Error('хранилище картинок недоступно')); return; }
+        try {
+          var tx = db.transaction(DB_IMAGES, 'readwrite');
+          tx.objectStore(DB_IMAGES).put(dataUrl, id);
+          tx.oncomplete = function () { resolve(id); };
+          tx.onerror = function () { reject(tx.error || new Error('не удалось сохранить картинку')); };
+        } catch (e) { reject(e); }
+      });
+    });
+  }
+
+  function imageLoad(id) {
+    return new Promise(function (resolve) {
+      if (!id) { resolve(null); return; }
+      openDatabase(function (db) {
+        if (!db) { resolve(null); return; }
+        try {
+          var request = db.transaction(DB_IMAGES, 'readonly').objectStore(DB_IMAGES).get(id);
+          request.onsuccess = function () { resolve(request.result || null); };
+          request.onerror = function () { resolve(null); };
+        } catch (e) { resolve(null); }
+      });
+    });
+  }
+
+  function imageRemove(id) {
+    if (!id) return;
+    openDatabase(function (db) {
+      if (!db) return;
+      try {
+        db.transaction(DB_IMAGES, 'readwrite').objectStore(DB_IMAGES).delete(id);
+      } catch (e) { /* картинка останется висеть, но данным это не вредит */ }
+    });
+  }
+
+  /* Слово получает картинку; прежняя, если была, стирается. */
+  function setWordImage(wordId, imageId, kind) {
+    var word = findWord(wordId);
+    if (!word) return;
+    if (word.image && word.image.id && word.image.id !== imageId) imageRemove(word.image.id);
+    word.image = imageId ? { id: imageId, kind: kind || 'photo' } : null;
+    save();
+  }
+
+  /* ---------- Ключ доступа к генерации ---------- */
+
+  var API_KEY_STORAGE = 'wortschatz.apikey';
+
+  /* Ключ хранится отдельно от картотеки и не попадает в резервную копию. */
+  function getApiKey() {
+    try { return localStorage.getItem(API_KEY_STORAGE) || ''; } catch (e) { return ''; }
+  }
+
+  function setApiKey(value) {
+    try {
+      if (value) localStorage.setItem(API_KEY_STORAGE, String(value).trim());
+      else localStorage.removeItem(API_KEY_STORAGE);
+    } catch (e) { /* хранилище закрыто — ключ проживёт только сеанс */ }
   }
 
   /* Подписка нужна только для случая, когда данные пришли со стороны —
@@ -286,6 +358,13 @@ window.Store = (function () {
   }
 
   function removeBlock(blockId) {
+    var block = getBlock(blockId);
+    if (block) {
+      block.sets.forEach(function (s) {
+        delete state.settings.collapsed[s.id];
+        s.words.forEach(function (w) { if (w.image) imageRemove(w.image.id); });
+      });
+    }
     state.blocks = state.blocks.filter(function (b) { return b.id !== blockId; });
     save();
   }
@@ -316,6 +395,8 @@ window.Store = (function () {
   function removeSet(blockId, setId) {
     var block = getBlock(blockId);
     if (!block) return;
+    var set = getSet(blockId, setId);
+    if (set) set.words.forEach(function (w) { if (w.image) imageRemove(w.image.id); });
     block.sets = block.sets.filter(function (s) { return s.id !== setId; });
     delete state.settings.collapsed[setId];
     save();
@@ -327,7 +408,7 @@ window.Store = (function () {
     var ts = now();
     return {
       id: uid(), de: de, ru: ru, createdAt: ts,
-      level: 0, due: ts, reps: 0, lapses: 0, lastReviewed: null, mastered: false
+      level: 0, due: ts, reps: 0, lapses: 0, lastReviewed: null, mastered: false, image: null
     };
   }
 
@@ -384,6 +465,8 @@ window.Store = (function () {
   function removeWord(blockId, setId, wordId) {
     var set = getSet(blockId, setId);
     if (!set) return;
+    var word = set.words.find(function (w) { return w.id === wordId; });
+    if (word && word.image) imageRemove(word.image.id);
     set.words = set.words.filter(function (w) { return w.id !== wordId; });
     save();
   }
@@ -408,11 +491,15 @@ window.Store = (function () {
     return result;
   }
 
+  /* Слово, которое ещё ни разу не показывали, ждёт не разбора, а изучения. */
+  function isFresh(word) { return !word.reps; }
+
   /* Слово готово, когда наступил его час — то есть 6 утра назначенного дня. */
   function isDue(word, at) {
     if (word.mastered) return false;
     /* Вопрос в разборе — это перевод, поэтому без перевода спрашивать нечего. */
     if (!word.ru) return false;
+    if (isFresh(word)) return false;
     return word.due <= (at || now());
   }
 
@@ -424,15 +511,34 @@ window.Store = (function () {
   function stats(scope, at) {
     var moment = at || now();
     var items = collectWords(scope);
-    var due = 0, mastered = 0, learning = 0, waiting = 0;
+    var due = 0, mastered = 0, learning = 0, waiting = 0, fresh = 0;
     items.forEach(function (item) {
       var w = item.word;
       if (w.mastered) { mastered++; return; }
+      if (isFresh(w) && w.ru) { fresh++; return; }
       if (isDue(w, moment)) due++;
       else waiting++;
       if (w.level > 0) learning++;
     });
-    return { total: items.length, due: due, mastered: mastered, learning: learning, waiting: waiting };
+    return {
+      total: items.length, due: due, mastered: mastered,
+      learning: learning, waiting: waiting, fresh: fresh
+    };
+  }
+
+  /* Новые слова — те, что ещё ни разу не показывали. */
+  function freshCount(scope) {
+    return collectWords(scope).filter(function (item) {
+      return item.word.ru && isFresh(item.word);
+    }).length;
+  }
+
+  /* Порция для изучения: слова берутся по порядку добавления, чтобы
+     учить их так, как записывал сам человек. */
+  function buildLearnBatch(scope, size) {
+    return collectWords(scope)
+      .filter(function (item) { return item.word.ru && isFresh(item.word); })
+      .slice(0, size || 10);
   }
 
   /* Когда всплывёт ближайшее слово, которое сейчас ещё спит. */
@@ -540,6 +646,7 @@ window.Store = (function () {
   function dueLabel(word, at) {
     if (word.mastered) return 'освоено';
     if (!word.ru) return 'нет перевода';
+    if (isFresh(word)) return 'новое';
     var moment = at || now();
     if (word.due <= moment) return 'сейчас';
 
@@ -601,6 +708,9 @@ window.Store = (function () {
     addWord: addWord, addWordsBulk: addWordsBulk, updateWord: updateWord, removeWord: removeWord,
 
     collectWords: collectWords, dueCount: dueCount, stats: stats, buildQueue: buildQueue,
+    isFresh: isFresh, freshCount: freshCount, buildLearnBatch: buildLearnBatch,
+    imageSave: imageSave, imageLoad: imageLoad, imageRemove: imageRemove, setWordImage: setWordImage,
+    getApiKey: getApiKey, setApiKey: setApiKey, uid: uid,
     nextDueAt: nextDueAt, checkAnswer: checkAnswer, reviewWord: reviewWord,
     dueLabel: dueLabel, isDue: isDue,
 

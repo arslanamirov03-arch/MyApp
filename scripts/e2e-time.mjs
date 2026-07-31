@@ -46,9 +46,11 @@ await page.fill('#input-ru', 'порядок');
 await page.press('#input-ru', 'Enter');
 await page.waitForTimeout(250);
 
-/* Разбираем его тем же вечером — слово уходит на завтра, на 6 утра */
-await page.click('[data-start-drill]');
+/* Знакомимся с ним тем же вечером — после проверки слово уходит на 6 утра */
+await page.click('[data-start-learn]');
 await page.waitForTimeout(300);
+await page.click('[data-learn-next]');
+await page.waitForTimeout(900);
 await page.fill('#drill-input', 'die Ordnung');
 await page.press('#drill-input', 'Enter');
 await page.waitForTimeout(300);
@@ -74,6 +76,7 @@ await page.clock.runFor('00:20');
 await page.waitForTimeout(250);
 
 check(await page.locator('[data-start-drill]').count() === 0, 'В 5:59 слово уже предлагается к разбору');
+check(await page.locator('[data-start-learn]').count() === 0, 'Слово осталось в новых после проверки');
 const beforeSix = await page.locator('#masthead-sub').textContent();
 check(beforeSix.includes('05:59'), `В 5:59 часы показывают «${beforeSix}»`);
 check(beforeSix.includes('следующие в 06:00'), `Нет подсказки о 6 утра: «${beforeSix}»`);

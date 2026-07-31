@@ -682,6 +682,68 @@ body::after {
 .icon-btn:hover { color: var(--accent); transform: scale(1.08); }
 .icon-btn:active { transform: scale(.9); }
 
+/* ---------- Картинки к словам ---------- */
+
+.picture {
+  display: block;
+  background-size: cover;
+  background-position: center;
+  background-color: var(--surface-2);
+  border: 1px solid var(--glass-edge);
+  box-shadow: inset 0 1px 0 var(--glass-inner);
+}
+
+.picture--thumb {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  flex: 0 0 auto;
+}
+
+.picture--slot {
+  width: 66px;
+  height: 66px;
+  border-radius: var(--radius-sm);
+  flex: 0 0 auto;
+}
+
+.picture--empty {
+  border-style: dashed;
+  border-color: rgba(122, 96, 70, .3);
+  background-color: transparent;
+  box-shadow: none;
+}
+
+.picture--card {
+  width: min(240px, 68vw);
+  height: min(240px, 68vw);
+  margin: 4px auto 16px;
+  border-radius: var(--radius-md);
+}
+
+.photo-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 11px;
+}
+
+.photo-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.modal .photo-row { margin: 4px 0 6px; }
+
+/* Перевод на карточке знакомства — крупнее подписи, но тише слова. */
+.learn__translation {
+  margin: 0 0 16px;
+  font-size: 17px;
+  color: var(--ink-soft);
+  text-wrap: balance;
+}
+
 /* Свёрнутый список слов: занимает одну строку и не мешает. */
 .folded {
   display: flex;
@@ -2186,6 +2248,160 @@ window.Exporter = (function () {
   };
 })();
 
+/* ===== src/js/media.js ===== */
+/* Картинки к словам: снимок с устройства и рисунок, сделанный Gemini.
+   Картинка запоминается вместе со словом — по переводу и образу слово
+   вспоминается заметно легче, чем по одному переводу. */
+window.Media = (function () {
+  'use strict';
+
+  var ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/';
+  var DEFAULT_MODEL = 'gemini-3.1-flash-lite-image';
+  var MAX_SIDE = 640;
+  var QUALITY = 0.82;
+
+  /* Промпт держит две вещи: картинка должна объяснять смысл слова
+     и не должна содержать ни единой буквы — иначе это подсказка,
+     и проверка теряет смысл. */
+  function buildPrompt(word, translation) {
+    return 'Illustrate the meaning of a single vocabulary word for a language learner.\n\n' +
+      'Word: "' + word + '"\n' +
+      (translation ? 'Meaning: ' + translation + '\n' : '') +
+      '\nShow only what the word means, through one clear visual idea. ' +
+      'If it is an action, show a person performing it. ' +
+      'If it is an object, show that object alone. ' +
+      'If it is abstract, use one simple, unmistakable visual metaphor. ' +
+      'The picture must be specific enough that a learner can guess this exact word from it.\n\n' +
+      'Style: clean flat vector illustration, simple shapes, soft warm palette, ' +
+      'plain light background, one centred subject, generous empty space, no clutter. ' +
+      'The illustration fills the whole frame edge to edge, without borders or framing.\n\n' +
+      'CRITICAL: the image must contain NO text whatsoever — no letters, no words, ' +
+      'no numbers, no captions, no labels, no signs, no logos, no watermarks, ' +
+      'no writing of any kind, in any language or alphabet. Nothing written anywhere ' +
+      'in the picture. The meaning must come across through the drawing alone, ' +
+      'with no written hints.';
+  }
+
+  /* Ужимаем картинку: полноразмерная не нужна, а места занимает много. */
+  function shrink(dataUrl) {
+    return new Promise(function (resolve, reject) {
+      var image = new Image();
+      image.onload = function () {
+        var scale = Math.min(1, MAX_SIDE / Math.max(image.width, image.height));
+        var width = Math.max(1, Math.round(image.width * scale));
+        var height = Math.max(1, Math.round(image.height * scale));
+
+        var canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        var context = canvas.getContext('2d');
+        context.fillStyle = '#ffffff';
+        context.fillRect(0, 0, width, height);
+        context.drawImage(image, 0, 0, width, height);
+
+        try {
+          resolve(canvas.toDataURL('image/jpeg', QUALITY));
+        } catch (e) {
+          reject(new Error('не удалось обработать картинку'));
+        }
+      };
+      image.onerror = function () { reject(new Error('файл не похож на картинку')); };
+      image.src = dataUrl;
+    });
+  }
+
+  /* Выбор снимка из галереи или камеры устройства. */
+  function pickFromDevice() {
+    return new Promise(function (resolve, reject) {
+      var input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.style.position = 'fixed';
+      input.style.left = '-1000px';
+      document.body.appendChild(input);
+
+      input.addEventListener('change', function () {
+        var file = input.files && input.files[0];
+        document.body.removeChild(input);
+        if (!file) { resolve(null); return; }
+
+        var reader = new FileReader();
+        reader.onload = function () { shrink(String(reader.result)).then(resolve, reject); };
+        reader.onerror = function () { reject(new Error('не удалось прочитать файл')); };
+        reader.readAsDataURL(file);
+      });
+
+      input.click();
+    });
+  }
+
+  function hasKey() { return !!window.Store.getApiKey(); }
+
+  /* Рисунок от Gemini. Ключ хранится на устройстве и в копию не попадает. */
+  function generate(word, translation, model) {
+    var key = window.Store.getApiKey();
+    if (!key) return Promise.reject(new Error('Сначала укажите ключ Google AI в настройках'));
+
+    var url = ENDPOINT + (model || DEFAULT_MODEL) + ':generateContent';
+    var body = {
+      contents: [{ parts: [{ text: buildPrompt(word, translation) }] }],
+      generationConfig: {
+        responseModalities: ['IMAGE'],
+        imageConfig: { aspectRatio: '1:1' }
+      }
+    };
+
+    return fetch(url, {
+      method: 'POST',
+      headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    }).then(function (response) {
+      return response.json().then(function (data) {
+        if (!response.ok) {
+          var message = (data && data.error && data.error.message) || ('код ' + response.status);
+          if (response.status === 400 && /API key/i.test(message)) {
+            throw new Error('Ключ не принят — проверьте его в настройках');
+          }
+          if (response.status === 429) {
+            throw new Error('Слишком часто — подождите немного и попробуйте снова');
+          }
+          throw new Error(message);
+        }
+        return data;
+      });
+    }).then(function (data) {
+      var parts = (data.candidates && data.candidates[0] &&
+        data.candidates[0].content && data.candidates[0].content.parts) || [];
+      var picture = null;
+      for (var i = 0; i < parts.length; i++) {
+        var inline = parts[i].inlineData || parts[i].inline_data;
+        if (inline && inline.data) {
+          picture = 'data:' + (inline.mimeType || inline.mime_type || 'image/png') + ';base64,' + inline.data;
+          break;
+        }
+      }
+      if (!picture) throw new Error('Модель не вернула картинку — попробуйте ещё раз');
+      return shrink(picture);
+    }, function (error) {
+      /* Страница без доступа в сеть (например, опубликованная копия
+         с ограничениями) сообщает об этом невнятно — переводим. */
+      if (error instanceof TypeError) {
+        throw new Error('Нет доступа к серверу Google с этой страницы');
+      }
+      throw error;
+    });
+  }
+
+  return {
+    DEFAULT_MODEL: DEFAULT_MODEL,
+    buildPrompt: buildPrompt,
+    pickFromDevice: pickFromDevice,
+    shrink: shrink,
+    hasKey: hasKey,
+    generate: generate
+  };
+})();
+
 /* ===== src/js/store.js ===== */
 /* Хранилище и расписание повторений.
 
@@ -2203,6 +2419,8 @@ window.Store = (function () {
   var LEGACY_KEY = 'wortkabinett.v1';
   var DB_NAME = 'wortschatz';
   var DB_STORE = 'state';
+  var DB_IMAGES = 'images';
+  var DB_VERSION = 2;
 
   var MAX_WORDS = 500;
 
@@ -2329,7 +2547,8 @@ window.Store = (function () {
       reps: w.reps || 0,
       lapses: w.lapses || 0,
       lastReviewed: w.lastReviewed || null,
-      mastered: !!w.mastered
+      mastered: !!w.mastered,
+      image: w.image && w.image.id ? { id: w.image.id, kind: w.image.kind || 'photo' } : null
     };
   }
 
@@ -2375,10 +2594,12 @@ window.Store = (function () {
   function openDatabase(callback) {
     try {
       if (!window.indexedDB) { callback(null); return; }
-      var request = indexedDB.open(DB_NAME, 1);
+      var request = indexedDB.open(DB_NAME, DB_VERSION);
       request.onupgradeneeded = function () {
         var db = request.result;
         if (!db.objectStoreNames.contains(DB_STORE)) db.createObjectStore(DB_STORE);
+        /* Картинки живут отдельно от состояния: их много и они тяжёлые. */
+        if (!db.objectStoreNames.contains(DB_IMAGES)) db.createObjectStore(DB_IMAGES);
       };
       request.onsuccess = function () { callback(request.result); };
       request.onerror = function () { callback(null); };
@@ -2416,6 +2637,73 @@ window.Store = (function () {
         };
       } catch (e) { /* восстановление не удалось — работаем с тем, что есть */ }
     });
+  }
+
+  /* ---------- Картинки ---------- */
+
+  /* Картинки лежат в базе данных, а не в обычном хранилище: их сотни,
+     и в localStorage они бы просто не поместились. */
+  function imageSave(id, dataUrl) {
+    return new Promise(function (resolve, reject) {
+      openDatabase(function (db) {
+        if (!db) { reject(new Error('хранилище картинок недоступно')); return; }
+        try {
+          var tx = db.transaction(DB_IMAGES, 'readwrite');
+          tx.objectStore(DB_IMAGES).put(dataUrl, id);
+          tx.oncomplete = function () { resolve(id); };
+          tx.onerror = function () { reject(tx.error || new Error('не удалось сохранить картинку')); };
+        } catch (e) { reject(e); }
+      });
+    });
+  }
+
+  function imageLoad(id) {
+    return new Promise(function (resolve) {
+      if (!id) { resolve(null); return; }
+      openDatabase(function (db) {
+        if (!db) { resolve(null); return; }
+        try {
+          var request = db.transaction(DB_IMAGES, 'readonly').objectStore(DB_IMAGES).get(id);
+          request.onsuccess = function () { resolve(request.result || null); };
+          request.onerror = function () { resolve(null); };
+        } catch (e) { resolve(null); }
+      });
+    });
+  }
+
+  function imageRemove(id) {
+    if (!id) return;
+    openDatabase(function (db) {
+      if (!db) return;
+      try {
+        db.transaction(DB_IMAGES, 'readwrite').objectStore(DB_IMAGES).delete(id);
+      } catch (e) { /* картинка останется висеть, но данным это не вредит */ }
+    });
+  }
+
+  /* Слово получает картинку; прежняя, если была, стирается. */
+  function setWordImage(wordId, imageId, kind) {
+    var word = findWord(wordId);
+    if (!word) return;
+    if (word.image && word.image.id && word.image.id !== imageId) imageRemove(word.image.id);
+    word.image = imageId ? { id: imageId, kind: kind || 'photo' } : null;
+    save();
+  }
+
+  /* ---------- Ключ доступа к генерации ---------- */
+
+  var API_KEY_STORAGE = 'wortschatz.apikey';
+
+  /* Ключ хранится отдельно от картотеки и не попадает в резервную копию. */
+  function getApiKey() {
+    try { return localStorage.getItem(API_KEY_STORAGE) || ''; } catch (e) { return ''; }
+  }
+
+  function setApiKey(value) {
+    try {
+      if (value) localStorage.setItem(API_KEY_STORAGE, String(value).trim());
+      else localStorage.removeItem(API_KEY_STORAGE);
+    } catch (e) { /* хранилище закрыто — ключ проживёт только сеанс */ }
   }
 
   /* Подписка нужна только для случая, когда данные пришли со стороны —
@@ -2475,6 +2763,13 @@ window.Store = (function () {
   }
 
   function removeBlock(blockId) {
+    var block = getBlock(blockId);
+    if (block) {
+      block.sets.forEach(function (s) {
+        delete state.settings.collapsed[s.id];
+        s.words.forEach(function (w) { if (w.image) imageRemove(w.image.id); });
+      });
+    }
     state.blocks = state.blocks.filter(function (b) { return b.id !== blockId; });
     save();
   }
@@ -2505,6 +2800,8 @@ window.Store = (function () {
   function removeSet(blockId, setId) {
     var block = getBlock(blockId);
     if (!block) return;
+    var set = getSet(blockId, setId);
+    if (set) set.words.forEach(function (w) { if (w.image) imageRemove(w.image.id); });
     block.sets = block.sets.filter(function (s) { return s.id !== setId; });
     delete state.settings.collapsed[setId];
     save();
@@ -2516,7 +2813,7 @@ window.Store = (function () {
     var ts = now();
     return {
       id: uid(), de: de, ru: ru, createdAt: ts,
-      level: 0, due: ts, reps: 0, lapses: 0, lastReviewed: null, mastered: false
+      level: 0, due: ts, reps: 0, lapses: 0, lastReviewed: null, mastered: false, image: null
     };
   }
 
@@ -2573,6 +2870,8 @@ window.Store = (function () {
   function removeWord(blockId, setId, wordId) {
     var set = getSet(blockId, setId);
     if (!set) return;
+    var word = set.words.find(function (w) { return w.id === wordId; });
+    if (word && word.image) imageRemove(word.image.id);
     set.words = set.words.filter(function (w) { return w.id !== wordId; });
     save();
   }
@@ -2597,11 +2896,15 @@ window.Store = (function () {
     return result;
   }
 
+  /* Слово, которое ещё ни разу не показывали, ждёт не разбора, а изучения. */
+  function isFresh(word) { return !word.reps; }
+
   /* Слово готово, когда наступил его час — то есть 6 утра назначенного дня. */
   function isDue(word, at) {
     if (word.mastered) return false;
     /* Вопрос в разборе — это перевод, поэтому без перевода спрашивать нечего. */
     if (!word.ru) return false;
+    if (isFresh(word)) return false;
     return word.due <= (at || now());
   }
 
@@ -2613,15 +2916,34 @@ window.Store = (function () {
   function stats(scope, at) {
     var moment = at || now();
     var items = collectWords(scope);
-    var due = 0, mastered = 0, learning = 0, waiting = 0;
+    var due = 0, mastered = 0, learning = 0, waiting = 0, fresh = 0;
     items.forEach(function (item) {
       var w = item.word;
       if (w.mastered) { mastered++; return; }
+      if (isFresh(w) && w.ru) { fresh++; return; }
       if (isDue(w, moment)) due++;
       else waiting++;
       if (w.level > 0) learning++;
     });
-    return { total: items.length, due: due, mastered: mastered, learning: learning, waiting: waiting };
+    return {
+      total: items.length, due: due, mastered: mastered,
+      learning: learning, waiting: waiting, fresh: fresh
+    };
+  }
+
+  /* Новые слова — те, что ещё ни разу не показывали. */
+  function freshCount(scope) {
+    return collectWords(scope).filter(function (item) {
+      return item.word.ru && isFresh(item.word);
+    }).length;
+  }
+
+  /* Порция для изучения: слова берутся по порядку добавления, чтобы
+     учить их так, как записывал сам человек. */
+  function buildLearnBatch(scope, size) {
+    return collectWords(scope)
+      .filter(function (item) { return item.word.ru && isFresh(item.word); })
+      .slice(0, size || 10);
   }
 
   /* Когда всплывёт ближайшее слово, которое сейчас ещё спит. */
@@ -2729,6 +3051,7 @@ window.Store = (function () {
   function dueLabel(word, at) {
     if (word.mastered) return 'освоено';
     if (!word.ru) return 'нет перевода';
+    if (isFresh(word)) return 'новое';
     var moment = at || now();
     if (word.due <= moment) return 'сейчас';
 
@@ -2790,6 +3113,9 @@ window.Store = (function () {
     addWord: addWord, addWordsBulk: addWordsBulk, updateWord: updateWord, removeWord: removeWord,
 
     collectWords: collectWords, dueCount: dueCount, stats: stats, buildQueue: buildQueue,
+    isFresh: isFresh, freshCount: freshCount, buildLearnBatch: buildLearnBatch,
+    imageSave: imageSave, imageLoad: imageLoad, imageRemove: imageRemove, setWordImage: setWordImage,
+    getApiKey: getApiKey, setApiKey: setApiKey, uid: uid,
     nextDueAt: nextDueAt, checkAnswer: checkAnswer, reviewWord: reviewWord,
     dueLabel: dueLabel, isDue: isDue,
 
@@ -2921,6 +3247,7 @@ window.Store = (function () {
     if (advanceTimer) { clearTimeout(advanceTimer); advanceTimer = null; }
     route = next;
     filter = '';
+    pendingImage = null;
     if (replace) history.replaceState(next, '');
     else history.pushState(next, '');
     render(true);
@@ -3004,16 +3331,81 @@ window.Store = (function () {
     return '<span class="chip chip--due"><span class="chip__dot"></span>' + count + ' к разбору</span>';
   }
 
+  /* ---------- Картинки ---------- */
+
+  /* Картинки лежат в базе, поэтому в разметку идёт только их номер,
+     а сами они подставляются после отрисовки. */
+  var imageCache = new Map();
+  var pendingImage = null;
+
+  function imageBox(imageId, extraClass) {
+    if (!imageId) return '';
+    var cached = imageCache.get(imageId);
+    return '<span class="picture ' + (extraClass || '') + '" data-image-id="' + imageId + '"' +
+      (cached ? ' style="background-image:url(' + cached + ')"' : '') + '></span>';
+  }
+
+  function hydrateImages(root) {
+    var nodes = (root || document).querySelectorAll('[data-image-id]');
+    for (var i = 0; i < nodes.length; i++) {
+      (function (node) {
+        var id = node.getAttribute('data-image-id');
+        if (imageCache.has(id)) {
+          node.style.backgroundImage = 'url(' + imageCache.get(id) + ')';
+          return;
+        }
+        Store.imageLoad(id).then(function (url) {
+          if (!url) return;
+          imageCache.set(id, url);
+          node.style.backgroundImage = 'url(' + url + ')';
+        });
+      })(nodes[i]);
+    }
+  }
+
+  /* Полоса под формой ввода: снимок с устройства или рисунок от ИИ. */
+  function photoRow() {
+    return '<div class="photo-row" id="photo-row">' +
+      (pendingImage
+        ? '<span class="picture picture--slot" style="background-image:url(' + pendingImage + ')"></span>'
+        : '<span class="picture picture--slot picture--empty" aria-hidden="true"></span>') +
+      '<div class="photo-row__actions">' +
+      '<button class="btn btn--quiet" data-photo-pick>Фото</button>' +
+      '<button class="btn btn--quiet" data-photo-ai>Картинка ИИ</button>' +
+      (pendingImage ? '<button class="btn btn--quiet" data-photo-drop>Убрать</button>' : '') +
+      '</div></div>';
+  }
+
   function summaryBlock(scope) {
     var s = Store.stats(scope);
     return '<div class="summary">' +
       '<div class="glass summary__cell"><div class="summary__value">' + s.total + '</div>' +
       '<div class="summary__label">' + plural(s.total, 'слово', 'слова', 'слов') + '</div></div>' +
-      '<div class="glass summary__cell summary__cell--due"><div class="summary__value">' + s.due + '</div>' +
-      '<div class="summary__label">к разбору</div></div>' +
+      '<div class="glass summary__cell summary__cell--due"><div class="summary__value">' +
+      (s.fresh ? s.fresh : s.due) + '</div>' +
+      '<div class="summary__label">' + (s.fresh ? 'новых' : 'к разбору') + '</div></div>' +
       '<div class="glass summary__cell summary__cell--mastered"><div class="summary__value">' + s.mastered + '</div>' +
       '<div class="summary__label">освоено</div></div>' +
       '</div>';
+  }
+
+  var LEARN_BATCH = 10;
+
+  /* Новые слова сначала показываются, и только потом спрашиваются —
+     десятками, чтобы за один заход набиралось ровно столько, сколько
+     удерживается в голове. */
+  function learnBlock(scope) {
+    var fresh = Store.freshCount(scope);
+    if (!fresh) return '';
+    var portion = Math.min(LEARN_BATCH, fresh);
+    return '<section class="glass call">' +
+      '<div class="call__text">' +
+      '<h2 class="call__title">' + fresh + ' ' + plural(fresh, 'новое слово', 'новых слова', 'новых слов') + '</h2>' +
+      '<p class="call__hint">Сначала посмотрите ' + portion + ' ' +
+      plural(portion, 'слово', 'слова', 'слов') + ', потом сразу проверка</p>' +
+      '</div>' +
+      '<button class="btn btn--calm" data-start-learn>Учить</button>' +
+      '</section>';
   }
 
   function callBlock(scope) {
@@ -3031,6 +3423,9 @@ window.Store = (function () {
 
     var stats = Store.stats(scope, moment);
     if (!stats.total) return '';
+    /* Пока есть новые слова, разделу рано подводить итог — рядом уже
+       стоит приглашение их выучить. */
+    if (stats.fresh) return '';
 
     /* Слов на сейчас нет — показываем, когда откроется следующая партия. */
     var next = Store.nextDueAt(scope, moment);
@@ -3055,13 +3450,14 @@ window.Store = (function () {
     if (!blocks.length) {
       html += '<div class="empty">' +
         '<h3 class="empty__title">Здесь пока пусто</h3>' +
-        '<p class="empty__text">Нажмите «+» и создайте первый блок —<br>например, «German Words B1».</p>' +
+        '<p class="empty__text">Нажмите «+» и создайте первый блок —<br>например, «Блок 1».</p>' +
         '</div>';
       screenEl.innerHTML = html;
       return;
     }
 
     html += summaryBlock({});
+    html += learnBlock({});
     html += callBlock({});
     html += '<h2 class="section-title">Блоки<span class="section-title__note">' +
       blocks.length + '</span></h2>';
@@ -3091,6 +3487,7 @@ window.Store = (function () {
     if (!block) { go({ name: 'blocks' }, true); return; }
 
     var html = summaryBlock({ blockId: block.id });
+    html += learnBlock({ blockId: block.id });
     html += callBlock({ blockId: block.id });
 
     if (!block.sets.length) {
@@ -3142,6 +3539,7 @@ window.Store = (function () {
       '<div class="gauge__track"><div class="gauge__fill' + (full ? ' gauge__fill--full' : '') +
       '" style="width:' + percent.toFixed(1) + '%"></div></div></section>';
 
+    html += learnBlock(scope);
     html += callBlock(scope);
 
     if (full) {
@@ -3160,6 +3558,7 @@ window.Store = (function () {
         '<label class="field"><span class="field__label">Перевод</span>' +
         '<input class="input" type="text" id="input-ru" placeholder="порядок" autocomplete="off"></label>' +
         '</div>' +
+        photoRow() +
         '<div class="btn-row">' +
         '<button class="btn btn--accent" data-add-word>Добавить</button>' +
         '<button class="btn" data-bulk>Вставить списком</button>' +
@@ -3218,6 +3617,7 @@ window.Store = (function () {
           '<span class="' + chipClass + '">' + label + '</span>' +
           '</div>' +
           '<div class="ledger__side">' +
+          (word.image ? imageBox(word.image.id, 'picture--thumb') : '') +
           '<button class="icon-btn" data-edit-word="' + word.id + '" title="Изменить" aria-label="Изменить">' + ICON_EDIT + '</button>' +
           '<button class="icon-btn" data-delete-word="' + word.id + '" title="Удалить" aria-label="Удалить">' + ICON_DELETE + '</button>' +
           '</div></div>';
@@ -3246,20 +3646,49 @@ window.Store = (function () {
     return '<div class="ladder">' + steps + '</div>';
   }
 
+  /* Показ новых слов: немецкое слово, под ним перевод и картинка. */
+  function renderLearnCard() {
+    var item = session.queue[session.index];
+    var word = item.word;
+    var total = session.queue.length;
+    var percent = ((session.index + 1) / total) * 100;
+    var last = session.index === total - 1;
+
+    screenEl.innerHTML = '<section class="glass drill" data-id="learn-' + word.id + '">' +
+      '<div class="drill__progress"><div class="drill__progress-fill" style="width:' + percent.toFixed(1) + '%"></div></div>' +
+      '<div class="drill__eyebrow">Знакомство · ' + (session.index + 1) + ' из ' + total + '</div>' +
+      '<h2 class="drill__prompt">' + esc(word.de) + '</h2>' +
+      '<p class="learn__translation">' + esc(word.ru) + '</p>' +
+      (word.image ? imageBox(word.image.id, 'picture--card') : '') +
+      '<div class="drill__actions">' +
+      '<button class="btn btn--accent btn--wide" data-learn-next>' +
+      (last ? 'Перейти к проверке' : 'Дальше') + '</button>' +
+      '</div></section>';
+  }
+
   function renderDrill() {
     if (!session) { go({ name: 'blocks' }, true); return; }
+
+    if (session.phase === 'show') { renderLearnCard(); return; }
 
     var total = session.total;
     var done = Math.min(session.index, total);
     var percent = total ? (done / total) * 100 : 100;
 
     if (session.index >= session.queue.length) {
+      var moreFresh = session.mode === 'learn' ? Store.freshCount(session.scope) : 0;
       screenEl.innerHTML = '<section class="glass drill">' +
-        '<h2 class="drill__prompt">Разбор окончен</h2>' +
+        '<h2 class="drill__prompt">' +
+        (session.mode === 'learn' ? 'Десятка пройдена' : 'Разбор окончен') + '</h2>' +
         '<p class="drill__hint">Верно с первого раза: ' + session.correct + ' из ' + session.asked + '</p>' +
         (session.forgot ? '<p class="drill__hint">Вернулось в начало: ' + session.forgot + '</p>' : '') +
-        '<div class="drill__actions"><button class="btn btn--accent btn--wide" data-drill-exit>Готово</button></div>' +
-        '</section>';
+        '<div class="drill__actions">' +
+        (moreFresh
+          ? '<button class="btn btn--calm btn--wide" data-learn-more>Следующие ' +
+            Math.min(LEARN_BATCH, moreFresh) + '</button>'
+          : '') +
+        '<button class="btn' + (moreFresh ? '' : ' btn--accent') + ' btn--wide" data-drill-exit>Готово</button>' +
+        '</div></section>';
       return;
     }
 
@@ -3272,7 +3701,8 @@ window.Store = (function () {
       '<h2 class="drill__prompt">' + esc(word.ru) + '</h2>';
 
     if (session.state === 'ask') {
-      html += '<p class="drill__hint">Напишите это слово по-немецки</p>' +
+      html += (word.image ? imageBox(word.image.id, 'picture--card') : '') +
+        '<p class="drill__hint">Напишите это слово по-немецки</p>' +
         '<input class="input drill__input" type="text" id="drill-input" autocomplete="off" ' +
         'autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="…">' +
         '<div class="drill__actions"><button class="btn btn--accent btn--wide" data-check>Проверить</button></div>';
@@ -3309,11 +3739,37 @@ window.Store = (function () {
     }
   }
 
+  function startLearn(scope) {
+    var batch = Store.buildLearnBatch(scope, LEARN_BATCH);
+    if (!batch.length) { toast('Новых слов нет'); return; }
+    session = {
+      mode: 'learn', phase: 'show', scope: scope, queue: batch, total: batch.length,
+      index: 0, correct: 0, asked: 0, forgot: 0, state: 'ask', answer: '', nextNote: ''
+    };
+    go({ name: 'drill', blockId: scope.blockId, setId: scope.setId });
+  }
+
+  /* Показ закончился — те же слова тут же спрашиваются. */
+  function learnNext() {
+    if (!session) return;
+    var card = screenEl.querySelector('.drill');
+    var move = function () {
+      if (session.index + 1 < session.queue.length) {
+        session.index++;
+      } else {
+        session.phase = 'test';
+        session.index = 0;
+      }
+      render();
+    };
+    evaporate(card, move);
+  }
+
   function startDrill(scope, label) {
     var queue = Store.buildQueue(scope);
     if (!queue.length) { toast('На сегодня слов для разбора нет'); return; }
     session = {
-      scope: scope, label: label, queue: queue, total: queue.length,
+      mode: 'drill', phase: 'test', scope: scope, label: label, queue: queue, total: queue.length,
       index: 0, correct: 0, asked: 0, forgot: 0, state: 'ask', answer: '', nextNote: ''
     };
     go({ name: 'drill', blockId: scope.blockId, setId: scope.setId });
@@ -3404,7 +3860,8 @@ window.Store = (function () {
         }
       }
       if (route.name === 'drill') {
-        parts.push('<span class="crumbs__sep">/</span><span class="crumbs__current">Разбор</span>');
+        parts.push('<span class="crumbs__sep">/</span><span class="crumbs__current">' +
+          (session && session.mode === 'learn' ? 'Знакомство' : 'Разбор') + '</span>');
       }
     }
     crumbsEl.innerHTML = parts.join('');
@@ -3421,8 +3878,10 @@ window.Store = (function () {
     lastDueCount = due;
 
     var note;
-    if (!total) note = 'Немецкие слова';
+    var fresh = Store.freshCount({});
+    if (!total) note = 'Слова для заучивания';
     else if (due) note = due + ' ' + plural(due, 'слово', 'слова', 'слов') + ' к разбору';
+    else if (fresh) note = fresh + ' ' + plural(fresh, 'новое слово', 'новых слова', 'новых слов');
     else {
       var next = Store.nextDueAt({}, moment);
       note = next ? 'следующие ' + whenText(next, moment) : 'все слова освоены';
@@ -3445,7 +3904,7 @@ window.Store = (function () {
     var moment = Date.now();
     var due = Store.dueCount({}, moment);
 
-    if (due !== lastDueCount && route.name !== 'drill') {
+    if (due !== lastDueCount && route.name !== 'drill' && modalRoot.hidden) {
       var appeared = due > (lastDueCount || 0);
       render();
       if (appeared) toast('Слов к разбору: ' + due);
@@ -3465,6 +3924,7 @@ window.Store = (function () {
     renderCrumbs();
     renderChrome();
     markFresh();
+    hydrateImages(screenEl);
 
     if (routeChanged) {
       screenEl.classList.remove('screen--enter');
@@ -3484,8 +3944,11 @@ window.Store = (function () {
   function createBlock() {
     openForm({
       title: 'Новый блок',
-      hint: 'Блок собирает списки слов по теме или уровню.',
-      fields: [{ name: 'title', label: 'Название блока', placeholder: 'German Words B1' }],
+      hint: 'Блок собирает списки слов по теме, уровню или языку.',
+      fields: [{
+        name: 'title', label: 'Название блока',
+        placeholder: 'Блок ' + (Store.getState().blocks.length + 1)
+      }],
       submitText: 'Создать',
       onSubmit: function (values) {
         var block = Store.addBlock(values.title);
@@ -3513,6 +3976,38 @@ window.Store = (function () {
     });
   }
 
+  function refreshPhotoRow() {
+    var row = document.getElementById('photo-row');
+    if (!row) return;
+    row.outerHTML = photoRow();
+  }
+
+  /* Общая для формы и правки слова генерация картинки. */
+  function generatePicture(word, translation, onReady) {
+    if (!window.Media.hasKey()) {
+      toast('Укажите ключ Google AI в настройках');
+      openSettings();
+      return;
+    }
+    toast('Рисую картинку…');
+    window.Media.generate(word, translation).then(function (dataUrl) {
+      onReady(dataUrl);
+      toast('Картинка готова');
+    }, function (error) {
+      toast(error.message);
+    });
+  }
+
+  function startLearnInPlace(scope) {
+    var batch = Store.buildLearnBatch(scope, LEARN_BATCH);
+    if (!batch.length) { history.back(); return; }
+    session = {
+      mode: 'learn', phase: 'show', scope: scope, queue: batch, total: batch.length,
+      index: 0, correct: 0, asked: 0, forgot: 0, state: 'ask', answer: '', nextNote: ''
+    };
+    render();
+  }
+
   function addWordFromForm() {
     var deEl = document.getElementById('input-de');
     var ruEl = document.getElementById('input-ru');
@@ -3520,6 +4015,18 @@ window.Store = (function () {
 
     var result = Store.addWord(route.blockId, route.setId, deEl.value, ruEl.value);
     if (!result.ok) { toast(result.reason); return; }
+
+    /* Картинка, подобранная до нажатия «Добавить», привязывается к слову. */
+    if (pendingImage) {
+      var imageId = Store.uid();
+      var picture = pendingImage;
+      pendingImage = null;
+      Store.imageSave(imageId, picture).then(function () {
+        imageCache.set(imageId, picture);
+        Store.setWordImage(result.word.id, imageId, 'photo');
+        render();
+      }, function () { toast('Картинку сохранить не удалось'); });
+    }
 
     var remaining = result.remaining;
     render();
@@ -3558,16 +4065,91 @@ window.Store = (function () {
     if (!set) return;
     var word = set.words.find(function (w) { return w.id === wordId; });
     if (!word) return;
+
     openForm({
       title: 'Изменить слово',
       fields: [
         { name: 'de', label: 'Слово по-немецки', value: word.de },
         { name: 'ru', label: 'Перевод', value: word.ru }
       ],
+      extra: '<div class="photo-row" id="edit-photo-row">' +
+        (word.image
+          ? imageBox(word.image.id, 'picture--slot')
+          : '<span class="picture picture--slot picture--empty" aria-hidden="true"></span>') +
+        '<div class="photo-row__actions">' +
+        '<button type="button" class="btn btn--quiet" data-edit-photo-pick>Фото</button>' +
+        '<button type="button" class="btn btn--quiet" data-edit-photo-ai>' +
+        (word.image && word.image.kind === 'ai' ? 'Пересоздать' : 'Картинка ИИ') + '</button>' +
+        (word.image ? '<button type="button" class="btn btn--quiet" data-edit-photo-drop>Убрать</button>' : '') +
+        '</div></div>',
       submitText: 'Сохранить',
       onSubmit: function (values) {
         Store.updateWord(route.blockId, route.setId, wordId, values.de, values.ru);
         render();
+      }
+    });
+
+    hydrateImages(modalRoot);
+
+    /* Картинка меняется сразу, не дожидаясь кнопки «Сохранить». */
+    function attach(dataUrl, kind) {
+      var imageId = Store.uid();
+      Store.imageSave(imageId, dataUrl).then(function () {
+        imageCache.set(imageId, dataUrl);
+        Store.setWordImage(wordId, imageId, kind);
+        closeModal();
+        render();
+        editWord(wordId);
+      }, function () { toast('Картинку сохранить не удалось'); });
+    }
+
+    var pick = modalRoot.querySelector('[data-edit-photo-pick]');
+    if (pick) pick.addEventListener('click', function () {
+      window.Media.pickFromDevice().then(function (dataUrl) {
+        if (dataUrl) attach(dataUrl, 'photo');
+      }, function (error) { toast(error.message); });
+    });
+
+    var ai = modalRoot.querySelector('[data-edit-photo-ai]');
+    if (ai) ai.addEventListener('click', function () {
+      var deField = document.getElementById('f-de');
+      var ruField = document.getElementById('f-ru');
+      var germanWord = deField ? deField.value.trim() : word.de;
+      if (!germanWord) { toast('Сначала впишите слово'); return; }
+      generatePicture(germanWord, ruField ? ruField.value.trim() : word.ru, function (dataUrl) {
+        attach(dataUrl, 'ai');
+      });
+    });
+
+    var drop = modalRoot.querySelector('[data-edit-photo-drop]');
+    if (drop) drop.addEventListener('click', function () {
+      Store.setWordImage(wordId, null);
+      closeModal();
+      render();
+      toast('Картинка убрана');
+    });
+  }
+
+  /* ---------- Настройки ---------- */
+
+  function openSettings() {
+    var key = Store.getApiKey();
+    openForm({
+      title: 'Картинки от ИИ',
+      hint: 'Картинки рисует Gemini («Nano Banana») по вашему ключу Google AI. ' +
+        'Ключ хранится только на этом устройстве и в резервную копию не попадает. ' +
+        'Взять ключ: aistudio.google.com/apikey<br><br>' +
+        'На опубликованной пробной странице запросы наружу закрыты, поэтому ' +
+        'рисование там не работает — оно доступно в приложении и в файле, ' +
+        'открытом с устройства.',
+      fields: [{
+        name: 'key', label: 'Ключ Google AI',
+        value: key, placeholder: 'вставьте ключ'
+      }],
+      submitText: 'Сохранить',
+      onSubmit: function (values) {
+        Store.setApiKey(values.key);
+        toast(values.key.trim() ? 'Ключ сохранён' : 'Ключ удалён');
       }
     });
   }
@@ -3631,8 +4213,17 @@ window.Store = (function () {
       extra: '<div class="btn-row" style="margin-top:4px">' +
         '<button type="button" class="btn btn--accent" data-archive-save>Сохранить копию</button>' +
         '<button type="button" class="btn" data-archive-load>Загрузить копию</button>' +
-        '</div>',
+        '</div>' +
+        '<div class="btn-row" style="margin-top:9px">' +
+        '<button type="button" class="btn btn--quiet btn--wide" data-open-settings>' +
+        (window.Media.hasKey() ? 'Ключ для картинок ИИ · указан' : 'Ключ для картинок ИИ') +
+        '</button></div>',
       onSubmit: function () { }
+    });
+
+    modalRoot.querySelector('[data-open-settings]').addEventListener('click', function () {
+      closeModal();
+      openSettings();
     });
 
     modalRoot.querySelector('[data-archive-save]').addEventListener('click', function () {
@@ -3765,8 +4356,53 @@ window.Store = (function () {
       return;
     }
 
+    if (target.closest('[data-start-learn]')) {
+      var learnScope = {};
+      if (route.name === 'block') learnScope = { blockId: route.blockId };
+      if (route.name === 'set') learnScope = { blockId: route.blockId, setId: route.setId };
+      startLearn(learnScope);
+      return;
+    }
+
+    if (target.closest('[data-learn-next]')) { learnNext(); return; }
+
+    if (target.closest('[data-learn-more]')) {
+      var scopeAgain = session ? session.scope : {};
+      session = null;
+      startLearnInPlace(scopeAgain);
+      return;
+    }
+
     if (target.closest('[data-check]')) { submitAnswer(); return; }
     if (target.closest('[data-next]')) { nextWord(); return; }
+
+    /* ---------- Картинка к слову ---------- */
+
+    if (target.closest('[data-photo-pick]')) {
+      window.Media.pickFromDevice().then(function (dataUrl) {
+        if (!dataUrl) return;
+        pendingImage = dataUrl;
+        refreshPhotoRow();
+      }, function (error) { toast(error.message); });
+      return;
+    }
+
+    if (target.closest('[data-photo-ai]')) {
+      var deField = document.getElementById('input-de');
+      var ruField = document.getElementById('input-ru');
+      if (!deField || !deField.value.trim()) { toast('Сначала впишите слово'); return; }
+      generatePicture(deField.value.trim(), ruField ? ruField.value.trim() : '', function (dataUrl) {
+        pendingImage = dataUrl;
+        refreshPhotoRow();
+      });
+      return;
+    }
+
+    if (target.closest('[data-photo-drop]')) {
+      pendingImage = null;
+      refreshPhotoRow();
+      return;
+    }
 
     if ((el = target.closest('[data-outcome]'))) { resolveWrong(el.getAttribute('data-outcome')); return; }
 
