@@ -1,0 +1,41 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'ru.wortkabinett.app'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "ru.wortkabinett.app"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+
+    buildTypes {
+        debug {
+            /* Отладочная сборка ставится на телефон без ключа разработчика. */
+            minifyEnabled false
+        }
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    /* Ресурсы приложения — один index.html, сжимать его не нужно. */
+    androidResources {
+        noCompress 'html'
+    }
+}
+
+dependencies {
+    implementation 'androidx.webkit:1.11.0'
+}

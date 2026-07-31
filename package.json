@@ -1,0 +1,20 @@
+{
+  "name": "wortschatz",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Картотека немецких слов: блоки, списки по 500 слов, разбор по интервалам и выгрузка в PDF и Word",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node scripts/e2e.mjs && node scripts/check-artifact.mjs",
+    "check:exports": "node scripts/verify.mjs",
+    "icons": "python3 scripts/make-icons.py"
+  },
+  "repository": {
+    "type": "git",
+    "url": "http://local_proxy@127.0.0.1:41729/git/arslanamirov03-arch/MyApp"
+  },
+  "license": "ISC",
+  "devDependencies": {
+    "playwright": "^1.62.1"
+  }
+}

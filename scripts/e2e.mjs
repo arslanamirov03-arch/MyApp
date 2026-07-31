@@ -1,0 +1,195 @@
+/* Сквозная проверка в настоящем браузере: путь пользователя
+   (блок → список → слова → выгрузка → разбор) со снимками экранов. */
+import { chromium } from 'playwright';
+import { mkdirSync, existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+
+const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+const outDir = process.argv[2] || join(root, 'dist/e2e');
+mkdirSync(outDir, { recursive: true });
+
+const browser = await chromium.launch({
+  executablePath: existsSync('/opt/pw-browsers/chromium') ? '/opt/pw-browsers/chromium' : undefined
+});
+const context = await browser.newContext({
+  viewport: { width: 390, height: 844 },
+  deviceScaleFactor: 2,
+  acceptDownloads: true
+});
+const page = await context.newPage();
+
+const problems = [];
+page.on('pageerror', (e) => problems.push('Ошибка страницы: ' + e.message));
+page.on('console', (m) => { if (m.type() === 'error') problems.push('console.error: ' + m.text()); });
+
+const check = (condition, message) => { if (!condition) problems.push(message); };
+
+await page.goto(pathToFileURL(join(root, 'dist/index.html')).href);
+
+/* 1. Блок и список */
+await page.click('#fab');
+await page.fill('#f-title', 'German Words B1');
+await page.click('#modal-form button[type="submit"]');
+await page.waitForTimeout(250);
+
+await page.click('#fab');
+await page.fill('#f-title', 'Список 1');
+await page.click('#modal-form button[type="submit"]');
+await page.waitForTimeout(250);
+
+/* 2. Слова: по одному и списком */
+for (const [de, ru] of [['die Ordnung', 'порядок'], ['der Fünfjahresplan', 'пятилетний план']]) {
+  await page.fill('#input-de', de);
+  await page.fill('#input-ru', ru);
+  await page.press('#input-ru', 'Enter');
+  await page.waitForTimeout(150);
+}
+
+await page.click('[data-bulk]');
+await page.fill('#f-text', [
+  'die Straße — улица',
+  'überprüfen; проверять',
+  'das Bewusstsein\tсознание',
+  '6. der Beschluss — постановление'
+].join('\n'));
+await page.click('#modal-form button[type="submit"]');
+await page.waitForTimeout(300);
+
+check(await page.locator('.ledger__row').count() === 6, 'В ведомости должно быть 6 слов');
+check((await page.locator('.gauge__value').textContent()).includes('6 / 500'), 'Счётчик заполнения неверен');
+check((await page.locator('.ledger__de').last().textContent()).trim() === 'der Beschluss',
+  'Нумерация из вставленной строки не отброшена');
+
+await page.screenshot({ path: join(outDir, '03-words.png'), fullPage: true });
+
+/* 3. Выгрузки */
+for (const [selector, name] of [['[data-export="pdf"]', 'spisok.pdf'], ['[data-export="docx"]', 'spisok.docx']]) {
+  const [download] = await Promise.all([
+    page.waitForEvent('download', { timeout: 15000 }),
+    page.click(selector)
+  ]);
+  await download.saveAs(join(outDir, name));
+}
+
+/* 4. Разбор: новые слова доступны сразу */
+check(await page.locator('[data-start-drill]').count() === 1, 'Нет кнопки начала разбора');
+await page.click('[data-start-drill]');
+await page.waitForTimeout(400);
+
+const prompt = (await page.locator('.drill__prompt').textContent()).trim();
+check(await page.locator('#drill-input').count() === 1, 'Нет поля для ответа');
+await page.screenshot({ path: join(outDir, '05-drill.png'), fullPage: false });
+
+/* Верный ответ по показанному переводу */
+const pairs = {
+  'порядок': 'die Ordnung',
+  'пятилетний план': 'der Fünfjahresplan',
+  'улица': 'die Straße',
+  'проверять': 'überprüfen',
+  'сознание': 'das Bewusstsein',
+  'постановление': 'der Beschluss'
+};
+await page.fill('#drill-input', pairs[prompt]);
+await page.press('#drill-input', 'Enter');
+await page.waitForTimeout(350);
+
+check(await page.locator('.verdict--right').count() === 1, 'Верный ответ не засчитан');
+const nextNote = await page.locator('.verdict__next').textContent();
+check(nextNote.includes('через 1 день'), `Ожидался срок «через 1 день», получено «${nextNote}»`);
+await page.screenshot({ path: join(outDir, '06-right.png'), fullPage: false });
+
+await page.click('[data-next]');
+await page.waitForTimeout(900);
+
+/* Неверный ответ: должны появиться две кнопки */
+const prompt2 = (await page.locator('.drill__prompt').textContent()).trim();
+await page.fill('#drill-input', 'ghhen');
+await page.press('#drill-input', 'Enter');
+await page.waitForTimeout(350);
+
+check(await page.locator('.verdict--wrong').count() === 1, 'Ошибка не показана');
+check(await page.locator('[data-outcome="typo"]').count() === 1, 'Нет кнопки «это опечатка»');
+check(await page.locator('[data-outcome="forgot"]').count() === 1, 'Нет кнопки «забыл слово»');
+check((await page.locator('.verdict__word').textContent()).trim() === pairs[prompt2],
+  'Показано не то правильное слово');
+await page.screenshot({ path: join(outDir, '07-wrong.png'), fullPage: false });
+
+/* «Забыл» возвращает слово в начало лестницы и в конец очереди */
+const queueBefore = await page.evaluate(() => document.querySelector('.drill__eyebrow').textContent);
+await page.click('[data-outcome="forgot"]');
+await page.waitForTimeout(900);
+
+const forgotten = await page.evaluate((ru) => {
+  const state = window.Store.getState();
+  const word = state.blocks[0].sets[0].words.find((w) => w.ru === ru);
+  return { level: word.level, lapses: word.lapses, mastered: word.mastered };
+}, prompt2);
+check(forgotten.level === 0, `После «забыл» уровень должен быть 0, получено ${forgotten.level}`);
+check(forgotten.lapses === 1, 'Не засчитан срыв');
+
+/* 5. Лестница интервалов на данных: 1 → 3 → 7 → 14 → 30 → 60 → освоено */
+const ladder = await page.evaluate(() => {
+  const state = window.Store.getState();
+  const word = state.blocks[0].sets[0].words[0];
+  const day = 24 * 60 * 60 * 1000;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const steps = [];
+  for (let i = 0; i < 7; i++) {
+    const r = window.Store.reviewWord(word.id, 'correct');
+    steps.push(r.mastered ? 'освоено' : Math.round((word.due - today.getTime()) / day));
+  }
+  return steps;
+});
+check(JSON.stringify(ladder) === JSON.stringify([1, 3, 7, 14, 30, 60, 'освоено']),
+  `Лестница интервалов неверна: ${JSON.stringify(ladder)}`);
+
+/* Слово со сбросом после 60 дней уходит в самое начало */
+const reset = await page.evaluate(() => {
+  const word = window.Store.getState().blocks[0].sets[0].words[0];
+  window.Store.reviewWord(word.id, 'forgot');
+  return { level: word.level, mastered: word.mastered };
+});
+check(reset.level === 0 && reset.mastered === false, 'Сброс после освоения не вернул слово в начало');
+
+/* 6. Данные переживают перезагрузку */
+await page.reload();
+await page.waitForTimeout(300);
+check((await page.locator('.card__title').first().textContent()).trim() === 'German Words B1',
+  'Данные не пережили перезагрузку');
+await page.screenshot({ path: join(outDir, '01-blocks.png'), fullPage: true });
+
+await page.click('.card');
+await page.waitForTimeout(350);
+await page.screenshot({ path: join(outDir, '02-sets.png'), fullPage: true });
+
+/* 7. Предел в 500 слов */
+await page.evaluate(() => {
+  const set = window.Store.getState().blocks[0].sets[0];
+  while (set.words.length < 500) {
+    set.words.push({
+      id: 'x' + set.words.length, de: 'Wort' + set.words.length, ru: 'слово',
+      createdAt: Date.now(), level: 0, due: Date.now() + 9e9, reps: 0, lapses: 0, mastered: false
+    });
+  }
+  window.Store.save();
+});
+await page.click('.card');
+await page.waitForTimeout(350);
+
+check(await page.locator('#input-de').count() === 0, 'Форма ввода доступна в заполненном списке');
+const overflow = await page.evaluate(() => {
+  const s = window.Store.getState().blocks[0];
+  return window.Store.addWord(s.id, s.sets[0].id, 'Überschuss', 'излишек').ok;
+});
+check(overflow === false, 'Слово добавилось сверх предела в 500');
+await page.screenshot({ path: join(outDir, '04-full.png'), fullPage: false });
+
+await browser.close();
+
+if (problems.length) {
+  console.error('\nНАЙДЕНЫ ПРОБЛЕМЫ:');
+  problems.forEach((p) => console.error(' · ' + p));
+  process.exit(1);
+}
+console.log('Проверено: ввод, выгрузка, разбор (верно/опечатка/забыл), лестница 1-3-7-14-30-60, предел 500.');
