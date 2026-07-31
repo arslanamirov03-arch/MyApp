@@ -1,10 +1,20 @@
-/* Хранилище: блоки -> списки (миниблоки) -> слова.
-   Здесь же живёт расписание повторений. Всё лежит в памяти устройства,
-   интернет не нужен. */
+/* Хранилище и расписание повторений.
+
+   Учебный день начинается в 6 утра, а не в полночь: слово, добавленное
+   вечером, ждёт не «того же часа» на следующие сутки, а появляется
+   в 6:00 следующего учебного дня. Так же считаются и все остальные
+   ступени лестницы — от 1 дня до 60.
+
+   Всё лежит в памяти устройства, интернет не нужен. */
 window.Store = (function () {
   'use strict';
 
-  var KEY = 'wortkabinett.v1';
+  var KEY = 'wortschatz.state';
+  var KEY_SPARE = 'wortschatz.state.spare';
+  var LEGACY_KEY = 'wortkabinett.v1';
+  var DB_NAME = 'wortschatz';
+  var DB_STORE = 'state';
+
   var MAX_WORDS = 500;
 
   /* Лестница повторений в днях. Слово поднимается на ступень после каждого
@@ -13,57 +23,103 @@ window.Store = (function () {
   var MAX_LEVEL = INTERVALS.length;
 
   var DAY = 24 * 60 * 60 * 1000;
+  var DAY_START_HOUR = 6;
 
-  var state = { version: 1, blocks: [] };
+  var state = { version: 2, blocks: [], settings: { collapsed: {} } };
   var listeners = [];
   var memoryOnly = false;
+  var lastSavedAt = 0;
+  var clockWentBack = false;
 
   function uid() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   }
 
-  /* Конец сегодняшнего дня: слово со сроком «сегодня» должно попасть
-     в разбор целиком, независимо от времени добавления. */
-  function endOfToday() {
-    var d = new Date();
-    d.setHours(23, 59, 59, 999);
+  function now() { return Date.now(); }
+
+  /* ---------- Время ---------- */
+
+  /* Начало учебного дня, которому принадлежит момент ts.
+     До 6 утра идёт ещё вчерашний учебный день — ночь принадлежит вечеру. */
+  function studyDayStart(ts) {
+    var d = new Date(ts == null ? now() : ts);
+    if (d.getHours() < DAY_START_HOUR) d.setDate(d.getDate() - 1);
+    d.setHours(DAY_START_HOUR, 0, 0, 0);
     return d.getTime();
   }
 
-  function startOfDay(ts) {
-    var d = new Date(ts);
-    d.setHours(0, 0, 0, 0);
+  /* Момент, когда слово всплывёт: 6:00 через указанное число дней.
+     Считаем через календарь, чтобы перевод часов не сдвигал время. */
+  function dueAfterDays(days, from) {
+    var d = new Date(studyDayStart(from));
+    d.setDate(d.getDate() + days);
+    d.setHours(DAY_START_HOUR, 0, 0, 0);
     return d.getTime();
+  }
+
+  function studyDaysBetween(fromTs, toTs) {
+    return Math.round((studyDayStart(toTs) - studyDayStart(fromTs)) / DAY);
+  }
+
+  /* ---------- Чтение и запись ---------- */
+
+  function readKey(key) {
+    try {
+      var raw = localStorage.getItem(key);
+      if (!raw) return null;
+      var parsed = JSON.parse(raw);
+      if (!parsed || !Array.isArray(parsed.blocks)) return null;
+      return parsed;
+    } catch (e) {
+      return null;
+    }
   }
 
   function load() {
+    var candidates = [];
     try {
-      var raw = localStorage.getItem(KEY);
-      if (raw) {
-        var parsed = JSON.parse(raw);
-        if (parsed && Array.isArray(parsed.blocks)) state = normalize(parsed);
-      }
+      var main = readKey(KEY);
+      var spare = readKey(KEY_SPARE);
+      var legacy = readKey(LEGACY_KEY);
+      if (main) candidates.push(main);
+      if (spare) candidates.push(spare);
+      if (legacy) candidates.push(legacy);
     } catch (e) {
-      /* Приватный режим или запрет на хранение — работаем без сохранения. */
       memoryOnly = true;
-      console.warn('Сохранение недоступно, данные будут жить только до закрытия вкладки', e);
+      console.warn('Хранилище недоступно, данные будут жить только до закрытия', e);
+      return state;
     }
+
+    if (candidates.length) {
+      /* Две копии пишутся по очереди: если запись оборвалась, целой
+         останется хотя бы одна — берём ту, что новее. */
+      candidates.sort(function (a, b) { return (b.savedAt || 0) - (a.savedAt || 0); });
+      state = normalize(candidates[0]);
+      lastSavedAt = candidates[0].savedAt || 0;
+    }
+
+    /* Часы устройства ушли назад — расписание могло съехать. */
+    if (lastSavedAt && now() < lastSavedAt - 12 * 60 * 60 * 1000) clockWentBack = true;
+
+    restoreFromDatabase();
     return state;
   }
 
   function normalize(data) {
+    var settings = data.settings || {};
     return {
-      version: 1,
+      version: 2,
+      settings: { collapsed: settings.collapsed || {} },
       blocks: (data.blocks || []).filter(Boolean).map(function (b) {
         return {
           id: b.id || uid(),
           title: String(b.title || 'Без названия'),
-          createdAt: b.createdAt || Date.now(),
+          createdAt: b.createdAt || now(),
           sets: (b.sets || []).filter(Boolean).map(function (s) {
             return {
               id: s.id || uid(),
               title: String(s.title || 'Список'),
-              createdAt: s.createdAt || Date.now(),
+              createdAt: s.createdAt || now(),
               words: (s.words || []).filter(Boolean).map(normalizeWord)
             };
           })
@@ -73,7 +129,7 @@ window.Store = (function () {
   }
 
   function normalizeWord(w) {
-    var created = w.createdAt || Date.now();
+    var created = w.createdAt || now();
     return {
       id: w.id || uid(),
       de: String(w.de || ''),
@@ -88,24 +144,111 @@ window.Store = (function () {
     };
   }
 
+  function serialize() {
+    return JSON.stringify({
+      version: 2,
+      savedAt: now(),
+      settings: state.settings,
+      blocks: state.blocks
+    });
+  }
+
+  /* Запись идёт в две ячейки по очереди, чтобы обрыв на середине
+     не оставил приложение вообще без данных. */
+  function writeNow() {
+    if (memoryOnly) return;
+    var payload = serialize();
+    try {
+      localStorage.setItem(KEY_SPARE, localStorage.getItem(KEY) || payload);
+      localStorage.setItem(KEY, payload);
+      lastSavedAt = now();
+      mirrorToDatabase(payload);
+    } catch (e) {
+      memoryOnly = true;
+      console.warn('Не удалось сохранить данные', e);
+    }
+  }
+
   var saveTimer = null;
   function save() {
     if (saveTimer) clearTimeout(saveTimer);
-    saveTimer = setTimeout(function () {
-      if (memoryOnly) return;
-      try {
-        localStorage.setItem(KEY, JSON.stringify(state));
-      } catch (e) {
-        memoryOnly = true;
-        console.warn('Не удалось сохранить данные', e);
-      }
-    }, 60);
-    listeners.forEach(function (fn) { fn(state); });
+    saveTimer = setTimeout(function () { saveTimer = null; writeNow(); }, 60);
   }
 
+  /* Немедленная запись: вызывается перед уходом со страницы. */
+  function flush() {
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    writeNow();
+  }
+
+  /* ---------- Второй экземпляр в базе данных ---------- */
+
+  function openDatabase(callback) {
+    try {
+      if (!window.indexedDB) { callback(null); return; }
+      var request = indexedDB.open(DB_NAME, 1);
+      request.onupgradeneeded = function () {
+        var db = request.result;
+        if (!db.objectStoreNames.contains(DB_STORE)) db.createObjectStore(DB_STORE);
+      };
+      request.onsuccess = function () { callback(request.result); };
+      request.onerror = function () { callback(null); };
+    } catch (e) {
+      callback(null);
+    }
+  }
+
+  function mirrorToDatabase(payload) {
+    openDatabase(function (db) {
+      if (!db) return;
+      try {
+        db.transaction(DB_STORE, 'readwrite').objectStore(DB_STORE).put(payload, 'main');
+      } catch (e) { /* зеркало не критично */ }
+    });
+  }
+
+  /* Если хранилище браузера почистили, а база уцелела — поднимаем оттуда. */
+  function restoreFromDatabase() {
+    openDatabase(function (db) {
+      if (!db) return;
+      try {
+        var request = db.transaction(DB_STORE, 'readonly').objectStore(DB_STORE).get('main');
+        request.onsuccess = function () {
+          var raw = request.result;
+          if (!raw) return;
+          var parsed;
+          try { parsed = JSON.parse(raw); } catch (e) { return; }
+          if (!parsed || !Array.isArray(parsed.blocks)) return;
+          if ((parsed.savedAt || 0) <= lastSavedAt) return;
+
+          state = normalize(parsed);
+          lastSavedAt = parsed.savedAt || 0;
+          listeners.forEach(function (fn) { fn(state); });
+        };
+      } catch (e) { /* восстановление не удалось — работаем с тем, что есть */ }
+    });
+  }
+
+  /* Подписка нужна только для случая, когда данные пришли со стороны —
+     из запасной копии в базе. Обычные изменения экран перерисовывает сам. */
   function subscribe(fn) { listeners.push(fn); }
   function getState() { return state; }
   function isMemoryOnly() { return memoryOnly; }
+  function clockSuspicious() { return clockWentBack; }
+  function savedAt() { return lastSavedAt; }
+
+  /* ---------- Настройки ---------- */
+
+  function isCollapsed(setId) { return !!state.settings.collapsed[setId]; }
+
+  function toggleCollapsed(setId) {
+    if (state.settings.collapsed[setId]) delete state.settings.collapsed[setId];
+    else state.settings.collapsed[setId] = true;
+    save();
+    return isCollapsed(setId);
+  }
+
+  /* ---------- Доступ ---------- */
 
   function getBlock(blockId) {
     return state.blocks.find(function (b) { return b.id === blockId; }) || null;
@@ -127,7 +270,7 @@ window.Store = (function () {
     var block = {
       id: uid(),
       title: String(title || '').trim() || 'Новый блок',
-      createdAt: Date.now(),
+      createdAt: now(),
       sets: []
     };
     state.blocks.push(block);
@@ -155,7 +298,7 @@ window.Store = (function () {
     var set = {
       id: uid(),
       title: String(title || '').trim() || ('Список ' + (block.sets.length + 1)),
-      createdAt: Date.now(),
+      createdAt: now(),
       words: []
     };
     block.sets.push(set);
@@ -174,16 +317,17 @@ window.Store = (function () {
     var block = getBlock(blockId);
     if (!block) return;
     block.sets = block.sets.filter(function (s) { return s.id !== setId; });
+    delete state.settings.collapsed[setId];
     save();
   }
 
   /* ---------- Слова ---------- */
 
   function makeWord(de, ru) {
-    var now = Date.now();
+    var ts = now();
     return {
-      id: uid(), de: de, ru: ru, createdAt: now,
-      level: 0, due: now, reps: 0, lapses: 0, lastReviewed: null, mastered: false
+      id: uid(), de: de, ru: ru, createdAt: ts,
+      level: 0, due: ts, reps: 0, lapses: 0, lastReviewed: null, mastered: false
     };
   }
 
@@ -246,7 +390,6 @@ window.Store = (function () {
 
   /* ---------- Повторения ---------- */
 
-  /* Все слова с указанием, где они лежат. scope: {} | {blockId} | {blockId,setId} */
   function collectWords(scope) {
     scope = scope || {};
     var result = [];
@@ -255,43 +398,60 @@ window.Store = (function () {
       block.sets.forEach(function (set) {
         if (scope.setId && set.id !== scope.setId) return;
         set.words.forEach(function (word) {
-          result.push({ word: word, blockId: block.id, setId: set.id, blockTitle: block.title, setTitle: set.title });
+          result.push({
+            word: word, blockId: block.id, setId: set.id,
+            blockTitle: block.title, setTitle: set.title
+          });
         });
       });
     });
     return result;
   }
 
+  /* Слово готово, когда наступил его час — то есть 6 утра назначенного дня. */
   function isDue(word, at) {
     if (word.mastered) return false;
     /* Вопрос в разборе — это перевод, поэтому без перевода спрашивать нечего. */
     if (!word.ru) return false;
-    return word.due <= (at || endOfToday());
+    return word.due <= (at || now());
   }
 
-  function dueCount(scope) {
-    var limit = endOfToday();
-    return collectWords(scope).filter(function (item) { return isDue(item.word, limit); }).length;
+  function dueCount(scope, at) {
+    var moment = at || now();
+    return collectWords(scope).filter(function (item) { return isDue(item.word, moment); }).length;
   }
 
-  function stats(scope) {
+  function stats(scope, at) {
+    var moment = at || now();
     var items = collectWords(scope);
-    var limit = endOfToday();
-    var due = 0, mastered = 0, learning = 0, fresh = 0;
+    var due = 0, mastered = 0, learning = 0, waiting = 0;
     items.forEach(function (item) {
       var w = item.word;
-      if (w.mastered) mastered++;
-      else if (isDue(w, limit)) due++;
-      if (!w.mastered && w.level > 0) learning++;
-      if (w.level === 0 && !w.reps) fresh++;
+      if (w.mastered) { mastered++; return; }
+      if (isDue(w, moment)) due++;
+      else waiting++;
+      if (w.level > 0) learning++;
     });
-    return { total: items.length, due: due, mastered: mastered, learning: learning, fresh: fresh };
+    return { total: items.length, due: due, mastered: mastered, learning: learning, waiting: waiting };
   }
 
-  /* Очередь на сегодня: перемешана, чтобы порядок слов не заучивался. */
-  function buildQueue(scope) {
-    var limit = endOfToday();
-    var queue = collectWords(scope).filter(function (item) { return isDue(item.word, limit); });
+  /* Когда всплывёт ближайшее слово, которое сейчас ещё спит. */
+  function nextDueAt(scope, at) {
+    var moment = at || now();
+    var soonest = null;
+    collectWords(scope).forEach(function (item) {
+      var w = item.word;
+      if (w.mastered || !w.ru) return;
+      if (w.due <= moment) return;
+      if (soonest === null || w.due < soonest) soonest = w.due;
+    });
+    return soonest;
+  }
+
+  /* Очередь на сейчас: перемешана, чтобы порядок слов не заучивался. */
+  function buildQueue(scope, at) {
+    var moment = at || now();
+    var queue = collectWords(scope).filter(function (item) { return isDue(item.word, moment); });
     for (var i = queue.length - 1; i > 0; i--) {
       var j = Math.floor(Math.random() * (i + 1));
       var tmp = queue[i];
@@ -315,54 +475,79 @@ window.Store = (function () {
     return normalizeAnswer(answer) === normalizeAnswer(word.de);
   }
 
-  /* outcome: 'correct' — верно, 'typo' — засчитать как верное, 'forgot' — сброс.
-     Возвращает описание нового срока для показа пользователю. */
-  function reviewWord(wordId, outcome) {
+  function findWord(wordId) {
     var found = null;
     state.blocks.forEach(function (block) {
       block.sets.forEach(function (set) {
         set.words.forEach(function (w) { if (w.id === wordId) found = w; });
       });
     });
-    if (!found) return null;
+    return found;
+  }
 
-    found.reps++;
-    found.lastReviewed = Date.now();
+  /* outcome: 'correct' — верно, 'typo' — засчитать как верное, 'forgot' — сброс. */
+  function reviewWord(wordId, outcome, at) {
+    var moment = at || now();
+    var word = findWord(wordId);
+    if (!word) return null;
+
+    word.reps++;
+    word.lastReviewed = moment;
 
     if (outcome === 'forgot') {
-      found.level = 0;
-      found.lapses++;
-      found.mastered = false;
-      found.due = Date.now();
+      word.level = 0;
+      word.lapses++;
+      word.mastered = false;
+      word.due = moment;
       save();
-      return { level: 0, days: 0, mastered: false, again: true };
+      return { level: 0, days: 0, due: moment, mastered: false, again: true };
     }
 
-    var previousLevel = found.level;
-    found.level = Math.min(found.level + 1, MAX_LEVEL);
+    var previousLevel = word.level;
+    word.level = Math.min(word.level + 1, MAX_LEVEL);
 
     if (previousLevel >= MAX_LEVEL) {
       /* Слово уже отстояло последний интервал в 60 дней и снова названо
          верно — дальше держать его в разборе незачем. */
-      found.mastered = true;
-      found.due = startOfDay(Date.now()) + INTERVALS[MAX_LEVEL - 1] * DAY;
+      word.mastered = true;
+      word.due = dueAfterDays(INTERVALS[MAX_LEVEL - 1], moment);
       save();
-      return { level: found.level, days: 0, mastered: true, again: false };
+      return { level: word.level, days: 0, due: word.due, mastered: true, again: false };
     }
 
-    var days = INTERVALS[found.level - 1];
-    found.due = startOfDay(Date.now()) + days * DAY;
+    var days = INTERVALS[word.level - 1];
+    word.due = dueAfterDays(days, moment);
     save();
-    return { level: found.level, days: days, mastered: false, again: false };
+    return { level: word.level, days: days, due: word.due, mastered: false, again: false };
   }
 
-  /* Через сколько дней слово всплывёт снова (для показа в ведомости). */
-  function dueLabel(word) {
+  /* Расписание считается учебными днями, а подпись — обычными:
+     в 5:59 слово со сроком «сегодня в 6:00» должно читаться как «в 06:00»,
+     а не как «завтра», хотя учебный день ещё вчерашний. */
+  function calendarDayStart(ts) {
+    var d = new Date(ts);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  }
+
+  function calendarDaysBetween(fromTs, toTs) {
+    return Math.round((calendarDayStart(toTs) - calendarDayStart(fromTs)) / DAY);
+  }
+
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+
+  /* Когда слово всплывёт снова — коротко, для списка. */
+  function dueLabel(word, at) {
     if (word.mastered) return 'освоено';
-    var today = startOfDay(Date.now());
-    var due = startOfDay(word.due);
-    var diff = Math.round((due - today) / DAY);
-    if (diff <= 0) return 'сегодня';
+    if (!word.ru) return 'нет перевода';
+    var moment = at || now();
+    if (word.due <= moment) return 'сейчас';
+
+    var diff = calendarDaysBetween(moment, word.due);
+    if (diff <= 0) {
+      var d = new Date(word.due);
+      return 'в ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+    }
     if (diff === 1) return 'завтра';
     return 'через ' + diff + ' дн.';
   }
@@ -370,7 +555,9 @@ window.Store = (function () {
   /* ---------- Архив ---------- */
 
   function exportJson() {
-    return JSON.stringify({ version: 1, exportedAt: Date.now(), blocks: state.blocks }, null, 2);
+    return JSON.stringify({
+      version: 2, exportedAt: now(), settings: state.settings, blocks: state.blocks
+    }, null, 2);
   }
 
   function importJson(text, mode) {
@@ -389,7 +576,7 @@ window.Store = (function () {
         state.blocks.push(b);
       });
     }
-    save();
+    flush();
     return incoming.blocks.length;
   }
 
@@ -397,13 +584,26 @@ window.Store = (function () {
     MAX_WORDS: MAX_WORDS,
     INTERVALS: INTERVALS,
     MAX_LEVEL: MAX_LEVEL,
-    load: load, save: save, subscribe: subscribe, getState: getState, isMemoryOnly: isMemoryOnly,
+    DAY_START_HOUR: DAY_START_HOUR,
+    DAY: DAY,
+
+    load: load, save: save, flush: flush, subscribe: subscribe, getState: getState,
+    isMemoryOnly: isMemoryOnly, clockSuspicious: clockSuspicious, savedAt: savedAt,
+
+    studyDayStart: studyDayStart, dueAfterDays: dueAfterDays, studyDaysBetween: studyDaysBetween,
+    calendarDaysBetween: calendarDaysBetween,
+
+    isCollapsed: isCollapsed, toggleCollapsed: toggleCollapsed,
+
     getBlock: getBlock, getSet: getSet, countWords: countWords,
     addBlock: addBlock, renameBlock: renameBlock, removeBlock: removeBlock,
     addSet: addSet, renameSet: renameSet, removeSet: removeSet,
     addWord: addWord, addWordsBulk: addWordsBulk, updateWord: updateWord, removeWord: removeWord,
+
     collectWords: collectWords, dueCount: dueCount, stats: stats, buildQueue: buildQueue,
-    checkAnswer: checkAnswer, reviewWord: reviewWord, dueLabel: dueLabel, isDue: isDue,
+    nextDueAt: nextDueAt, checkAnswer: checkAnswer, reviewWord: reviewWord,
+    dueLabel: dueLabel, isDue: isDue,
+
     exportJson: exportJson, importJson: importJson
   };
 })();

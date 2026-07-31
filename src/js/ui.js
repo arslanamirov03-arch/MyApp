@@ -60,6 +60,43 @@
 
   function dayWord(n) { return plural(n, 'день', 'дня', 'дней'); }
 
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+
+  var MONTHS = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+    'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+
+  function clockText(ts) {
+    var d = new Date(ts);
+    return pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+
+  function dayText(ts) {
+    var d = new Date(ts);
+    return d.getDate() + ' ' + MONTHS[d.getMonth()];
+  }
+
+  /* «в 06:00», «завтра в 06:00», «3 августа, 06:00» — когда откроется партия. */
+  function whenText(ts, from) {
+    var diff = Store.calendarDaysBetween(from, ts);
+    if (diff <= 0) return 'в ' + clockText(ts);
+    if (diff === 1) return 'завтра в ' + clockText(ts);
+    return dayText(ts) + ', ' + clockText(ts);
+  }
+
+  /* «через 9 ч 28 мин» — сколько ждать до ближайшей партии слов. */
+  function waitText(from, to) {
+    var left = Math.max(0, to - from);
+    var hours = Math.floor(left / 3600000);
+    var minutes = Math.floor((left % 3600000) / 60000);
+    if (hours >= 24) {
+      var days = Math.floor(hours / 24);
+      return 'через ' + days + ' ' + dayWord(days);
+    }
+    if (hours > 0) return 'через ' + hours + ' ч ' + minutes + ' мин';
+    if (minutes > 0) return 'через ' + minutes + ' мин';
+    return 'меньше минуты';
+  }
+
   /* Медленное исчезновение: элемент растворяется, место за ним смыкается. */
   function evaporate(el, done) {
     if (!el) { done(); return; }
@@ -179,8 +216,9 @@
       '</div>';
   }
 
-  function callBlock(scope, label) {
-    var count = Store.dueCount(scope);
+  function callBlock(scope) {
+    var moment = Date.now();
+    var count = Store.dueCount(scope, moment);
     if (count > 0) {
       return '<section class="glass call">' +
         '<div class="call__text">' +
@@ -190,12 +228,21 @@
         '<button class="btn btn--accent" data-start-drill>Начать</button>' +
         '</section>';
     }
-    var stats = Store.stats(scope);
+
+    var stats = Store.stats(scope, moment);
     if (!stats.total) return '';
+
+    /* Слов на сейчас нет — показываем, когда откроется следующая партия. */
+    var next = Store.nextDueAt(scope, moment);
+    var hint = next
+      ? whenText(next, moment) +
+        ' · <span data-countdown="' + next + '">' + waitText(moment, next) + '</span>'
+      : 'Все слова этого раздела освоены';
+
     return '<section class="glass call">' +
       '<div class="call__text">' +
-      '<h2 class="call__title">На сегодня разбор окончен</h2>' +
-      '<p class="call__hint">Слова вернутся по расписанию: 1, 3, 7, 14, 30 и 60 дней</p>' +
+      '<h2 class="call__title">' + (next ? 'Разбор на сейчас окончен' : 'Раздел пройден') + '</h2>' +
+      '<p class="call__hint">' + hint + '</p>' +
       '</div></section>';
   }
 
@@ -215,7 +262,7 @@
     }
 
     html += summaryBlock({});
-    html += callBlock({}, 'Все блоки');
+    html += callBlock({});
     html += '<h2 class="section-title">Блоки<span class="section-title__note">' +
       blocks.length + '</span></h2>';
 
@@ -244,7 +291,7 @@
     if (!block) { go({ name: 'blocks' }, true); return; }
 
     var html = summaryBlock({ blockId: block.id });
-    html += callBlock({ blockId: block.id }, esc(block.title));
+    html += callBlock({ blockId: block.id });
 
     if (!block.sets.length) {
       html += '<div class="empty">' +
@@ -295,7 +342,7 @@
       '<div class="gauge__track"><div class="gauge__fill' + (full ? ' gauge__fill--full' : '') +
       '" style="width:' + percent.toFixed(1) + '%"></div></div></section>';
 
-    html += callBlock(scope, esc(set.title));
+    html += callBlock(scope);
 
     if (full) {
       html += '<section class="glass call">' +
@@ -326,13 +373,25 @@
       '<button class="btn" data-export="txt">Текст</button>' +
       '</div>';
 
-    html += '<h2 class="section-title">Слова<span class="section-title__note">' + count + '</span></h2>';
+    var collapsed = Store.isCollapsed(set.id);
+
+    html += '<h2 class="section-title">Слова' +
+      (count
+        ? '<button class="btn btn--quiet" data-toggle-words>' +
+          (collapsed ? 'Открыть · ' + count : 'Завернуть') + '</button>'
+        : '<span class="section-title__note">0</span>') +
+      '</h2>';
 
     if (!count) {
       html += '<div class="empty">' +
         '<h3 class="empty__title">Слов пока нет</h3>' +
         '<p class="empty__text">Добавьте слово с переводом в форму выше.<br>' +
         '«Вставить списком» принимает сразу много строк.</p></div>';
+    } else if (collapsed) {
+      html += '<section class="glass folded" data-open-words>' +
+        '<span class="folded__count">' + count + ' ' + plural(count, 'слово', 'слова', 'слов') + '</span>' +
+        '<span class="folded__hint">свёрнуто — нажмите, чтобы открыть</span>' +
+        '</section>';
     } else {
       html += '<div class="search"><input class="input" type="search" id="input-search" ' +
         'placeholder="Поиск по словам" value="' + esc(filter) + '"></div>';
@@ -348,7 +407,7 @@
         shown++;
 
         var label = Store.dueLabel(word);
-        var chipClass = word.mastered ? 'chip chip--calm' : (label === 'сегодня' ? 'chip chip--due' : 'chip');
+        var chipClass = word.mastered ? 'chip chip--calm' : (label === 'сейчас' ? 'chip chip--due' : 'chip');
         var note = word.ru ? esc(word.ru) : '<span style="opacity:.65">нет перевода — в разбор не попадёт</span>';
 
         rows += '<div class="ledger__row" data-id="' + word.id + '" data-row="' + word.id + '">' +
@@ -434,8 +493,8 @@
           '<p class="verdict__word">' + esc(word.de) + '</p>' +
           '<p class="verdict__yours">Вы написали: <s>' + esc(session.answer) + '</s></p>' +
           '<div class="verdict__choice">' +
-          '<button class="btn btn--calm" data-outcome="typo">Слово я знал, это опечатка</button>' +
-          '<button class="btn btn--accent" data-outcome="forgot">Забыл слово — начать заново</button>' +
+          '<button class="btn btn--calm" data-outcome="typo">Опечатка</button>' +
+          '<button class="btn btn--accent" data-outcome="forgot">Забыл</button>' +
           '</div></div>';
       }
       html += '</div>';
@@ -478,7 +537,8 @@
       session.state = 'right';
       session.nextNote = result && result.mastered
         ? 'Слово освоено — лестница пройдена полностью'
-        : 'Следующий разбор через ' + result.days + ' ' + dayWord(result.days);
+        : 'Через ' + result.days + ' ' + dayWord(result.days) + ' · ' +
+          dayText(result.due) + ', с ' + clockText(result.due);
       render();
       /* Небольшая пауза, чтобы увидеть правильное написание. */
       advanceTimer = setTimeout(nextWord, 1600);
@@ -501,7 +561,7 @@
     } else if (result) {
       toast(result.mastered
         ? 'Засчитано · слово освоено'
-        : 'Засчитано · следующий разбор через ' + result.days + ' ' + dayWord(result.days));
+        : 'Засчитано · дальше ' + dayText(result.due) + ', с ' + clockText(result.due));
     }
     nextWord();
   }
@@ -550,18 +610,50 @@
     crumbsEl.innerHTML = parts.join('');
   }
 
-  function renderChrome() {
+  var lastDueCount = null;
+
+  /* Шапка всегда показывает текущее время и то, чего ждать дальше. */
+  function renderChrome(moment) {
+    moment = moment || Date.now();
     var blocks = Store.getState().blocks;
     var total = blocks.reduce(function (sum, b) { return sum + Store.countWords(b); }, 0);
-    var due = Store.dueCount({});
+    var due = Store.dueCount({}, moment);
+    lastDueCount = due;
 
-    subEl.textContent = due
-      ? due + ' ' + plural(due, 'слово', 'слова', 'слов') + ' к разбору сегодня'
-      : 'Немецкие слова';
+    var note;
+    if (!total) note = 'Немецкие слова';
+    else if (due) note = due + ' ' + plural(due, 'слово', 'слова', 'слов') + ' к разбору';
+    else {
+      var next = Store.nextDueAt({}, moment);
+      note = next ? 'следующие ' + whenText(next, moment) : 'все слова освоены';
+    }
 
-    footerEl.textContent = total
-      ? 'Блоков: ' + blocks.length + ' · слов: ' + total
-      : '';
+    subEl.textContent = clockText(moment) + ' · ' + note;
+    footerEl.textContent = total ? 'Блоков: ' + blocks.length + ' · слов: ' + total : '';
+  }
+
+  function refreshCountdowns(moment) {
+    var nodes = screenEl.querySelectorAll('[data-countdown]');
+    for (var i = 0; i < nodes.length; i++) {
+      nodes[i].textContent = waitText(moment, Number(nodes[i].getAttribute('data-countdown')));
+    }
+  }
+
+  /* Приложение само следит за временем: когда в 6 утра открывается новая
+     партия слов, экран обновляется без перезапуска. */
+  function tick() {
+    var moment = Date.now();
+    var due = Store.dueCount({}, moment);
+
+    if (due !== lastDueCount && route.name !== 'drill') {
+      var appeared = due > (lastDueCount || 0);
+      render();
+      if (appeared) toast('Слов к разбору: ' + due);
+      return;
+    }
+
+    renderChrome(moment);
+    refreshCountdowns(moment);
   }
 
   function render(routeChanged) {
@@ -723,10 +815,17 @@
   }
 
   function openArchive() {
+    var saved = Store.savedAt();
+    var storageNote = Store.isMemoryOnly()
+      ? '<b>Внимание:</b> устройство запретило сохранение, данные живут только до закрытия.'
+      : 'Прогресс хранится на устройстве в двух местах сразу и записывается после ' +
+        'каждого изменения' + (saved ? ' (последняя запись в ' + clockText(saved) + ')' : '') + '.';
+
     openForm({
       title: 'Резервная копия',
-      hint: 'Один файл со всеми блоками, списками, словами и расписанием разбора. ' +
-        'Сохраните его, чтобы не потерять картотеку при смене устройства.',
+      hint: storageNote + '<br><br>Копия — это один файл со всеми блоками, списками, ' +
+        'словами и расписанием разбора. Сохраните его, чтобы не потерять картотеку ' +
+        'при смене устройства.',
       fields: [],
       cancelText: 'Закрыть',
       extra: '<div class="btn-row" style="margin-top:4px">' +
@@ -877,6 +976,24 @@
       return;
     }
 
+    if (target.closest('[data-toggle-words]')) {
+      var ledgerEl = screenEl.querySelector('.ledger');
+      if (ledgerEl && !Store.isCollapsed(route.setId)) {
+        /* Список не пропадает рывком — он растворяется, как и всё здесь. */
+        evaporate(ledgerEl, function () { Store.toggleCollapsed(route.setId); render(); });
+      } else {
+        Store.toggleCollapsed(route.setId);
+        render();
+      }
+      return;
+    }
+
+    if (target.closest('[data-open-words]')) {
+      Store.toggleCollapsed(route.setId);
+      render();
+      return;
+    }
+
     if (target.closest('[data-add-word]')) { addWordFromForm(); return; }
     if (target.closest('[data-bulk]')) { openBulk(); return; }
     if (target.closest('[data-new-set]')) { createSet(route.blockId, true); return; }
@@ -928,7 +1045,26 @@
   history.replaceState(route, '');
   render(true);
 
+  /* Часы идут всё время работы приложения. */
+  setInterval(tick, 15000);
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') tick();
+    else Store.flush();
+  });
+
+  /* Перед уходом со страницы дописываем всё несохранённое. */
+  window.addEventListener('pagehide', function () { Store.flush(); });
+  window.addEventListener('beforeunload', function () { Store.flush(); });
+
+  /* Данные могли обновиться из запасной копии в базе — перерисуем. */
+  Store.subscribe(function () {
+    if (route.name !== 'drill' && modalRoot.hidden) render();
+  });
+
   if (Store.isMemoryOnly()) {
     toast('Браузер запретил сохранение — слова не переживут закрытие вкладки');
+  } else if (Store.clockSuspicious()) {
+    toast('Часы устройства показывают более раннее время, чем при прошлом запуске');
   }
 })();

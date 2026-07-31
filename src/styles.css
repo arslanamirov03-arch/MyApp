@@ -673,6 +673,30 @@ body::after {
 .icon-btn:hover { color: var(--accent); transform: scale(1.08); }
 .icon-btn:active { transform: scale(.9); }
 
+/* Свёрнутый список слов: занимает одну строку и не мешает. */
+.folded {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  cursor: pointer;
+  transition: transform .3s cubic-bezier(.2, .7, .3, 1);
+}
+
+.folded:hover { transform: translateY(-2px); }
+.folded:active { transform: scale(.992); }
+
+.folded__count {
+  font-family: var(--display);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.folded__hint { font-size: 13px; color: var(--ink-faint); }
+
 /* ---------- Разбор слов ---------- */
 
 .drill { padding: 26px 22px 22px; margin-bottom: 14px; text-align: center; }

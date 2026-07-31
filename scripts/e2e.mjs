@@ -96,7 +96,7 @@ await page.waitForTimeout(350);
 
 check(await page.locator('.verdict--right').count() === 1, 'Верный ответ не засчитан');
 const nextNote = await page.locator('.verdict__next').textContent();
-check(nextNote.includes('через 1 день'), `Ожидался срок «через 1 день», получено «${nextNote}»`);
+check(/через 1 день/i.test(nextNote), `Ожидался срок «через 1 день», получено «${nextNote}»`);
 await page.screenshot({ path: join(outDir, '06-right.png'), fullPage: false });
 
 await page.click('[data-next]');
@@ -130,14 +130,11 @@ check(forgotten.lapses === 1, 'Не засчитан срыв');
 
 /* 5. Лестница интервалов на данных: 1 → 3 → 7 → 14 → 30 → 60 → освоено */
 const ladder = await page.evaluate(() => {
-  const state = window.Store.getState();
-  const word = state.blocks[0].sets[0].words[0];
-  const day = 24 * 60 * 60 * 1000;
-  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const word = window.Store.getState().blocks[0].sets[0].words[0];
   const steps = [];
   for (let i = 0; i < 7; i++) {
     const r = window.Store.reviewWord(word.id, 'correct');
-    steps.push(r.mastered ? 'освоено' : Math.round((word.due - today.getTime()) / day));
+    steps.push(r.mastered ? 'освоено' : window.Store.studyDaysBetween(Date.now(), word.due));
   }
   return steps;
 });
@@ -183,6 +180,37 @@ const overflow = await page.evaluate(() => {
   return window.Store.addWord(s.id, s.sets[0].id, 'Überschuss', 'излишек').ok;
 });
 check(overflow === false, 'Слово добавилось сверх предела в 500');
+
+/* 8. Сворачивание списка слов */
+await page.evaluate(() => {
+  const state = window.Store.getState();
+  state.blocks[0].sets[0].words.length = 5;
+  window.Store.save();
+});
+await page.reload();
+await page.waitForTimeout(300);
+await page.click('.card');
+await page.waitForTimeout(250);
+await page.click('.card');
+await page.waitForTimeout(300);
+
+check(await page.locator('.ledger__row').count() === 5, 'Ведомость не показывает слова');
+await page.click('[data-toggle-words]');
+await page.waitForTimeout(900);
+check(await page.locator('.ledger').count() === 0, 'Список не свернулся');
+check(await page.locator('.folded').count() === 1, 'Нет свёрнутой полосы');
+
+await page.reload();
+await page.waitForTimeout(300);
+await page.click('.card');
+await page.waitForTimeout(250);
+await page.click('.card');
+await page.waitForTimeout(300);
+check(await page.locator('.folded').count() === 1, 'Свёрнутое состояние не пережило перезагрузку');
+
+await page.click('[data-open-words]');
+await page.waitForTimeout(400);
+check(await page.locator('.ledger__row').count() === 5, 'Список не развернулся обратно');
 await page.screenshot({ path: join(outDir, '04-full.png'), fullPage: false });
 
 await browser.close();
