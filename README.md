@@ -77,4 +77,22 @@ npm run check:exports  # собрать пробные PDF/DOCX/TXT
 HTML-файл. Он же копируется в `android/app/src/main/assets/`, поэтому
 приложение и сайт всегда одинаковы.
 
-APK собирается вручную — вкладка Actions, workflow «Сборка APK».
+## Установка на телефон
+
+Готовое приложение лежит в `release/wortschatz-1.0.apk` — файл скачивается
+по прямой ссылке одним переходом:
+
+https://raw.githubusercontent.com/arslanamirov03-arch/MyApp/refs/heads/claude/german-vocabulary-app-epeejr/release/wortschatz-1.0.apk
+
+Собрать заново:
+
+```bash
+node scripts/build.mjs
+cd android && gradle assembleDebug
+```
+
+Страница внутри приложения отдаётся через `WebViewAssetLoader` с постоянного
+адреса `https://appassets.androidplatform.net/`. Это важно вдвойне: у страницы
+появляется постоянный источник, поэтому не пропадает сохранённый прогресс,
+и запросы к Google уходят нормально — со страницы, открытой прямо из файла,
+браузер их не выпускает.
