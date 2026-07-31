@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Нужен для картинок от Gemini; сами слова живут без сети. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- До Android 10 запись в общие «Загрузки» требовала разрешения. -->
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"

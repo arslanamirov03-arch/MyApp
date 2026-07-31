@@ -1020,11 +1020,25 @@
         name: 'key', label: 'Ключ Google AI',
         value: key, placeholder: 'вставьте ключ'
       }],
+      extra: '<div class="btn-row" style="margin-top:2px">' +
+        '<button type="button" class="btn btn--quiet btn--wide" data-check-access>Проверить связь</button>' +
+        '</div>',
       submitText: 'Сохранить',
       onSubmit: function (values) {
         Store.setApiKey(values.key);
         toast(values.key.trim() ? 'Ключ сохранён' : 'Ключ удалён');
       }
+    });
+
+    modalRoot.querySelector('[data-check-access]').addEventListener('click', function () {
+      var field = document.getElementById('f-key');
+      if (field) Store.setApiKey(field.value);
+      toast('Проверяю связь…');
+      window.Media.checkAccess().then(function (message) {
+        toast(message);
+      }, function (error) {
+        toast(error.message);
+      });
     });
   }
 

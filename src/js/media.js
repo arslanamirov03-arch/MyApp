@@ -141,12 +141,38 @@ window.Media = (function () {
     });
   }
 
+  /* Быстрая проверка связи: запрашивается список моделей, картинка не рисуется
+     и деньги не тратятся. Нужна, чтобы сразу видеть, дело в ключе,
+     в сети или в самом приложении. */
+  function checkAccess() {
+    var key = window.Store.getApiKey();
+    if (!key) return Promise.reject(new Error('Ключ не указан'));
+
+    return fetch('https://generativelanguage.googleapis.com/v1beta/models', {
+      headers: { 'x-goog-api-key': key }
+    }).then(function (response) {
+      return response.json().then(function (data) {
+        if (!response.ok) {
+          throw new Error((data && data.error && data.error.message) || ('код ' + response.status));
+        }
+        var models = (data.models || []).filter(function (m) {
+          return /image/.test(m.name || '');
+        });
+        return 'Связь есть · доступно моделей с картинками: ' + models.length;
+      });
+    }, function (error) {
+      if (error instanceof TypeError) throw new Error('Нет доступа к серверу Google с этой страницы');
+      throw error;
+    });
+  }
+
   return {
     DEFAULT_MODEL: DEFAULT_MODEL,
     buildPrompt: buildPrompt,
     pickFromDevice: pickFromDevice,
     shrink: shrink,
     hasKey: hasKey,
-    generate: generate
+    generate: generate,
+    checkAccess: checkAccess
   };
 })();

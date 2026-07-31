@@ -2392,13 +2392,39 @@ window.Media = (function () {
     });
   }
 
+  /* Быстрая проверка связи: запрашивается список моделей, картинка не рисуется
+     и деньги не тратятся. Нужна, чтобы сразу видеть, дело в ключе,
+     в сети или в самом приложении. */
+  function checkAccess() {
+    var key = window.Store.getApiKey();
+    if (!key) return Promise.reject(new Error('Ключ не указан'));
+
+    return fetch('https://generativelanguage.googleapis.com/v1beta/models', {
+      headers: { 'x-goog-api-key': key }
+    }).then(function (response) {
+      return response.json().then(function (data) {
+        if (!response.ok) {
+          throw new Error((data && data.error && data.error.message) || ('код ' + response.status));
+        }
+        var models = (data.models || []).filter(function (m) {
+          return /image/.test(m.name || '');
+        });
+        return 'Связь есть · доступно моделей с картинками: ' + models.length;
+      });
+    }, function (error) {
+      if (error instanceof TypeError) throw new Error('Нет доступа к серверу Google с этой страницы');
+      throw error;
+    });
+  }
+
   return {
     DEFAULT_MODEL: DEFAULT_MODEL,
     buildPrompt: buildPrompt,
     pickFromDevice: pickFromDevice,
     shrink: shrink,
     hasKey: hasKey,
-    generate: generate
+    generate: generate,
+    checkAccess: checkAccess
   };
 })();
 
@@ -4146,11 +4172,25 @@ window.Store = (function () {
         name: 'key', label: 'Ключ Google AI',
         value: key, placeholder: 'вставьте ключ'
       }],
+      extra: '<div class="btn-row" style="margin-top:2px">' +
+        '<button type="button" class="btn btn--quiet btn--wide" data-check-access>Проверить связь</button>' +
+        '</div>',
       submitText: 'Сохранить',
       onSubmit: function (values) {
         Store.setApiKey(values.key);
         toast(values.key.trim() ? 'Ключ сохранён' : 'Ключ удалён');
       }
+    });
+
+    modalRoot.querySelector('[data-check-access]').addEventListener('click', function () {
+      var field = document.getElementById('f-key');
+      if (field) Store.setApiKey(field.value);
+      toast('Проверяю связь…');
+      window.Media.checkAccess().then(function (message) {
+        toast(message);
+      }, function (error) {
+        toast(error.message);
+      });
     });
   }
 

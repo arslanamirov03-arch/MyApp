@@ -2,8 +2,11 @@ package ru.wortkabinett.app;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
-import android.view.View;
+import android.webkit.ValueCallback;
+import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
@@ -16,11 +19,15 @@ import androidx.webkit.WebViewAssetLoader;
  * Приложение целиком лежит в assets и работает без сети.
  * Файлы отдаются через WebViewAssetLoader по адресу https://appassets.androidplatform.net/,
  * потому что при загрузке напрямую с file:// у страницы нет постоянного источника
- * и localStorage может быть очищен системой.
+ * и localStorage может быть очищен системой. Постоянный источник нужен и для
+ * обращения к Google: с file:// такой запрос браузер не выпускает.
  */
 public class MainActivity extends Activity {
 
+    private static final int FILE_CHOOSER_REQUEST = 1;
+
     private WebView webView;
+    private ValueCallback<Uri[]> fileCallback;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -32,11 +39,12 @@ public class MainActivity extends Activity {
                 .build();
 
         webView = new WebView(this);
-        webView.setBackgroundColor(0xFF1C0F0D);
+        webView.setBackgroundColor(0xFFF1EADE);
 
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
+        settings.setDatabaseEnabled(true);
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(false);
         settings.setSupportZoom(false);
@@ -55,9 +63,25 @@ public class MainActivity extends Activity {
             }
         });
 
-        webView.addJavascriptInterface(new FileBridge(this), "AndroidBridge");
-        webView.setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+        /* Без этого кнопка «Фото» в WebView просто ничего не открывает. */
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onShowFileChooser(WebView view,
+                                             ValueCallback<Uri[]> callback,
+                                             FileChooserParams params) {
+                if (fileCallback != null) fileCallback.onReceiveValue(null);
+                fileCallback = callback;
+                try {
+                    startActivityForResult(params.createIntent(), FILE_CHOOSER_REQUEST);
+                    return true;
+                } catch (Exception e) {
+                    fileCallback = null;
+                    return false;
+                }
+            }
+        });
 
+        webView.addJavascriptInterface(new FileBridge(this), "AndroidBridge");
         setContentView(webView);
 
         if (savedInstanceState != null) {
@@ -65,6 +89,22 @@ public class MainActivity extends Activity {
         } else {
             webView.loadUrl("https://appassets.androidplatform.net/assets/index.html");
         }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode != FILE_CHOOSER_REQUEST) {
+            super.onActivityResult(requestCode, resultCode, data);
+            return;
+        }
+        if (fileCallback == null) return;
+
+        Uri[] result = null;
+        if (resultCode == RESULT_OK && data != null && data.getData() != null) {
+            result = new Uri[]{ data.getData() };
+        }
+        fileCallback.onReceiveValue(result);
+        fileCallback = null;
     }
 
     @Override

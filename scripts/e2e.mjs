@@ -228,6 +228,31 @@ await page.waitForTimeout(400);
 check(await page.locator('.ledger__row').count() === 5, 'Список не развернулся обратно');
 await page.screenshot({ path: join(outDir, '04-full.png'), fullPage: false });
 
+/* 9. Вёрстка на телефоне: страница не должна ехать вбок,
+      а растворение должно быть именно плавным. */
+const layout = await page.evaluate(() => {
+  const doc = document.documentElement;
+  const wide = [...document.querySelectorAll('body *')]
+    .filter((el) => el.getBoundingClientRect().right > window.innerWidth + 1)
+    .map((el) => el.className || el.tagName);
+  return { scrollWidth: doc.scrollWidth, innerWidth: window.innerWidth, overflowing: wide.slice(0, 5) };
+});
+check(layout.scrollWidth <= layout.innerWidth + 1,
+  `Страница шире экрана: ${layout.scrollWidth} против ${layout.innerWidth}`);
+check(layout.overflowing.length === 0, `Вылезают за экран: ${layout.overflowing.join(', ')}`);
+
+const motion = await page.evaluate(() => {
+  const probe = document.createElement('div');
+  probe.className = 'is-evaporating';
+  document.body.appendChild(probe);
+  const style = getComputedStyle(probe);
+  const result = { name: style.animationName, duration: style.animationDuration };
+  probe.remove();
+  return result;
+});
+check(motion.name === 'evaporate', `Растворение не подключено: ${motion.name}`);
+check(parseFloat(motion.duration) >= 0.6, `Растворение слишком быстрое: ${motion.duration}`);
+
 await browser.close();
 
 if (problems.length) {
