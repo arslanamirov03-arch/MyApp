@@ -11,24 +11,103 @@ window.Media = (function () {
 
   /* Промпт держит две вещи: картинка должна объяснять смысл слова
      и не должна содержать ни единой буквы — иначе это подсказка,
-     и проверка теряет смысл. */
+     и проверка теряет смысл. Отдельно оговорены надписи на предметах:
+     без этого модель охотно рисует текст на книгах, бумагах и экранах. */
   function buildPrompt(word, translation) {
-    return 'Illustrate the meaning of a single vocabulary word for a language learner.\n\n' +
+    return 'Draw one clear picture that teaches the meaning of a single vocabulary word.\n\n' +
       'Word: "' + word + '"\n' +
       (translation ? 'Meaning: ' + translation + '\n' : '') +
-      '\nShow only what the word means, through one clear visual idea. ' +
-      'If it is an action, show a person performing it. ' +
-      'If it is an object, show that object alone. ' +
-      'If it is abstract, use one simple, unmistakable visual metaphor. ' +
-      'The picture must be specific enough that a learner can guess this exact word from it.\n\n' +
-      'Style: clean flat vector illustration, simple shapes, soft warm palette, ' +
-      'plain light background, one centred subject, generous empty space, no clutter. ' +
-      'The illustration fills the whole frame edge to edge, without borders or framing.\n\n' +
-      'CRITICAL: the image must contain NO text whatsoever — no letters, no words, ' +
-      'no numbers, no captions, no labels, no signs, no logos, no watermarks, ' +
-      'no writing of any kind, in any language or alphabet. Nothing written anywhere ' +
-      'in the picture. The meaning must come across through the drawing alone, ' +
-      'with no written hints.';
+      '\nShow exactly this meaning. If the word has several senses, take only the one ' +
+      'that matches the meaning given above. If it is an action, show a person performing it, ' +
+      'caught mid-movement. If it is a thing, show that one thing. If it is a feeling or an ' +
+      'abstract idea, use one simple, unmistakable visual metaphor. Nothing else in the ' +
+      'picture may suggest a different word.\n\n' +
+      'Style: clean flat vector illustration, simple shapes, soft warm palette of terracotta, ' +
+      'sage green, sand and cream, plain light background, one centred subject, generous ' +
+      'empty space, no clutter, no border or frame. Square image, 1:1.\n\n' +
+      'Hard rule — the picture must contain no writing of any kind: no letters, no words, ' +
+      'no numbers, no captions, no labels, no signs, no logos, no watermarks, no text on ' +
+      'books, screens, packages or clothing, and no marks that merely look like writing, ' +
+      'in any language or alphabet. A learner has to guess the word from the drawing alone, ' +
+      'so any written hint ruins it.';
+  }
+
+  /* ---------- Обмен через буфер ---------- */
+
+  /* Готовый промпт уходит в буфер: картинку можно нарисовать где угодно,
+     а потом вернуть её сюда — это ничего не стоит. */
+  function copyPrompt(word, translation) {
+    var text = buildPrompt(word, translation);
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text).catch(function () { return legacyCopy(text); });
+    }
+    return legacyCopy(text);
+  }
+
+  function legacyCopy(text) {
+    return new Promise(function (resolve, reject) {
+      var area = document.createElement('textarea');
+      area.value = text;
+      area.setAttribute('readonly', '');
+      area.style.position = 'fixed';
+      area.style.top = '-1000px';
+      document.body.appendChild(area);
+      area.select();
+      area.setSelectionRange(0, text.length);
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      document.body.removeChild(area);
+      ok ? resolve() : reject(new Error('Скопировать не удалось — выделите промпт вручную'));
+    });
+  }
+
+  function blobToDataUrl(blob) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function () { resolve(String(reader.result)); };
+      reader.onerror = function () { reject(new Error('не удалось прочитать картинку')); };
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  /* Картинка из буфера. Прямое чтение доступно не везде, поэтому
+     запасным путём остаётся обычная вставка в поле. */
+  function readClipboardImage() {
+    if (!navigator.clipboard || !navigator.clipboard.read) {
+      return Promise.reject(new Error('Буфер напрямую недоступен'));
+    }
+    return navigator.clipboard.read().then(function (items) {
+      for (var i = 0; i < items.length; i++) {
+        var types = items[i].types || [];
+        for (var t = 0; t < types.length; t++) {
+          if (types[t].indexOf('image/') === 0) {
+            return items[i].getType(types[t]).then(blobToDataUrl).then(shrink);
+          }
+        }
+      }
+      throw new Error('В буфере нет картинки');
+    });
+  }
+
+  /* Картинка из события вставки — работает даже там, где чтение буфера закрыто. */
+  function imageFromPaste(event) {
+    var data = event.clipboardData || window.clipboardData;
+    if (!data) return null;
+
+    var items = data.items || [];
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].kind === 'file' && items[i].type.indexOf('image/') === 0) {
+        var file = items[i].getAsFile();
+        if (file) return blobToDataUrl(file).then(shrink);
+      }
+    }
+
+    var files = data.files || [];
+    if (files.length && files[0].type.indexOf('image/') === 0) {
+      return blobToDataUrl(files[0]).then(shrink);
+    }
+    return null;
   }
 
   /* Ужимаем картинку: полноразмерная не нужна, а места занимает много. */
@@ -169,6 +248,9 @@ window.Media = (function () {
   return {
     DEFAULT_MODEL: DEFAULT_MODEL,
     buildPrompt: buildPrompt,
+    copyPrompt: copyPrompt,
+    readClipboardImage: readClipboardImage,
+    imageFromPaste: imageFromPaste,
     pickFromDevice: pickFromDevice,
     shrink: shrink,
     hasKey: hasKey,

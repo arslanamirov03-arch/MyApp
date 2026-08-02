@@ -766,6 +766,27 @@ body::after {
 
 .modal .photo-row { margin: 4px 0 6px; }
 
+/* Поле для вставки картинки: сюда её кладут долгим нажатием. */
+.paste-zone {
+  min-height: 96px;
+  padding: 14px;
+  border-radius: var(--radius-md);
+  border: 1px dashed rgba(122, 96, 70, .4);
+  background: var(--field);
+  color: var(--ink);
+  outline: none;
+  overflow: hidden;
+  transition: border-color .34s ease, box-shadow .34s ease;
+}
+
+.paste-zone:focus {
+  border-style: solid;
+  border-color: rgba(192, 95, 60, .5);
+  box-shadow: 0 0 0 4px var(--accent-wash);
+}
+
+.paste-zone img { max-width: 100%; border-radius: var(--radius-sm); }
+
 /* Перевод на карточке знакомства — крупнее подписи, но тише слова. */
 .learn__translation {
   margin: 0 0 16px;
@@ -2340,24 +2361,103 @@ window.Media = (function () {
 
   /* Промпт держит две вещи: картинка должна объяснять смысл слова
      и не должна содержать ни единой буквы — иначе это подсказка,
-     и проверка теряет смысл. */
+     и проверка теряет смысл. Отдельно оговорены надписи на предметах:
+     без этого модель охотно рисует текст на книгах, бумагах и экранах. */
   function buildPrompt(word, translation) {
-    return 'Illustrate the meaning of a single vocabulary word for a language learner.\n\n' +
+    return 'Draw one clear picture that teaches the meaning of a single vocabulary word.\n\n' +
       'Word: "' + word + '"\n' +
       (translation ? 'Meaning: ' + translation + '\n' : '') +
-      '\nShow only what the word means, through one clear visual idea. ' +
-      'If it is an action, show a person performing it. ' +
-      'If it is an object, show that object alone. ' +
-      'If it is abstract, use one simple, unmistakable visual metaphor. ' +
-      'The picture must be specific enough that a learner can guess this exact word from it.\n\n' +
-      'Style: clean flat vector illustration, simple shapes, soft warm palette, ' +
-      'plain light background, one centred subject, generous empty space, no clutter. ' +
-      'The illustration fills the whole frame edge to edge, without borders or framing.\n\n' +
-      'CRITICAL: the image must contain NO text whatsoever — no letters, no words, ' +
-      'no numbers, no captions, no labels, no signs, no logos, no watermarks, ' +
-      'no writing of any kind, in any language or alphabet. Nothing written anywhere ' +
-      'in the picture. The meaning must come across through the drawing alone, ' +
-      'with no written hints.';
+      '\nShow exactly this meaning. If the word has several senses, take only the one ' +
+      'that matches the meaning given above. If it is an action, show a person performing it, ' +
+      'caught mid-movement. If it is a thing, show that one thing. If it is a feeling or an ' +
+      'abstract idea, use one simple, unmistakable visual metaphor. Nothing else in the ' +
+      'picture may suggest a different word.\n\n' +
+      'Style: clean flat vector illustration, simple shapes, soft warm palette of terracotta, ' +
+      'sage green, sand and cream, plain light background, one centred subject, generous ' +
+      'empty space, no clutter, no border or frame. Square image, 1:1.\n\n' +
+      'Hard rule — the picture must contain no writing of any kind: no letters, no words, ' +
+      'no numbers, no captions, no labels, no signs, no logos, no watermarks, no text on ' +
+      'books, screens, packages or clothing, and no marks that merely look like writing, ' +
+      'in any language or alphabet. A learner has to guess the word from the drawing alone, ' +
+      'so any written hint ruins it.';
+  }
+
+  /* ---------- Обмен через буфер ---------- */
+
+  /* Готовый промпт уходит в буфер: картинку можно нарисовать где угодно,
+     а потом вернуть её сюда — это ничего не стоит. */
+  function copyPrompt(word, translation) {
+    var text = buildPrompt(word, translation);
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text).catch(function () { return legacyCopy(text); });
+    }
+    return legacyCopy(text);
+  }
+
+  function legacyCopy(text) {
+    return new Promise(function (resolve, reject) {
+      var area = document.createElement('textarea');
+      area.value = text;
+      area.setAttribute('readonly', '');
+      area.style.position = 'fixed';
+      area.style.top = '-1000px';
+      document.body.appendChild(area);
+      area.select();
+      area.setSelectionRange(0, text.length);
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      document.body.removeChild(area);
+      ok ? resolve() : reject(new Error('Скопировать не удалось — выделите промпт вручную'));
+    });
+  }
+
+  function blobToDataUrl(blob) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function () { resolve(String(reader.result)); };
+      reader.onerror = function () { reject(new Error('не удалось прочитать картинку')); };
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  /* Картинка из буфера. Прямое чтение доступно не везде, поэтому
+     запасным путём остаётся обычная вставка в поле. */
+  function readClipboardImage() {
+    if (!navigator.clipboard || !navigator.clipboard.read) {
+      return Promise.reject(new Error('Буфер напрямую недоступен'));
+    }
+    return navigator.clipboard.read().then(function (items) {
+      for (var i = 0; i < items.length; i++) {
+        var types = items[i].types || [];
+        for (var t = 0; t < types.length; t++) {
+          if (types[t].indexOf('image/') === 0) {
+            return items[i].getType(types[t]).then(blobToDataUrl).then(shrink);
+          }
+        }
+      }
+      throw new Error('В буфере нет картинки');
+    });
+  }
+
+  /* Картинка из события вставки — работает даже там, где чтение буфера закрыто. */
+  function imageFromPaste(event) {
+    var data = event.clipboardData || window.clipboardData;
+    if (!data) return null;
+
+    var items = data.items || [];
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].kind === 'file' && items[i].type.indexOf('image/') === 0) {
+        var file = items[i].getAsFile();
+        if (file) return blobToDataUrl(file).then(shrink);
+      }
+    }
+
+    var files = data.files || [];
+    if (files.length && files[0].type.indexOf('image/') === 0) {
+      return blobToDataUrl(files[0]).then(shrink);
+    }
+    return null;
   }
 
   /* Ужимаем картинку: полноразмерная не нужна, а места занимает много. */
@@ -2498,6 +2598,9 @@ window.Media = (function () {
   return {
     DEFAULT_MODEL: DEFAULT_MODEL,
     buildPrompt: buildPrompt,
+    copyPrompt: copyPrompt,
+    readClipboardImage: readClipboardImage,
+    imageFromPaste: imageFromPaste,
     pickFromDevice: pickFromDevice,
     shrink: shrink,
     hasKey: hasKey,
@@ -3501,7 +3604,8 @@ window.Store = (function () {
     }
   }
 
-  /* Полоса под формой ввода: снимок с устройства или рисунок от ИИ. */
+  /* Полоса под формой ввода. Кроме готовой генерации есть путь без затрат:
+     скопировать промпт, нарисовать картинку где угодно и вставить обратно. */
   function photoRow() {
     return '<div class="photo-row" id="photo-row">' +
       (pendingImage
@@ -3509,9 +3613,75 @@ window.Store = (function () {
         : '<span class="picture picture--slot picture--empty" aria-hidden="true"></span>') +
       '<div class="photo-row__actions">' +
       '<button class="btn btn--quiet" data-photo-pick>Фото</button>' +
-      '<button class="btn btn--quiet" data-photo-ai>Картинка ИИ</button>' +
+      '<button class="btn btn--quiet" data-photo-ai>Создать ИИ</button>' +
+      '<button class="btn btn--quiet" data-photo-prompt>Промпт</button>' +
+      '<button class="btn btn--quiet" data-photo-paste>Вставить</button>' +
       (pendingImage ? '<button class="btn btn--quiet" data-photo-drop>Убрать</button>' : '') +
       '</div></div>';
+  }
+
+  /* Окно вставки: сперва пробуем прочитать буфер сами, а если система
+     этого не позволяет — принимаем обычную вставку в поле. */
+  function openPasteImage(word, onReady) {
+    openForm({
+      title: 'Вставить картинку',
+      hint: 'Скопируйте картинку там, где вы её нарисовали, и вставьте сюда: ' +
+        'нажмите на поле ниже, подержите и выберите «Вставить».',
+      fields: [],
+      extra: '<div class="paste-zone" id="paste-zone" contenteditable="true" ' +
+        'role="textbox" aria-label="Поле для вставки картинки"></div>' +
+        '<div class="btn-row" style="margin-top:9px">' +
+        '<button type="button" class="btn btn--quiet btn--wide" data-paste-file>Взять файлом</button>' +
+        '</div>',
+      cancelText: 'Закрыть',
+      onSubmit: function () { }
+    });
+
+    var zone = document.getElementById('paste-zone');
+
+    function accept(promise) {
+      if (!promise) return;
+      promise.then(function (dataUrl) {
+        closeModal();
+        onReady(dataUrl);
+      }, function (error) { toast(error.message); });
+    }
+
+    /* Сразу пробуем взять картинку из буфера — иногда это разрешено. */
+    window.Media.readClipboardImage().then(function (dataUrl) {
+      closeModal();
+      onReady(dataUrl);
+    }, function () {
+      if (zone) setTimeout(function () { zone.focus(); }, 80);
+    });
+
+    if (zone) {
+      zone.addEventListener('paste', function (event) {
+        var result = window.Media.imageFromPaste(event);
+        if (result) {
+          event.preventDefault();
+          accept(result);
+        } else {
+          setTimeout(function () { zone.innerHTML = ''; }, 0);
+          toast('В буфере нет картинки — скопируйте саму картинку');
+        }
+      });
+    }
+
+    modalRoot.querySelector('[data-paste-file]').addEventListener('click', function () {
+      window.Media.pickFromDevice().then(function (dataUrl) {
+        if (!dataUrl) return;
+        closeModal();
+        onReady(dataUrl);
+      }, function (error) { toast(error.message); });
+    });
+  }
+
+  function copyPromptFor(word, translation) {
+    if (!word) { toast('Сначала впишите слово'); return; }
+    window.Media.copyPrompt(word, translation).then(function () {
+      toast('Промпт скопирован — вставьте его в любой рисующий ИИ');
+    }, function (error) { toast(error.message); });
   }
 
   function summaryBlock(scope) {
@@ -4300,7 +4470,9 @@ window.Store = (function () {
         '<div class="photo-row__actions">' +
         '<button type="button" class="btn btn--quiet" data-edit-photo-pick>Фото</button>' +
         '<button type="button" class="btn btn--quiet" data-edit-photo-ai>' +
-        (word.image && word.image.kind === 'ai' ? 'Пересоздать' : 'Картинка ИИ') + '</button>' +
+        (word.image && word.image.kind === 'ai' ? 'Пересоздать' : 'Создать ИИ') + '</button>' +
+        '<button type="button" class="btn btn--quiet" data-edit-photo-prompt>Промпт</button>' +
+        '<button type="button" class="btn btn--quiet" data-edit-photo-paste>Вставить</button>' +
         (word.image ? '<button type="button" class="btn btn--quiet" data-edit-photo-drop>Убрать</button>' : '') +
         '</div></div>',
       submitText: 'Сохранить',
@@ -4338,6 +4510,24 @@ window.Store = (function () {
       var germanWord = deField ? deField.value.trim() : word.de;
       if (!germanWord) { toast('Сначала впишите слово'); return; }
       generatePicture(germanWord, ruField ? ruField.value.trim() : word.ru, function (dataUrl) {
+        attach(dataUrl, 'ai');
+      });
+    });
+
+    var promptButton = modalRoot.querySelector('[data-edit-photo-prompt]');
+    if (promptButton) promptButton.addEventListener('click', function () {
+      var deField = document.getElementById('f-de');
+      var ruField = document.getElementById('f-ru');
+      copyPromptFor(
+        deField ? deField.value.trim() : word.de,
+        ruField ? ruField.value.trim() : word.ru
+      );
+    });
+
+    var pasteButton = modalRoot.querySelector('[data-edit-photo-paste]');
+    if (pasteButton) pasteButton.addEventListener('click', function () {
+      var deField = document.getElementById('f-de');
+      openPasteImage(deField ? deField.value.trim() : word.de, function (dataUrl) {
         attach(dataUrl, 'ai');
       });
     });
@@ -4645,6 +4835,23 @@ window.Store = (function () {
       generatePicture(deField.value.trim(), ruField ? ruField.value.trim() : '', function (dataUrl) {
         pendingImage = dataUrl;
         refreshPhotoRow();
+      });
+      return;
+    }
+
+    if (target.closest('[data-photo-prompt]')) {
+      var promptDe = document.getElementById('input-de');
+      var promptRu = document.getElementById('input-ru');
+      copyPromptFor(promptDe ? promptDe.value.trim() : '', promptRu ? promptRu.value.trim() : '');
+      return;
+    }
+
+    if (target.closest('[data-photo-paste]')) {
+      var pasteDe = document.getElementById('input-de');
+      openPasteImage(pasteDe ? pasteDe.value.trim() : '', function (dataUrl) {
+        pendingImage = dataUrl;
+        refreshPhotoRow();
+        toast('Картинка вставлена');
       });
       return;
     }

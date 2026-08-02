@@ -237,7 +237,8 @@
     }
   }
 
-  /* Полоса под формой ввода: снимок с устройства или рисунок от ИИ. */
+  /* Полоса под формой ввода. Кроме готовой генерации есть путь без затрат:
+     скопировать промпт, нарисовать картинку где угодно и вставить обратно. */
   function photoRow() {
     return '<div class="photo-row" id="photo-row">' +
       (pendingImage
@@ -245,9 +246,75 @@
         : '<span class="picture picture--slot picture--empty" aria-hidden="true"></span>') +
       '<div class="photo-row__actions">' +
       '<button class="btn btn--quiet" data-photo-pick>Фото</button>' +
-      '<button class="btn btn--quiet" data-photo-ai>Картинка ИИ</button>' +
+      '<button class="btn btn--quiet" data-photo-ai>Создать ИИ</button>' +
+      '<button class="btn btn--quiet" data-photo-prompt>Промпт</button>' +
+      '<button class="btn btn--quiet" data-photo-paste>Вставить</button>' +
       (pendingImage ? '<button class="btn btn--quiet" data-photo-drop>Убрать</button>' : '') +
       '</div></div>';
+  }
+
+  /* Окно вставки: сперва пробуем прочитать буфер сами, а если система
+     этого не позволяет — принимаем обычную вставку в поле. */
+  function openPasteImage(word, onReady) {
+    openForm({
+      title: 'Вставить картинку',
+      hint: 'Скопируйте картинку там, где вы её нарисовали, и вставьте сюда: ' +
+        'нажмите на поле ниже, подержите и выберите «Вставить».',
+      fields: [],
+      extra: '<div class="paste-zone" id="paste-zone" contenteditable="true" ' +
+        'role="textbox" aria-label="Поле для вставки картинки"></div>' +
+        '<div class="btn-row" style="margin-top:9px">' +
+        '<button type="button" class="btn btn--quiet btn--wide" data-paste-file>Взять файлом</button>' +
+        '</div>',
+      cancelText: 'Закрыть',
+      onSubmit: function () { }
+    });
+
+    var zone = document.getElementById('paste-zone');
+
+    function accept(promise) {
+      if (!promise) return;
+      promise.then(function (dataUrl) {
+        closeModal();
+        onReady(dataUrl);
+      }, function (error) { toast(error.message); });
+    }
+
+    /* Сразу пробуем взять картинку из буфера — иногда это разрешено. */
+    window.Media.readClipboardImage().then(function (dataUrl) {
+      closeModal();
+      onReady(dataUrl);
+    }, function () {
+      if (zone) setTimeout(function () { zone.focus(); }, 80);
+    });
+
+    if (zone) {
+      zone.addEventListener('paste', function (event) {
+        var result = window.Media.imageFromPaste(event);
+        if (result) {
+          event.preventDefault();
+          accept(result);
+        } else {
+          setTimeout(function () { zone.innerHTML = ''; }, 0);
+          toast('В буфере нет картинки — скопируйте саму картинку');
+        }
+      });
+    }
+
+    modalRoot.querySelector('[data-paste-file]').addEventListener('click', function () {
+      window.Media.pickFromDevice().then(function (dataUrl) {
+        if (!dataUrl) return;
+        closeModal();
+        onReady(dataUrl);
+      }, function (error) { toast(error.message); });
+    });
+  }
+
+  function copyPromptFor(word, translation) {
+    if (!word) { toast('Сначала впишите слово'); return; }
+    window.Media.copyPrompt(word, translation).then(function () {
+      toast('Промпт скопирован — вставьте его в любой рисующий ИИ');
+    }, function (error) { toast(error.message); });
   }
 
   function summaryBlock(scope) {
@@ -1036,7 +1103,9 @@
         '<div class="photo-row__actions">' +
         '<button type="button" class="btn btn--quiet" data-edit-photo-pick>Фото</button>' +
         '<button type="button" class="btn btn--quiet" data-edit-photo-ai>' +
-        (word.image && word.image.kind === 'ai' ? 'Пересоздать' : 'Картинка ИИ') + '</button>' +
+        (word.image && word.image.kind === 'ai' ? 'Пересоздать' : 'Создать ИИ') + '</button>' +
+        '<button type="button" class="btn btn--quiet" data-edit-photo-prompt>Промпт</button>' +
+        '<button type="button" class="btn btn--quiet" data-edit-photo-paste>Вставить</button>' +
         (word.image ? '<button type="button" class="btn btn--quiet" data-edit-photo-drop>Убрать</button>' : '') +
         '</div></div>',
       submitText: 'Сохранить',
@@ -1074,6 +1143,24 @@
       var germanWord = deField ? deField.value.trim() : word.de;
       if (!germanWord) { toast('Сначала впишите слово'); return; }
       generatePicture(germanWord, ruField ? ruField.value.trim() : word.ru, function (dataUrl) {
+        attach(dataUrl, 'ai');
+      });
+    });
+
+    var promptButton = modalRoot.querySelector('[data-edit-photo-prompt]');
+    if (promptButton) promptButton.addEventListener('click', function () {
+      var deField = document.getElementById('f-de');
+      var ruField = document.getElementById('f-ru');
+      copyPromptFor(
+        deField ? deField.value.trim() : word.de,
+        ruField ? ruField.value.trim() : word.ru
+      );
+    });
+
+    var pasteButton = modalRoot.querySelector('[data-edit-photo-paste]');
+    if (pasteButton) pasteButton.addEventListener('click', function () {
+      var deField = document.getElementById('f-de');
+      openPasteImage(deField ? deField.value.trim() : word.de, function (dataUrl) {
         attach(dataUrl, 'ai');
       });
     });
@@ -1381,6 +1468,23 @@
       generatePicture(deField.value.trim(), ruField ? ruField.value.trim() : '', function (dataUrl) {
         pendingImage = dataUrl;
         refreshPhotoRow();
+      });
+      return;
+    }
+
+    if (target.closest('[data-photo-prompt]')) {
+      var promptDe = document.getElementById('input-de');
+      var promptRu = document.getElementById('input-ru');
+      copyPromptFor(promptDe ? promptDe.value.trim() : '', promptRu ? promptRu.value.trim() : '');
+      return;
+    }
+
+    if (target.closest('[data-photo-paste]')) {
+      var pasteDe = document.getElementById('input-de');
+      openPasteImage(pasteDe ? pasteDe.value.trim() : '', function (dataUrl) {
+        pendingImage = dataUrl;
+        refreshPhotoRow();
+        toast('Картинка вставлена');
       });
       return;
     }
