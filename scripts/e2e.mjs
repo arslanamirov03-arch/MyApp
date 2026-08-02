@@ -102,17 +102,32 @@ const pairs = {
   'сознание': 'das Bewusstsein',
   'постановление': 'der Beschluss'
 };
+/* Панель над карточкой: выход, правка слова и размер */
+check(await page.locator('[data-drill-exit]').count() === 1, 'Нет кнопки «Назад» в проверке');
+check(await page.locator('[data-drill-edit]').count() === 1, 'Нет кнопки «Изменить» в проверке');
+check(await page.locator('[data-reveal]').count() === 1, 'Нет кнопки «Забыл» до ответа');
+
+/* Клавиатура не должна открываться сама: поле не в фокусе */
+const focused = await page.evaluate(() => document.activeElement && document.activeElement.id);
+check(focused !== 'drill-input', 'Поле ответа получает фокус само и поднимает клавиатуру');
+
+/* Подсказки клавиатуры отключены типом поля */
+const inputKind = await page.evaluate(() => {
+  const el = document.getElementById('drill-input');
+  return { type: el.type, security: el.style.webkitTextSecurity || getComputedStyle(el).webkitTextSecurity };
+});
+check(inputKind.type === 'password' && inputKind.security === 'none',
+  `Поле ответа не защищено от подсказок: ${JSON.stringify(inputKind)}`);
+
 await page.fill('#drill-input', pairs[prompt]);
 await page.press('#drill-input', 'Enter');
-await page.waitForTimeout(350);
+await page.waitForTimeout(1100);
 
-check(await page.locator('.verdict--right').count() === 1, 'Верный ответ не засчитан');
-const nextNote = await page.locator('.verdict__next').textContent();
-check(/через 1 день/i.test(nextNote), `Ожидался срок «через 1 день», получено «${nextNote}»`);
-await page.screenshot({ path: join(outDir, '07-right.png'), fullPage: false });
-
-await page.click('[data-next]');
-await page.waitForTimeout(900);
+/* Верный ответ уводит сразу к следующему слову, без разговоров о сроках */
+check(await page.locator('.verdict').count() === 0, 'После верного ответа показана карточка с разбором');
+check(await page.locator('.verdict__next').count() === 0, 'После верного ответа показан срок');
+check(await page.locator('#drill-input').count() === 1, 'Не появилось следующее слово');
+await page.screenshot({ path: join(outDir, '07-next.png'), fullPage: false });
 
 /* Неверный ответ: должны появиться две кнопки */
 const prompt2 = (await page.locator('.drill__prompt').textContent()).trim();
@@ -121,11 +136,21 @@ await page.press('#drill-input', 'Enter');
 await page.waitForTimeout(350);
 
 check(await page.locator('.verdict--wrong').count() === 1, 'Ошибка не показана');
+check(await page.locator('.verdict__next').count() === 0, 'При ошибке показан срок следующего разбора');
 check(await page.locator('[data-outcome="typo"]').count() === 1, 'Нет кнопки «это опечатка»');
 check(await page.locator('[data-outcome="forgot"]').count() === 1, 'Нет кнопки «забыл слово»');
 check((await page.locator('.verdict__word').textContent()).trim() === pairs[prompt2],
   'Показано не то правильное слово');
 await page.screenshot({ path: join(outDir, '08-wrong.png'), fullPage: false });
+
+/* Размер карточки переключается и запоминается */
+const sizeBefore = await page.evaluate(() => window.Store.getDrillScale());
+await page.click('[data-drill-size]');
+await page.waitForTimeout(400);
+const sizeAfter = await page.evaluate(() => window.Store.getDrillScale());
+check(sizeBefore !== sizeAfter, 'Размер карточки не переключился');
+check(await page.locator('.drill--' + sizeAfter).count() === (sizeAfter === 'm' ? 0 : 1),
+  'Класс размера не применился к карточке');
 
 /* «Забыл» возвращает слово в начало лестницы и в конец очереди */
 const queueBefore = await page.evaluate(() => document.querySelector('.drill__eyebrow').textContent);
@@ -227,6 +252,82 @@ await page.click('[data-open-words]');
 await page.waitForTimeout(400);
 check(await page.locator('.ledger__row').count() === 5, 'Список не развернулся обратно');
 await page.screenshot({ path: join(outDir, '04-full.png'), fullPage: false });
+
+/* 8b. Повторы, подтверждение удаления и правка слова из проверки */
+await page.evaluate(() => {
+  const state = window.Store.getState();
+  const block = state.blocks[0];
+  const set = block.sets[0];
+  set.words.length = 3;
+  set.words.forEach((w, i) => { w.de = ['die Ordnung', 'die Straße', 'die Ordnung'][i]; w.reps = 1; w.level = 1; });
+  window.Store.save();
+});
+await page.reload();
+await page.waitForTimeout(400);
+await page.click('.card');
+await page.waitForTimeout(250);
+await page.click('.card');
+await page.waitForTimeout(400);
+
+check(await page.locator('[data-show-same]').count() === 2, 'Повторяющиеся слова не помечены');
+await page.click('[data-show-same]');
+await page.waitForTimeout(400);
+const sameText = await page.locator('.modal__hint').textContent();
+check(/№/.test(sameText), `Не показано, где лежит такое же слово: «${sameText}»`);
+await page.click('.modal [data-close]');
+await page.waitForTimeout(300);
+
+/* Добавление такого же слова спрашивает, оставить или убрать */
+await page.fill('#input-de', 'die Straße');
+await page.fill('#input-ru', 'улица');
+await page.click('[data-add-word]');
+await page.waitForTimeout(400);
+check((await page.locator('.modal__title').textContent()).includes('уже есть'),
+  'Повтор при добавлении не замечен');
+await page.click('.modal [data-close]');
+await page.waitForTimeout(300);
+check(await page.locator('.ledger__row').count() === 3, 'Слово добавилось, хотя выбрано «Убрать»');
+
+await page.fill('#input-de', 'die Straße');
+await page.fill('#input-ru', 'улица');
+await page.click('[data-add-word]');
+await page.waitForTimeout(400);
+await page.click('.modal button[type="submit"]');
+await page.waitForTimeout(500);
+check(await page.locator('.ledger__row').count() === 4, 'Слово не добавилось после «Оставить»');
+
+/* Удаление спрашивает подтверждение */
+await page.click('.ledger__row [data-delete-word]');
+await page.waitForTimeout(400);
+check((await page.locator('.modal__title').textContent()).includes('Удалить слово'),
+  'Удаление не спрашивает подтверждения');
+await page.click('.modal [data-close]');
+await page.waitForTimeout(300);
+check(await page.locator('.ledger__row').count() === 4, 'Слово удалилось без подтверждения');
+
+await page.click('.ledger__row [data-delete-word]');
+await page.waitForTimeout(400);
+await page.click('.modal button[type="submit"]');
+await page.waitForTimeout(1200);
+check(await page.locator('.ledger__row').count() === 3, 'Слово не удалилось после подтверждения');
+
+/* Правка слова прямо во время проверки */
+await page.click('[data-start-drill]');
+await page.waitForTimeout(500);
+await page.click('[data-drill-edit]');
+await page.waitForTimeout(400);
+check(await page.locator('#f-de').count() === 1, 'Из проверки не открылась правка слова');
+check(await page.locator('[data-edit-photo-ai]').count() === 1, 'В правке из проверки нет генерации картинки');
+await page.fill('#f-ru', 'улица (исправлено)');
+await page.click('.modal button[type="submit"]');
+await page.waitForTimeout(500);
+
+const edited = await page.evaluate(() =>
+  window.Store.getState().blocks[0].sets[0].words.some((w) => w.ru === 'улица (исправлено)'));
+check(edited, 'Правка из проверки не сохранилась');
+
+await page.click('[data-drill-exit]');
+await page.waitForTimeout(600);
 
 /* 9. Вёрстка на телефоне: страница не должна ехать вбок,
       а растворение должно быть именно плавным. */

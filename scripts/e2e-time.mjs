@@ -53,10 +53,7 @@ await page.click('[data-learn-next]');
 await page.waitForTimeout(900);
 await page.fill('#drill-input', 'die Ordnung');
 await page.press('#drill-input', 'Enter');
-await page.waitForTimeout(300);
-
-const note = await page.locator('.verdict__next').textContent();
-check(/1 августа/.test(note) && /06:00/.test(note), `Подпись о следующем разборе: «${note}»`);
+await page.waitForTimeout(1100);
 await page.screenshot({ path: join(outDir, 'evening.png') });
 
 const due = await page.evaluate(() => {

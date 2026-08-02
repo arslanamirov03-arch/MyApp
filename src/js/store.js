@@ -27,7 +27,7 @@ window.Store = (function () {
   var DAY = 24 * 60 * 60 * 1000;
   var DAY_START_HOUR = 6;
 
-  var state = { version: 2, blocks: [], settings: { collapsed: {} } };
+  var state = { version: 2, blocks: [], settings: { collapsed: {}, drillScale: 'm' } };
   var listeners = [];
   var memoryOnly = false;
   var lastSavedAt = 0;
@@ -111,7 +111,10 @@ window.Store = (function () {
     var settings = data.settings || {};
     return {
       version: 2,
-      settings: { collapsed: settings.collapsed || {} },
+      settings: {
+        collapsed: settings.collapsed || {},
+        drillScale: settings.drillScale || 'm'
+      },
       blocks: (data.blocks || []).filter(Boolean).map(function (b) {
         return {
           id: b.id || uid(),
@@ -313,6 +316,14 @@ window.Store = (function () {
 
   function isCollapsed(setId) { return !!state.settings.collapsed[setId]; }
 
+  /* Размер карточки в проверке: 's', 'm' или 'l'. */
+  function getDrillScale() { return state.settings.drillScale || 'm'; }
+
+  function setDrillScale(scale) {
+    state.settings.drillScale = scale;
+    save();
+  }
+
   function toggleCollapsed(setId) {
     if (state.settings.collapsed[setId]) delete state.settings.collapsed[setId];
     else state.settings.collapsed[setId] = true;
@@ -403,6 +414,28 @@ window.Store = (function () {
   }
 
   /* ---------- Слова ---------- */
+
+  /* Где ещё записано такое же слово. Сравниваем так же, как в проверке:
+     без учёта регистра и лишних пробелов. */
+  function findSameWords(de, exceptId) {
+    var needle = normalizeAnswer(de);
+    if (!needle) return [];
+    var found = [];
+    state.blocks.forEach(function (block) {
+      block.sets.forEach(function (set) {
+        set.words.forEach(function (word, index) {
+          if (word.id === exceptId) return;
+          if (normalizeAnswer(word.de) !== needle) return;
+          found.push({
+            word: word, index: index + 1,
+            blockId: block.id, setId: set.id,
+            blockTitle: block.title, setTitle: set.title
+          });
+        });
+      });
+    });
+    return found;
+  }
 
   function makeWord(de, ru) {
     var ts = now();
@@ -701,6 +734,7 @@ window.Store = (function () {
     calendarDaysBetween: calendarDaysBetween,
 
     isCollapsed: isCollapsed, toggleCollapsed: toggleCollapsed,
+    getDrillScale: getDrillScale, setDrillScale: setDrillScale, findSameWords: findSameWords,
 
     getBlock: getBlock, getSet: getSet, countWords: countWords,
     addBlock: addBlock, renameBlock: renameBlock, removeBlock: removeBlock,

@@ -155,7 +155,7 @@
     modalRoot.innerHTML =
       '<form class="glass modal" id="modal-form">' +
       '<h2 class="modal__title">' + esc(options.title) + '</h2>' +
-      (options.hint ? '<p class="modal__hint">' + options.hint + '</p>' : '') +
+      (options.hint ? '<div class="modal__hint">' + options.hint + '</div>' : '') +
       fieldsHtml +
       (options.extra || '') +
       '<div class="modal__actions">' +
@@ -473,6 +473,14 @@
       var rows = '';
       var shown = 0;
 
+      /* Сколько раз каждое слово встречается во всей картотеке —
+         считаем разом, чтобы не искать повторы для каждой строки. */
+      var repeats = new Map();
+      Store.collectWords({}).forEach(function (item) {
+        var key = item.word.de.trim().toLowerCase();
+        repeats.set(key, (repeats.get(key) || 0) + 1);
+      });
+
       set.words.forEach(function (word, index) {
         if (needle &&
           word.de.toLowerCase().indexOf(needle) < 0 &&
@@ -481,6 +489,7 @@
 
         var label = Store.dueLabel(word);
         var chipClass = word.mastered ? 'chip chip--calm' : (label === 'сейчас' ? 'chip chip--due' : 'chip');
+        var repeated = (repeats.get(word.de.trim().toLowerCase()) || 0) > 1;
         var note = word.ru ? esc(word.ru) : '<span style="opacity:.65">нет перевода — в разбор не попадёт</span>';
 
         rows += '<div class="ledger__row" data-id="' + word.id + '" data-row="' + word.id + '">' +
@@ -489,6 +498,9 @@
           '<div class="ledger__meta">' +
           '<span class="ledger__ru">' + note + '</span>' +
           '<span class="' + chipClass + '">' + label + '</span>' +
+          (repeated
+            ? '<button class="chip chip--warn" data-show-same="' + word.id + '">повтор</button>'
+            : '') +
           '</div>' +
           '<div class="ledger__side">' +
           (word.image ? imageBox(word.image.id, 'picture--thumb') : '') +
@@ -520,6 +532,23 @@
     return '<div class="ladder">' + steps + '</div>';
   }
 
+  /* Панель над карточкой: выход, правка слова и размер. */
+  function drillBar(wordId) {
+    return '<div class="drill__bar">' +
+      '<div class="drill__bar-side">' +
+      '<button class="mini-btn" data-drill-exit>← Назад</button>' +
+      '</div>' +
+      '<div class="drill__bar-side">' +
+      (wordId ? '<button class="mini-btn" data-drill-edit="' + wordId + '">Изменить</button>' : '') +
+      '<button class="mini-btn" data-drill-size title="Размер карточки">Aa</button>' +
+      '</div></div>';
+  }
+
+  function drillClass() {
+    var scale = Store.getDrillScale();
+    return 'glass drill' + (scale === 'm' ? '' : ' drill--' + scale);
+  }
+
   /* Показ новых слов: немецкое слово, под ним перевод и картинка. */
   function renderLearnCard() {
     var item = session.queue[session.index];
@@ -528,7 +557,8 @@
     var percent = ((session.index + 1) / total) * 100;
     var last = session.index === total - 1;
 
-    screenEl.innerHTML = '<section class="glass drill" data-id="learn-' + word.id + '">' +
+    screenEl.innerHTML = drillBar(word.id) +
+      '<section class="' + drillClass() + '" data-id="learn-' + word.id + '">' +
       '<div class="drill__progress"><div class="drill__progress-fill" style="width:' + percent.toFixed(1) + '%"></div></div>' +
       '<div class="drill__eyebrow">Знакомство · ' + (session.index + 1) + ' из ' + total + '</div>' +
       '<h2 class="drill__prompt">' + esc(word.de) + '</h2>' +
@@ -551,7 +581,7 @@
 
     if (session.index >= session.queue.length) {
       var moreFresh = session.mode === 'learn' ? Store.freshCount(session.scope) : 0;
-      screenEl.innerHTML = '<section class="glass drill">' +
+      screenEl.innerHTML = '<section class="' + drillClass() + '">' +
         '<h2 class="drill__prompt">' +
         (session.mode === 'learn' ? 'Десятка пройдена' : 'Разбор окончен') + '</h2>' +
         '<p class="drill__hint">Верно с первого раза: ' + session.correct + ' из ' + session.asked + '</p>' +
@@ -569,48 +599,49 @@
     var item = session.queue[session.index];
     var word = item.word;
 
-    var html = '<section class="glass drill" data-id="drill-' + word.id + '-' + session.index + '">' +
+    var html = drillBar(word.id) +
+      '<section class="' + drillClass() + '" data-id="drill-' + word.id + '-' + session.index + '">' +
       '<div class="drill__progress"><div class="drill__progress-fill" style="width:' + percent.toFixed(1) + '%"></div></div>' +
       '<div class="drill__eyebrow">Слово ' + (done + 1) + ' из ' + total + '</div>' +
       '<h2 class="drill__prompt">' + esc(word.ru) + '</h2>';
 
     if (session.state === 'ask') {
+      /* Поле пароля с открытым текстом: так клавиатура не подсказывает
+         слово в верхней строке — иначе проверка теряет смысл. */
+      var quietType = window.CSS && CSS.supports && CSS.supports('-webkit-text-security', 'none')
+        ? 'password" style="-webkit-text-security:none'
+        : 'text';
+
       html += (word.image ? imageBox(word.image.id, 'picture--card') : '') +
         '<p class="drill__hint">Напишите это слово по-немецки</p>' +
-        '<input class="input drill__input" type="text" id="drill-input" autocomplete="off" ' +
-        'autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="…">' +
-        '<div class="drill__actions"><button class="btn btn--accent btn--wide" data-check>Проверить</button></div>';
+        '<input class="input drill__input" type="' + quietType + '" id="drill-input" ' +
+        'autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" ' +
+        'inputmode="text" name="answer" placeholder="…">' +
+        '<div class="drill__actions">' +
+        '<button class="btn" data-reveal>Забыл</button>' +
+        '<button class="btn btn--accent" data-check>Проверить</button>' +
+        '</div>';
     } else {
-      html += '<p class="drill__hint">' + esc(item.setTitle) + '</p><div class="drill__verdict">';
-
-      if (session.state === 'right') {
-        html += '<div class="verdict verdict--right">' +
-          '<div class="verdict__label">Верно</div>' +
-          '<p class="verdict__word">' + esc(word.de) + '</p>' +
-          '<p class="verdict__next">' + esc(session.nextNote) + '</p>' +
-          ladderHtml(word.level) +
-          '</div>' +
-          '<div class="drill__actions"><button class="btn btn--wide" data-next>Дальше</button></div>';
-      } else {
-        html += '<div class="verdict verdict--wrong">' +
-          '<div class="verdict__label">Не совпало</div>' +
-          '<p class="verdict__word">' + esc(word.de) + '</p>' +
-          '<p class="verdict__yours">Вы написали: <s>' + esc(session.answer) + '</s></p>' +
-          '<div class="verdict__choice">' +
-          '<button class="btn btn--calm" data-outcome="typo">Опечатка</button>' +
-          '<button class="btn btn--accent" data-outcome="forgot">Забыл</button>' +
-          '</div></div>';
-      }
-      html += '</div>';
+      html += '<div class="drill__verdict">' +
+        '<div class="verdict verdict--wrong">' +
+        '<div class="verdict__label">' +
+        (session.state === 'revealed' ? 'Правильный ответ' : 'Не совпало') + '</div>' +
+        '<p class="verdict__word">' + esc(word.de) + '</p>' +
+        (session.state === 'wrong'
+          ? '<p class="verdict__yours">Вы написали: <s>' + esc(session.answer) + '</s></p>'
+          : '') +
+        '<div class="verdict__choice">' +
+        (session.state === 'wrong'
+          ? '<button class="btn btn--calm" data-outcome="typo">Опечатка</button>' +
+            '<button class="btn btn--accent" data-outcome="forgot">Забыл</button>'
+          : '<button class="btn btn--accent" data-next>Дальше</button>') +
+        '</div></div></div>';
     }
 
     html += '</section>';
     screenEl.innerHTML = html;
-
-    if (session.state === 'ask') {
-      var input = document.getElementById('drill-input');
-      if (input) setTimeout(function () { input.focus(); }, 80);
-    }
+    /* Клавиатура не открывается сама: иначе экран подпрыгивает
+       при каждом новом слове. */
   }
 
   function startLearn(scope) {
@@ -662,20 +693,28 @@
     session.asked++;
 
     if (Store.checkAnswer(item.word, answer)) {
-      var result = Store.reviewWord(item.word.id, 'correct');
+      Store.reviewWord(item.word.id, 'correct');
       session.correct++;
-      session.state = 'right';
-      session.nextNote = result && result.mastered
-        ? 'Слово освоено — лестница пройдена полностью'
-        : 'Через ' + result.days + ' ' + dayWord(result.days) + ' · ' +
-          dayText(result.due) + ', с ' + clockText(result.due);
-      render();
-      /* Небольшая пауза, чтобы увидеть правильное написание. */
-      advanceTimer = setTimeout(nextWord, 1600);
+      /* Ответ верный — сразу следующее слово, без разговоров о сроках. */
+      toast('Верно');
+      nextWord();
     } else {
       session.state = 'wrong';
       render();
     }
+  }
+
+  /* «Забыл» до ответа: слово показывается и уходит в начало лестницы. */
+  function revealAnswer() {
+    if (!session || session.state !== 'ask') return;
+    var item = session.queue[session.index];
+    session.asked++;
+    session.forgot++;
+    session.state = 'revealed';
+    session.answer = '';
+    Store.reviewWord(item.word.id, 'forgot');
+    session.queue.push(item);
+    render();
   }
 
   function resolveWrong(outcome) {
@@ -687,11 +726,9 @@
       session.forgot++;
       /* Слово начинает лестницу заново и вернётся в конце этого разбора. */
       session.queue.push(item);
-      toast('Слово вернулось в начало лестницы');
-    } else if (result) {
-      toast(result.mastered
-        ? 'Засчитано · слово освоено'
-        : 'Засчитано · дальше ' + dayText(result.due) + ', с ' + clockText(result.due));
+      toast('Слово вернулось в начало');
+    } else {
+      toast(result && result.mastered ? 'Засчитано · слово освоено' : 'Засчитано');
     }
     nextWord();
   }
@@ -718,6 +755,7 @@
     if (route.name === 'blocks') {
       parts.push('<span class="crumbs__current">Все блоки</span>');
     } else {
+      parts.push('<button class="crumbs__back" data-go-back aria-label="Назад">←</button>');
       parts.push('<button class="crumbs__link" data-go-blocks>Все блоки</button>');
       var block = Store.getBlock(route.blockId);
       if (block) {
@@ -734,8 +772,11 @@
         }
       }
       if (route.name === 'drill') {
-        parts.push('<span class="crumbs__sep">/</span><span class="crumbs__current">' +
-          (session && session.mode === 'learn' ? 'Знакомство' : 'Разбор') + '</span>');
+        var stage = 'Разбор';
+        if (session && session.mode === 'learn') {
+          stage = session.phase === 'show' ? 'Знакомство' : 'Проверка';
+        }
+        parts.push('<span class="crumbs__sep">/</span><span class="crumbs__current">' + stage + '</span>');
       }
     }
     crumbsEl.innerHTML = parts.join('');
@@ -887,7 +928,34 @@
     var ruEl = document.getElementById('input-ru');
     if (!deEl) return;
 
-    var result = Store.addWord(route.blockId, route.setId, deEl.value, ruEl.value);
+    /* Такое слово уже может быть записано — показываем, где именно,
+       и оставляем выбор за человеком. */
+    var same = Store.findSameWords(deEl.value);
+    if (same.length) {
+      var places = same.slice(0, 4).map(function (item) {
+        return '<li>' + esc(item.blockTitle) + ' → ' + esc(item.setTitle) +
+          ', №' + item.index + ' <span style="opacity:.7">(' + esc(item.word.ru || 'без перевода') + ')</span></li>';
+      }).join('');
+
+      openForm({
+        title: 'Такое слово уже есть',
+        hint: '«' + esc(deEl.value.trim()) + '» записано ' +
+          (same.length > 1 ? same.length + ' раза' : 'здесь') + ':' +
+          '<ul style="margin:8px 0 0;padding-left:18px;line-height:1.7">' + places + '</ul>' +
+          (same.length > 4 ? '<p style="margin:6px 0 0">…и ещё ' + (same.length - 4) + '</p>' : ''),
+        fields: [],
+        cancelText: 'Убрать',
+        submitText: 'Оставить',
+        onSubmit: function () { commitWord(deEl.value, ruEl.value); }
+      });
+      return;
+    }
+
+    commitWord(deEl.value, ruEl.value);
+  }
+
+  function commitWord(de, ru) {
+    var result = Store.addWord(route.blockId, route.setId, de, ru);
     if (!result.ok) { toast(result.reason); return; }
 
     /* Картинка, подобранная до нажатия «Добавить», привязывается к слову. */
@@ -934,11 +1002,26 @@
     });
   }
 
-  function editWord(wordId) {
-    var set = Store.getSet(route.blockId, route.setId);
-    if (!set) return;
-    var word = set.words.find(function (w) { return w.id === wordId; });
-    if (!word) return;
+  /* Ищем слово по всей картотеке: править его можно и во время проверки,
+     когда слово пришло из другого списка. */
+  function locateWord(wordId) {
+    var found = null;
+    Store.getState().blocks.forEach(function (block) {
+      block.sets.forEach(function (set) {
+        set.words.forEach(function (word) {
+          if (word.id === wordId) found = { word: word, blockId: block.id, setId: set.id };
+        });
+      });
+    });
+    return found;
+  }
+
+  function editWord(wordId) { editWordById(wordId); }
+
+  function editWordById(wordId) {
+    var place = locateWord(wordId);
+    if (!place) return;
+    var word = place.word;
 
     openForm({
       title: 'Изменить слово',
@@ -958,7 +1041,7 @@
         '</div></div>',
       submitText: 'Сохранить',
       onSubmit: function (values) {
-        Store.updateWord(route.blockId, route.setId, wordId, values.de, values.ru);
+        Store.updateWord(place.blockId, place.setId, wordId, values.de, values.ru);
         render();
       }
     });
@@ -973,7 +1056,7 @@
         Store.setWordImage(wordId, imageId, kind);
         closeModal();
         render();
-        editWord(wordId);
+        editWordById(wordId);
       }, function () { toast('Картинку сохранить не удалось'); });
     }
 
@@ -1157,7 +1240,8 @@
   document.getElementById('btn-archive').addEventListener('click', openArchive);
 
   crumbsEl.addEventListener('click', function (event) {
-    if (event.target.closest('[data-go-blocks]')) go({ name: 'blocks' });
+    if (event.target.closest('[data-go-back]')) { session = null; history.back(); }
+    else if (event.target.closest('[data-go-blocks]')) go({ name: 'blocks' });
     else if (event.target.closest('[data-go-block]')) go({ name: 'block', blockId: route.blockId });
     else if (event.target.closest('[data-go-set]')) go({ name: 'set', blockId: route.blockId, setId: route.setId });
   });
@@ -1262,7 +1346,22 @@
     }
 
     if (target.closest('[data-check]')) { submitAnswer(); return; }
+    if (target.closest('[data-reveal]')) { revealAnswer(); return; }
     if (target.closest('[data-next]')) { nextWord(); return; }
+
+    if (target.closest('[data-drill-size]')) {
+      var order = ['s', 'm', 'l'];
+      var next = order[(order.indexOf(Store.getDrillScale()) + 1) % order.length];
+      Store.setDrillScale(next);
+      render();
+      toast('Размер: ' + ({ s: 'мелкий', m: 'обычный', l: 'крупный' })[next]);
+      return;
+    }
+
+    if ((el = target.closest('[data-drill-edit]'))) {
+      editWordById(el.getAttribute('data-drill-edit'));
+      return;
+    }
 
     /* ---------- Картинка к слову ---------- */
 
@@ -1324,13 +1423,40 @@
     if ((el = target.closest('[data-export]'))) { exportSet(el.getAttribute('data-export')); return; }
     if ((el = target.closest('[data-edit-word]'))) { editWord(el.getAttribute('data-edit-word')); return; }
 
+    if ((el = target.closest('[data-show-same]'))) {
+      var sameId = el.getAttribute('data-show-same');
+      var origin = locateWord(sameId);
+      if (!origin) return;
+      var others = Store.findSameWords(origin.word.de, sameId);
+      openForm({
+        title: 'Слово записано не один раз',
+        hint: '«' + esc(origin.word.de) + '» встречается ещё здесь:' +
+          '<ul style="margin:8px 0 0;padding-left:18px;line-height:1.7">' +
+          others.map(function (item) {
+            return '<li>' + esc(item.blockTitle) + ' → ' + esc(item.setTitle) + ', №' + item.index + '</li>';
+          }).join('') + '</ul>',
+        fields: [],
+        cancelText: 'Закрыть',
+        onSubmit: function () { }
+      });
+      return;
+    }
+
     if ((el = target.closest('[data-delete-word]'))) {
       var wordId = el.getAttribute('data-delete-word');
-      evaporate(screenEl.querySelector('[data-row="' + wordId + '"]'), function () {
-        seen.delete(wordId);
-        Store.removeWord(route.blockId, route.setId, wordId);
-        render();
-      });
+      var doomed = locateWord(wordId);
+      if (!doomed) return;
+      confirmAction('Удалить слово?',
+        '«' + esc(doomed.word.de) + '» исчезнет вместе с картинкой и всем прогрессом по нему.',
+        'Удалить',
+        function () {
+          evaporate(screenEl.querySelector('[data-row="' + wordId + '"]'), function () {
+            seen.delete(wordId);
+            Store.removeWord(doomed.blockId, doomed.setId, wordId);
+            render();
+            toast('Слово удалено');
+          });
+        });
       return;
     }
   });

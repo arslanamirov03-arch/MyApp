@@ -232,7 +232,7 @@ body::after {
   border: 1px solid var(--glass-edge);
   box-shadow: inset 0 1px 0 var(--glass-inner);
   cursor: pointer;
-  transition: transform .28s cubic-bezier(.2, .7, .3, 1), color .28s ease;
+  transition: transform .38s cubic-bezier(.16, .84, .44, 1), color .38s ease;
 }
 
 .ghost-btn:hover { transform: translateY(-1px); color: var(--accent); }
@@ -260,10 +260,30 @@ body::after {
   border: none;
   border-bottom: 1px solid transparent;
   cursor: pointer;
-  transition: color .24s ease, border-color .24s ease;
+  transition: color .32s ease, border-color .32s ease;
 }
 
 .crumbs__link:hover { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* Возврат на шаг назад — рядом с путём, чтобы не искать системную кнопку. */
+.crumbs__back {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin-right: 2px;
+  border-radius: 50%;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--ink-soft);
+  background: var(--surface-2);
+  border: 1px solid var(--glass-edge);
+  cursor: pointer;
+  transition: color .32s ease, transform .34s cubic-bezier(.16, .84, .44, 1);
+}
+
+.crumbs__back:hover { color: var(--accent); }
+.crumbs__back:active { transform: scale(.9); }
 
 .crumbs__sep { opacity: .45; }
 .crumbs__current { color: var(--ink); }
@@ -298,7 +318,7 @@ body::after {
   margin-bottom: 12px;
   cursor: pointer;
   max-height: 400px;
-  transition: transform .3s cubic-bezier(.2, .7, .3, 1), box-shadow .3s ease;
+  transition: transform .42s cubic-bezier(.16, .84, .44, 1), box-shadow .42s ease;
 }
 
 .card:hover { transform: translateY(-2px); }
@@ -354,6 +374,16 @@ body::after {
 }
 
 .chip--due { color: var(--accent-deep); background: var(--accent-wash); border-color: rgba(192, 95, 60, .28); }
+
+/* Слово записано не один раз — можно посмотреть, где ещё. */
+.chip--warn {
+  color: var(--alert);
+  background: rgba(176, 117, 42, .12);
+  border-color: rgba(176, 117, 42, .3);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
 .chip--calm { color: var(--calm); background: var(--calm-wash); border-color: rgba(95, 132, 104, .3); }
 
 .chip__dot {
@@ -381,7 +411,7 @@ body::after {
   box-shadow: inset 0 1px 0 var(--glass-inner), 0 8px 20px -16px rgba(88, 62, 40, .7);
   cursor: pointer;
   white-space: nowrap;
-  transition: transform .26s cubic-bezier(.2, .7, .3, 1), box-shadow .26s ease, background .26s ease;
+  transition: transform .38s cubic-bezier(.16, .84, .44, 1), box-shadow .38s ease, background .38s ease;
 }
 
 .btn:hover { transform: translateY(-1px); }
@@ -437,7 +467,7 @@ body::after {
     0 16px 34px -16px rgba(158, 69, 39, .95);
   cursor: pointer;
   z-index: 40;
-  transition: transform .32s cubic-bezier(.2, .7, .3, 1), opacity .32s ease;
+  transition: transform .42s cubic-bezier(.16, .84, .44, 1), opacity .42s ease;
 }
 
 .fab:hover { transform: translateY(-2px) rotate(90deg); }
@@ -546,7 +576,7 @@ body::after {
   border: 1px solid var(--glass-edge);
   box-shadow: inset 0 1px 2px rgba(122, 96, 70, .08);
   outline: none;
-  transition: border-color .26s ease, box-shadow .26s ease, background .26s ease;
+  transition: border-color .34s ease, box-shadow .34s ease, background .34s ease;
 }
 
 .input::placeholder,
@@ -592,7 +622,7 @@ body::after {
   height: 100%;
   border-radius: 999px;
   background: linear-gradient(90deg, var(--accent) 0%, #D98A5F 100%);
-  transition: width .7s cubic-bezier(.2, .7, .3, 1);
+  transition: width .9s cubic-bezier(.16, .84, .44, 1);
 }
 
 .gauge__fill--full { background: linear-gradient(90deg, var(--calm) 0%, #7FA98A 100%); }
@@ -609,7 +639,7 @@ body::after {
   padding: 11px 12px;
   border-radius: var(--radius-md);
   max-height: 240px;
-  transition: background .26s ease;
+  transition: background .34s ease;
 }
 
 .ledger__row:hover { background: var(--surface-2); }
@@ -667,7 +697,7 @@ body::after {
   background: var(--surface-2);
   border: 1px solid var(--glass-edge);
   cursor: pointer;
-  transition: color .24s ease, transform .24s cubic-bezier(.2, .7, .3, 1);
+  transition: color .32s ease, transform .34s cubic-bezier(.16, .84, .44, 1);
 }
 
 .icon-btn:hover { color: var(--accent); transform: scale(1.08); }
@@ -743,7 +773,7 @@ body::after {
   gap: 12px;
   padding: 16px 20px;
   cursor: pointer;
-  transition: transform .3s cubic-bezier(.2, .7, .3, 1);
+  transition: transform .42s cubic-bezier(.16, .84, .44, 1);
 }
 
 .folded:hover { transform: translateY(-2px); }
@@ -775,7 +805,7 @@ body::after {
   height: 100%;
   border-radius: 999px;
   background: linear-gradient(90deg, var(--accent), #D98A5F);
-  transition: width .55s cubic-bezier(.2, .7, .3, 1);
+  transition: width .75s cubic-bezier(.16, .84, .44, 1);
 }
 
 .drill__eyebrow {
@@ -809,7 +839,55 @@ body::after {
   padding: 15px 18px;
 }
 
-.drill__actions { margin-top: 14px; }
+.drill__actions {
+  display: flex;
+  gap: 9px;
+  margin-top: 14px;
+}
+
+.drill__actions .btn { flex: 1 1 0; }
+
+/* Панель над карточкой: выход, правка слова и размер. */
+.drill__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.drill__bar-side { display: flex; gap: 6px; }
+
+.mini-btn {
+  padding: 7px 12px;
+  border-radius: 999px;
+  font-family: var(--body);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-soft);
+  background: var(--surface-2);
+  border: 1px solid var(--glass-edge);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color .32s ease, transform .34s cubic-bezier(.16, .84, .44, 1);
+}
+
+.mini-btn:hover { color: var(--accent); }
+.mini-btn:active { transform: scale(.94); }
+
+/* Три размера карточки: слишком крупный текст на телефоне мешает,
+   слишком мелкий — тоже, поэтому выбор остаётся за человеком. */
+.drill--s .drill__prompt { font-size: clamp(19px, 5vw, 24px); }
+.drill--s .drill__input { font-size: 17px; padding: 12px 14px; }
+.drill--s .learn__translation { font-size: 15px; margin-bottom: 12px; }
+.drill--s .picture--card { width: min(150px, 42vw); height: min(150px, 42vw); margin-bottom: 12px; }
+.drill--s .verdict__word { font-size: 20px; }
+.drill--s { padding: 20px 18px 18px; }
+
+.drill--l .drill__prompt { font-size: clamp(30px, 8.5vw, 40px); }
+.drill--l .drill__input { font-size: 24px; }
+.drill--l .learn__translation { font-size: 19px; }
+.drill--l .picture--card { width: min(300px, 78vw); height: min(300px, 78vw); }
 
 .drill__verdict { margin-top: 18px; }
 
@@ -886,7 +964,7 @@ body::after {
   background: var(--surface-2);
   border: 1px solid var(--glass-edge);
   font-variant-numeric: tabular-nums;
-  transition: color .3s ease, background .3s ease, transform .3s ease;
+  transition: color .4s ease, background .4s ease, transform .4s ease;
 }
 
 .ladder__step--done { color: var(--calm); background: var(--calm-wash); border-color: rgba(95, 132, 104, .3); }
@@ -933,7 +1011,7 @@ body::after {
   padding: 18px;
   overflow-y: auto;
   background: rgba(64, 46, 32, .28);
-  animation: fade-in .3s ease both;
+  animation: fade-in .38s ease both;
 }
 
 .modal-root[hidden] { display: none; }
@@ -943,7 +1021,7 @@ body::after {
   max-width: 460px;
   margin: auto;
   padding: 24px 22px 20px;
-  animation: rise .4s cubic-bezier(.2, .7, .3, 1) both;
+  animation: rise .52s cubic-bezier(.16, .84, .44, 1) both;
 }
 
 .modal__title {
@@ -984,7 +1062,7 @@ body::after {
   box-shadow: var(--lift);
   opacity: 0;
   pointer-events: none;
-  transition: opacity .45s ease, transform .45s cubic-bezier(.2, .7, .3, 1);
+  transition: opacity .5s ease, transform .5s cubic-bezier(.16, .84, .44, 1);
   z-index: 80;
 }
 
@@ -1004,7 +1082,7 @@ body::after {
 /* ---------- Движение ---------- */
 
 @keyframes rise {
-  from { opacity: 0; transform: translateY(14px) scale(.98); }
+  from { opacity: 0; transform: translateY(16px) scale(.975); }
   to { opacity: 1; transform: none; }
 }
 
@@ -1029,17 +1107,17 @@ body::after {
   }
 }
 
-.is-new { animation: rise .46s cubic-bezier(.2, .7, .3, 1) both; }
+.is-new { animation: rise .62s cubic-bezier(.16, .84, .44, 1) both; }
 
 .is-evaporating {
-  animation: evaporate .78s cubic-bezier(.4, 0, .5, 1) forwards;
+  animation: evaporate .92s cubic-bezier(.33, 0, .3, 1) forwards;
   pointer-events: none;
   overflow: hidden;
 }
 
-.screen--enter { animation: fade-in .34s ease both; }
+.screen--enter { animation: rise .5s cubic-bezier(.16, .84, .44, 1) both; }
 
-.drill__verdict > * { animation: rise .42s cubic-bezier(.2, .7, .3, 1) both; }
+.drill__verdict > * { animation: rise .56s cubic-bezier(.16, .84, .44, 1) both; }
 
 :focus-visible {
   outline: 2px solid var(--accent);
