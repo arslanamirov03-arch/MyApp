@@ -673,17 +673,19 @@
       '<h2 class="drill__prompt">' + esc(word.ru) + '</h2>';
 
     if (session.state === 'ask') {
-      /* Поле пароля с открытым текстом: так клавиатура не подсказывает
-         слово в верхней строке — иначе проверка теряет смысл. */
-      var quietType = window.CSS && CSS.supports && CSS.supports('-webkit-text-security', 'none')
-        ? 'password" style="-webkit-text-security:none'
-        : 'text';
-
+      /* Буквы принимает скрытое парольное поле — на нём клавиатура не
+         предлагает готовые слова. Сам набранный текст рисуется рядом,
+         поэтому видно, что печатаешь. */
       html += (word.image ? imageBox(word.image.id, 'picture--card') : '') +
         '<p class="drill__hint">Напишите это слово по-немецки</p>' +
-        '<input class="input drill__input" type="' + quietType + '" id="drill-input" ' +
+        '<div class="answer" data-answer-shell>' +
+        '<span class="answer__text" id="answer-text"></span>' +
+        '<span class="answer__caret" aria-hidden="true"></span>' +
+        '<span class="answer__hint" id="answer-hint">…</span>' +
+        '<input class="answer__field" type="password" id="drill-input" ' +
         'autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" ' +
-        'inputmode="text" name="answer" placeholder="…">' +
+        'inputmode="text" name="answer" aria-label="Ответ">' +
+        '</div>' +
         '<div class="drill__actions">' +
         '<button class="btn" data-reveal>Забыл</button>' +
         '<button class="btn btn--accent" data-check>Проверить</button>' +
@@ -709,6 +711,27 @@
     screenEl.innerHTML = html;
     /* Клавиатура не открывается сама: иначе экран подпрыгивает
        при каждом новом слове. */
+    if (session.state === 'ask') bindAnswerField();
+  }
+
+  /* Скрытое поле принимает буквы, а видимая строка их показывает. */
+  function bindAnswerField() {
+    var field = document.getElementById('drill-input');
+    var text = document.getElementById('answer-text');
+    var placeholder = document.getElementById('answer-hint');
+    var shell = screenEl.querySelector('[data-answer-shell]');
+    if (!field || !text || !shell) return;
+
+    function paint() {
+      text.textContent = field.value;
+      if (placeholder) placeholder.hidden = !!field.value;
+    }
+
+    field.addEventListener('input', paint);
+    field.addEventListener('focus', function () { shell.classList.add('answer--active'); });
+    field.addEventListener('blur', function () { shell.classList.remove('answer--active'); });
+    shell.addEventListener('click', function () { field.focus(); });
+    paint();
   }
 
   function startLearn(scope) {

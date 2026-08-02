@@ -7,7 +7,8 @@
     "build": "node scripts/build.mjs",
     "test": "node scripts/e2e.mjs && node scripts/e2e-time.mjs && node scripts/e2e-images.mjs && node scripts/e2e-storage.mjs && node scripts/check-artifact.mjs",
     "check:exports": "node scripts/verify.mjs",
-    "icons": "python3 scripts/make-icons.py"
+    "icons": "python3 scripts/make-icons.py",
+    "shots": "node scripts/shot-check.mjs"
   },
   "repository": {
     "type": "git",

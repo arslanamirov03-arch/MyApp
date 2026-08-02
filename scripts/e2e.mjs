@@ -111,15 +111,30 @@ check(await page.locator('[data-reveal]').count() === 1, 'Нет кнопки «
 const focused = await page.evaluate(() => document.activeElement && document.activeElement.id);
 check(focused !== 'drill-input', 'Поле ответа получает фокус само и поднимает клавиатуру');
 
-/* Подсказки клавиатуры отключены типом поля */
+/* Подсказки клавиатуры отключены типом поля, а сам ввод невидим:
+   набранное показывает отдельная строка, иначе были бы точки как у пароля. */
 const inputKind = await page.evaluate(() => {
   const el = document.getElementById('drill-input');
-  return { type: el.type, security: el.style.webkitTextSecurity || getComputedStyle(el).webkitTextSecurity };
+  const style = getComputedStyle(el);
+  return { type: el.type, fill: style.webkitTextFillColor, color: style.color };
 });
-check(inputKind.type === 'password' && inputKind.security === 'none',
-  `Поле ответа не защищено от подсказок: ${JSON.stringify(inputKind)}`);
+check(inputKind.type === 'password', `Поле ответа принимает подсказки: ${inputKind.type}`);
+check(/rgba\(0, 0, 0, 0\)|transparent/.test(inputKind.fill),
+  `Текст в самом поле не спрятан: ${inputKind.fill}`);
 
 await page.fill('#drill-input', pairs[prompt]);
+await page.waitForTimeout(200);
+
+/* Набранное должно быть видно человеку */
+const shown = await page.evaluate(() => {
+  const el = document.getElementById('answer-text');
+  const style = getComputedStyle(el);
+  return { text: el.textContent, color: style.color, size: parseFloat(style.fontSize) };
+});
+check(shown.text === pairs[prompt], `Набранное не показано: «${shown.text}»`);
+check(!/rgba\(0, 0, 0, 0\)/.test(shown.color) && shown.size >= 15,
+  `Набранное показано неразборчиво: ${JSON.stringify(shown)}`);
+await page.screenshot({ path: join(outDir, '06b-typed.png'), fullPage: false });
 await page.press('#drill-input', 'Enter');
 await page.waitForTimeout(1100);
 
@@ -328,6 +343,30 @@ check(edited, 'Правка из проверки не сохранилась');
 
 await page.click('[data-drill-exit]');
 await page.waitForTimeout(600);
+
+/* 8c. Окно должно быть непрозрачным, а блик стекла — не выбеливать
+      первую строку списка */
+await page.click('#btn-archive');
+await page.waitForTimeout(600);
+const modalPaint = await page.evaluate(() => {
+  const modal = document.querySelector('.modal');
+  const style = getComputedStyle(modal);
+  const sheen = getComputedStyle(modal, '::before').display;
+  return { background: style.background.slice(0, 120), sheen: sheen };
+});
+check(!/rgba\([^)]*, 0?\.\d+\)/.test(modalPaint.background),
+  `Фон окна просвечивает: ${modalPaint.background}`);
+check(modalPaint.sheen === 'none', 'На окне остался блик поверх текста');
+await page.click('.modal [data-close]');
+await page.waitForTimeout(400);
+
+const layers = await page.evaluate(() => {
+  const row = document.querySelector('.ledger__row');
+  const sheen = getComputedStyle(document.querySelector('.ledger'), '::before');
+  return { row: getComputedStyle(row).zIndex, sheen: sheen.zIndex };
+});
+check(layers.row === '1' && layers.sheen === '0',
+  `Блик стекла лежит поверх строк: ${JSON.stringify(layers)}`);
 
 /* 9. Вёрстка на телефоне: страница не должна ехать вбок,
       а растворение должно быть именно плавным. */
