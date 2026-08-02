@@ -794,7 +794,7 @@
 
     var note;
     var fresh = Store.freshCount({});
-    if (!total) note = 'Слова для заучивания';
+    if (!total) note = 'Слова наизусть';
     else if (due) note = due + ' ' + plural(due, 'слово', 'слова', 'слов') + ' к разбору';
     else if (fresh) note = fresh + ' ' + plural(fresh, 'новое слово', 'новых слова', 'новых слов');
     else {
@@ -1139,7 +1139,7 @@
         words: set.words,
         meta: {
           line: 'Слов: ' + set.words.length + '  ·  ' + window.Exporter.formatDate(Date.now()),
-          footer: 'Wortschatz'
+          footer: 'Lexis'
         }
       });
       if (result && result.native) toast(result.message || 'Файл сохранён');
@@ -1198,7 +1198,7 @@
     });
 
     modalRoot.querySelector('[data-archive-save]').addEventListener('click', function () {
-      var name = 'wortschatz-' + new Date().toISOString().slice(0, 10) + '.json';
+      var name = 'lexis-' + new Date().toISOString().slice(0, 10) + '.json';
       saveArchive(name, new TextEncoder().encode(Store.exportJson()));
     });
 

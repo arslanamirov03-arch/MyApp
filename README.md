@@ -1,6 +1,7 @@
-# Wortschatz — картотека немецких слов
+# Lexis — слова наизусть
 
-Приложение для набора и повторения немецких слов. Работает без интернета:
+Приложение для набора и повторения слов — начиналось с немецкого,
+но не привязано к языку. Работает без интернета:
 все данные лежат в памяти устройства.
 
 ## Что умеет
@@ -89,10 +90,10 @@ HTML-файл. Он же копируется в `android/app/src/main/assets/`,
 
 ## Установка на телефон
 
-Готовое приложение лежит в `release/wortschatz-1.0.apk` — файл скачивается
+Готовое приложение лежит в `release/lexis-1.0.apk` — файл скачивается
 по прямой ссылке одним переходом:
 
-https://raw.githubusercontent.com/arslanamirov03-arch/MyApp/refs/heads/claude/german-vocabulary-app-epeejr/release/wortschatz-1.0.apk
+https://raw.githubusercontent.com/arslanamirov03-arch/MyApp/refs/heads/claude/german-vocabulary-app-epeejr/release/lexis-1.0.apk
 
 Собрать заново:
 

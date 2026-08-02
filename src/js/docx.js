@@ -168,7 +168,7 @@ window.DocxWriter = (function () {
       'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">' +
       '<dc:title>' + esc(data.title || '') + '</dc:title>' +
       '<dc:subject>' + esc(data.blockTitle || '') + '</dc:subject>' +
-      '<cp:keywords>Deutsch, Wortschatz</cp:keywords>' +
+      '<cp:keywords>Lexis, Wortschatz</cp:keywords>' +
       '<dcterms:created xsi:type="dcterms:W3CDTF">' + iso + '</dcterms:created>' +
       '<dcterms:modified xsi:type="dcterms:W3CDTF">' + iso + '</dcterms:modified>' +
       '</cp:coreProperties>';

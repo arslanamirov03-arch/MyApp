@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#F2EDE4">
-<meta name="description" content="Немецкие слова: блоки, списки по 500 слов, разбор по интервалам и выгрузка в PDF и Word.">
-<title>Wortschatz — немецкие слова</title>
+<meta name="description" content="Слова наизусть: блоки, списки по 500 слов, разбор по интервалам и выгрузка в PDF и Word.">
+<title>Lexis — слова наизусть</title>
 <style>
 /* Оформление: тёплый светлый фон и прозрачное стекло без размытия.
    Стекло читается за счёт полупрозрачной заливки, светлой кромки и бликов,
@@ -1148,9 +1148,9 @@ body::after {
 <div class="app">
 
   <header class="masthead">
-    <div class="mark" aria-hidden="true"><span class="mark__glyph">W</span></div>
+    <div class="mark" aria-hidden="true"><span class="mark__glyph">L</span></div>
     <div class="masthead__text">
-      <h1 class="masthead__title">Wortschatz</h1>
+      <h1 class="masthead__title">Lexis</h1>
       <p class="masthead__sub" id="masthead-sub">Немецкие слова</p>
     </div>
     <button class="ghost-btn" id="btn-archive" type="button" title="Резервная копия" aria-label="Резервная копия">⋯</button>
@@ -2024,7 +2024,7 @@ window.DocxWriter = (function () {
       'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">' +
       '<dc:title>' + esc(data.title || '') + '</dc:title>' +
       '<dc:subject>' + esc(data.blockTitle || '') + '</dc:subject>' +
-      '<cp:keywords>Deutsch, Wortschatz</cp:keywords>' +
+      '<cp:keywords>Lexis, Wortschatz</cp:keywords>' +
       '<dcterms:created xsi:type="dcterms:W3CDTF">' + iso + '</dcterms:created>' +
       '<dcterms:modified xsi:type="dcterms:W3CDTF">' + iso + '</dcterms:modified>' +
       '</cp:coreProperties>';
@@ -2113,8 +2113,8 @@ window.Exporter = (function () {
       info: {
         title: data.setTitle,
         subject: data.blockTitle,
-        author: 'Wortschatz',
-        creator: 'Wortschatz'
+        author: 'Lexis',
+        creator: 'Lexis'
       }
     });
 
@@ -4058,7 +4058,7 @@ window.Store = (function () {
 
     var note;
     var fresh = Store.freshCount({});
-    if (!total) note = 'Слова для заучивания';
+    if (!total) note = 'Слова наизусть';
     else if (due) note = due + ' ' + plural(due, 'слово', 'слова', 'слов') + ' к разбору';
     else if (fresh) note = fresh + ' ' + plural(fresh, 'новое слово', 'новых слова', 'новых слов');
     else {
@@ -4403,7 +4403,7 @@ window.Store = (function () {
         words: set.words,
         meta: {
           line: 'Слов: ' + set.words.length + '  ·  ' + window.Exporter.formatDate(Date.now()),
-          footer: 'Wortschatz'
+          footer: 'Lexis'
         }
       });
       if (result && result.native) toast(result.message || 'Файл сохранён');
@@ -4462,7 +4462,7 @@ window.Store = (function () {
     });
 
     modalRoot.querySelector('[data-archive-save]').addEventListener('click', function () {
-      var name = 'wortschatz-' + new Date().toISOString().slice(0, 10) + '.json';
+      var name = 'lexis-' + new Date().toISOString().slice(0, 10) + '.json';
       saveArchive(name, new TextEncoder().encode(Store.exportJson()));
     });
 

@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="backdrop">#FF1C0F0D</color>
-    <color name="maroon_deep">#FF3E0A0D</color>
-    <color name="maroon">#FF6E1216</color>
-    <color name="gold">#FFC9A227</color>
+    <!-- Те же цвета, что и на страницах приложения. -->
+    <color name="ground">#FFF1EADE</color>
+    <color name="icon_bg">#FFBE5F3A</color>
+    <color name="accent">#FFC05F3C</color>
+    <color name="accent_deep">#FF9E4527</color>
 </resources>

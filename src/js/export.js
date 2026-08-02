@@ -67,8 +67,8 @@ window.Exporter = (function () {
       info: {
         title: data.setTitle,
         subject: data.blockTitle,
-        author: 'Wortschatz',
-        creator: 'Wortschatz'
+        author: 'Lexis',
+        creator: 'Lexis'
       }
     });
 
