@@ -1,8 +1,8 @@
 {
-  "name": "wortschatz",
+  "name": "lexis",
   "version": "1.0.0",
   "private": true,
-  "description": "Lexis — слова наизусть: картотека: блоки, списки по 500 слов, разбор по интервалам и выгрузка в PDF и Word",
+  "description": "Lexis — слова наизусть: блоки, списки по 500 слов, разбор по интервалам, картинки и выгрузка в PDF и Word",
   "scripts": {
     "build": "node scripts/build.mjs",
     "test": "node scripts/e2e.mjs && node scripts/e2e-time.mjs && node scripts/e2e-images.mjs && node scripts/e2e-storage.mjs && node scripts/check-artifact.mjs",
