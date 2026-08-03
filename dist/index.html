@@ -2420,50 +2420,42 @@ window.Media = (function () {
   var MAX_SIDE = 640;
   var QUALITY = 0.82;
 
-  /* Промпт делает две вещи. Во-первых, разбирает, какая это часть речи:
-     существительное рисуется иначе, чем наречие или идиома, и без этого
-     разбора модель сводит всё к предмету на столе. Во-вторых, оставляет
-     в кадре цифры, стрелки и отдельные знаки — они помогают понять смысл, —
-     но не пускает туда ни одного читаемого слова: слово в кадре означало бы
-     готовый ответ. */
+  /* Промпт устроен просто: модель сама определяет, что это за слово, и берёт
+     подходящую строчку из списка. Главное правило — рисовать как можно меньше:
+     стрелки и раскадровки только мешали, а конкретному предмету не нужно
+     ничего, кроме самого предмета. Абстрактное показывается через человека
+     в обычной житейской сцене — так понятнее, чем через символы.
+     Запрещено ровно одно: само слово и его перевод в кадре. */
   function buildPrompt(word, translation) {
-    return 'Create one picture that makes the meaning of a foreign word stick ' +
-      'in a learner\'s memory.\n\n' +
+    return 'Draw a picture that instantly shows what a foreign word means. ' +
+      'A learner should understand it in one second, without thinking.\n\n' +
       'WORD: "' + word + '"\n' +
       (translation ? 'MEANING: ' + translation + '\n' : '') +
-      '\nFirst decide what kind of word this is, then show it accordingly:\n' +
-      '- concrete noun: the object itself, large and clear, in a setting that hints ' +
-      'at how it is used\n' +
-      '- verb: a person caught mid-action, with motion lines or an arrow that carries ' +
-      'the movement\n' +
-      '- separable or phrasal verb: the whole action the phrase really describes, ' +
-      'not its parts shown separately\n' +
-      '- adjective: make the quality unmistakable through contrast — put the thing beside ' +
-      'its opposite, or push the quality far past normal\n' +
-      '- adverb: keep the action ordinary and make the MANNER obvious — speed lines, ' +
-      'repetition, a clock, a face\n' +
-      '- emotion or abstract idea: body language and facial expression carrying the feeling, ' +
-      'plus one simple metaphor\n' +
-      '- idiom or set expression: draw the situation the idiom actually means, and you may ' +
-      'add a small nod to its literal image if that helps it stick\n' +
-      '- number, quantity or time: show the exact amount by counting real objects\n' +
-      '- preposition or position word: two simple objects whose relative position is the ' +
-      'entire point, with an arrow if needed\n\n' +
-      'Memory devices to use: one clear focal point, slight exaggeration, a readable facial ' +
-      'expression, arrows or motion lines, a before-and-after pair when it clarifies, and one ' +
-      'surprising detail that gives the mind a hook.\n\n' +
-      'STYLE: clean flat vector illustration, simple shapes, warm palette of terracotta, ' +
-      'sage green, sand and cream, plain light background, generous empty space, no frame ' +
-      'or border. Square, 1:1.\n\n' +
-      'WHAT MAY NOT APPEAR: any readable word, in any language or script. Not the word "' +
-      word + '", not its translation, and not helper captions either — no "before", "after", ' +
-      'month names, weekday names, brand names, titles, labels, signatures or watermarks. ' +
-      'If you draw a calendar, clock face, book, screen, poster or shop sign, leave its ' +
-      'writing areas blank or fill them with plain marks. When a caption feels necessary, ' +
-      'replace it with a drawing.\n\n' +
-      'WHAT IS ALLOWED: digits, arrows, motion lines, mathematical and musical signs, ' +
-      'and single standalone letters — use them freely whenever they make the meaning ' +
-      'clearer. The learner must be unable to simply read the answer.';
+      '\nWork out for yourself what kind of word this is, and draw it accordingly:\n' +
+      '- a thing: just that thing, large, whole, centred, seen from its most recognisable ' +
+      'angle, and nothing else in the frame\n' +
+      '- an action: one person doing it, plainly\n' +
+      '- a quality: one object or person that obviously has this quality; only if the ' +
+      'quality makes no sense alone, put it beside its opposite\n' +
+      '- a manner: one scene in which the manner is unmistakable\n' +
+      '- a feeling: one face and posture that carry it\n' +
+      '- an abstract idea or idiom: the simplest everyday situation where the idea is obvious\n' +
+      '- a number or amount: exactly that many identical objects\n' +
+      '- a position word: two plain objects placed so their relation is the whole picture\n\n' +
+      'For anything abstract — a quality, a manner, a feeling, an idea, an idiom — show a ' +
+      'person in an ordinary everyday situation where the meaning is plain to see. People ' +
+      'and familiar scenes are remembered far better than symbols or abstract shapes.\n\n' +
+      'SIMPLICITY IS THE RULE. Use as few elements as you can. No arrows, no motion lines, ' +
+      'no split screens, no before-and-after pairs, no decorative extras, unless the meaning ' +
+      'truly cannot be shown without them. When in doubt, draw less. A calm obvious picture ' +
+      'is better than a clever one.\n\n' +
+      'STYLE: flat vector illustration, clean simple shapes, warm palette of terracotta, ' +
+      'sage green, sand and cream, plain light background, one clear subject, plenty of ' +
+      'empty space. Square, 1:1.\n\n' +
+      'THE ONLY RULE ABOUT TEXT: the picture must not show the word "' + word + '"' +
+      (translation ? ' or its translation "' + translation + '"' : '') +
+      ', or any form of either, anywhere. Other incidental text is acceptable, ' +
+      'but keep it to a minimum.';
   }
 
   /* ---------- Обмен через буфер ---------- */

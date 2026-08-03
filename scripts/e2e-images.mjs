@@ -102,11 +102,14 @@ await page.waitForTimeout(1200);
 check(sentHeaders && sentHeaders['x-goog-api-key'] === 'test-key-123', 'Ключ не ушёл в заголовке');
 const prompt = sentBody && sentBody.contents[0].parts[0].text;
 check(/schlafen/.test(prompt), 'В запросе нет самого слова');
-check(/may not appear: any readable word/i.test(prompt), 'В запросе нет запрета на слова');
-check(/leave its\s+writing areas blank/i.test(prompt), 'В запросе нет правила о календарях и вывесках');
-check(/what is allowed: digits, arrows/i.test(prompt), 'В запросе не разрешены цифры и знаки');
-for (const kind of ['adjective', 'adverb', 'idiom', 'separable or phrasal verb', 'preposition']) {
-  check(new RegExp(kind, 'i').test(prompt), `В запросе нет разбора для «${kind}»`);
+check(/must not show the word "schlafen"/i.test(prompt), 'В запросе не запрещено само слово');
+check(/or its translation "спать"/i.test(prompt), 'В запросе не запрещён перевод');
+check(/simplicity is the rule/i.test(prompt), 'В запросе нет требования простоты');
+check(/no arrows, no motion lines/i.test(prompt), 'В запросе не отключены стрелки и линии движения');
+check(/work out for yourself what kind of word/i.test(prompt),
+  'В запросе нет самостоятельного разбора части речи');
+for (const kind of ['a thing', 'an action', 'a quality', 'a manner', 'an idiom', 'a position word']) {
+  check(new RegExp(kind, 'i').test(prompt), `В запросе нет строки для «${kind}»`);
 }
 check(sentBody.generationConfig.responseModalities[0] === 'IMAGE', 'Не запрошена картинка');
 check(sentBody.generationConfig.imageConfig.aspectRatio === '1:1', 'Не запрошен квадрат');
@@ -130,10 +133,10 @@ await page.waitForTimeout(500);
 const copied = await page.evaluate(() => navigator.clipboard.readText());
 check(/die Geduld/.test(copied), 'В скопированном промпте нет слова');
 check(/терпение/.test(copied), 'В скопированном промпте нет перевода');
-check(/may not appear: any readable word/i.test(copied), 'В скопированном промпте нет запрета на слова');
-check(/adjective/i.test(copied) && /idiom/i.test(copied),
-  'В скопированном промпте нет разбора частей речи');
-check(copied.length > 1500, `Промпт подозрительно короткий: ${copied.length}`);
+check(/must not show the word "die Geduld"/i.test(copied),
+  'В скопированном промпте не запрещено само слово');
+check(/simplicity is the rule/i.test(copied), 'В скопированном промпте нет требования простоты');
+check(copied.length > 1200, `Промпт подозрительно короткий: ${copied.length}`);
 
 /* 3c. Готовая картинка возвращается обратно вставкой */
 await page.click('[data-photo-paste]');
