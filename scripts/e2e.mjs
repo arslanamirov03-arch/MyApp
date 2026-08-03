@@ -187,13 +187,13 @@ const ladder = await page.evaluate(() => {
   window.Store.addWord(block.id, block.sets[0].id, 'die Leiter', 'стремянка');
   const word = block.sets[0].words.find((w) => w.de === 'die Leiter');
   const steps = [];
-  for (let i = 0; i < 7; i++) {
+  for (let i = 0; i < 8; i++) {
     const r = window.Store.reviewWord(word.id, 'correct');
     steps.push(r.mastered ? 'освоено' : window.Store.studyDaysBetween(Date.now(), word.due));
   }
   return steps;
 });
-check(JSON.stringify(ladder) === JSON.stringify([1, 3, 7, 14, 30, 60, 'освоено']),
+check(JSON.stringify(ladder) === JSON.stringify([1, 2, 3, 7, 14, 30, 90, 'освоено']),
   `Лестница интервалов неверна: ${JSON.stringify(ladder)}`);
 
 /* Слово со сбросом после 60 дней уходит в самое начало */
@@ -400,4 +400,4 @@ if (problems.length) {
   problems.forEach((p) => console.error(' · ' + p));
   process.exit(1);
 }
-console.log('Проверено: ввод, выгрузка, разбор (верно/опечатка/забыл), лестница 1-3-7-14-30-60, предел 500.');
+console.log('Проверено: ввод, выгрузка, разбор (верно/опечатка/забыл), лестница 1-2-3-7-14-30-90, предел 500.');

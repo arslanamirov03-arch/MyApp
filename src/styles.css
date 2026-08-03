@@ -1044,28 +1044,6 @@ body::after {
   margin-top: 15px;
 }
 
-/* Уровни лестницы повторений */
-.ladder {
-  display: flex;
-  justify-content: center;
-  gap: 6px;
-  margin-top: 16px;
-}
-
-.ladder__step {
-  min-width: 30px;
-  padding: 4px 7px;
-  border-radius: 999px;
-  font-size: 11px;
-  color: var(--ink-faint);
-  background: var(--surface-2);
-  border: 1px solid var(--glass-edge);
-  font-variant-numeric: tabular-nums;
-  transition: color .4s ease, background .4s ease, transform .4s ease;
-}
-
-.ladder__step--done { color: var(--calm); background: var(--calm-wash); border-color: rgba(95, 132, 104, .3); }
-.ladder__step--current { color: #FFF6F1; background: var(--accent); border-color: var(--accent-deep); transform: scale(1.08); }
 
 /* ---------- Пустые состояния ---------- */
 

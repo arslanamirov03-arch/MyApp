@@ -102,8 +102,12 @@ await page.waitForTimeout(1200);
 check(sentHeaders && sentHeaders['x-goog-api-key'] === 'test-key-123', 'Ключ не ушёл в заголовке');
 const prompt = sentBody && sentBody.contents[0].parts[0].text;
 check(/schlafen/.test(prompt), 'В запросе нет самого слова');
-check(/no writing of any kind/i.test(prompt), 'В запросе нет запрета на надписи');
-check(/no text on\s+books, screens/i.test(prompt), 'В запросе нет запрета на текст на предметах');
+check(/may not appear: any readable word/i.test(prompt), 'В запросе нет запрета на слова');
+check(/leave its\s+writing areas blank/i.test(prompt), 'В запросе нет правила о календарях и вывесках');
+check(/what is allowed: digits, arrows/i.test(prompt), 'В запросе не разрешены цифры и знаки');
+for (const kind of ['adjective', 'adverb', 'idiom', 'separable or phrasal verb', 'preposition']) {
+  check(new RegExp(kind, 'i').test(prompt), `В запросе нет разбора для «${kind}»`);
+}
 check(sentBody.generationConfig.responseModalities[0] === 'IMAGE', 'Не запрошена картинка');
 check(sentBody.generationConfig.imageConfig.aspectRatio === '1:1', 'Не запрошен квадрат');
 
@@ -126,8 +130,10 @@ await page.waitForTimeout(500);
 const copied = await page.evaluate(() => navigator.clipboard.readText());
 check(/die Geduld/.test(copied), 'В скопированном промпте нет слова');
 check(/терпение/.test(copied), 'В скопированном промпте нет перевода');
-check(/no writing of any kind/i.test(copied), 'В скопированном промпте нет запрета на надписи');
-check(copied.length > 800, `Промпт подозрительно короткий: ${copied.length}`);
+check(/may not appear: any readable word/i.test(copied), 'В скопированном промпте нет запрета на слова');
+check(/adjective/i.test(copied) && /idiom/i.test(copied),
+  'В скопированном промпте нет разбора частей речи');
+check(copied.length > 1500, `Промпт подозрительно короткий: ${copied.length}`);
 
 /* 3c. Готовая картинка возвращается обратно вставкой */
 await page.click('[data-photo-paste]');

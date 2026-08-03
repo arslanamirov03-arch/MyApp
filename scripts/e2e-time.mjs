@@ -110,13 +110,13 @@ const ladder = await page.evaluate(() => {
   window.Store.addWord(block.id, block.sets[0].id, 'die Treppe', 'лестница');
   const word = block.sets[0].words.find((w) => w.de === 'die Treppe');
   const steps = [];
-  for (let i = 0; i < 7; i++) {
+  for (let i = 0; i < 8; i++) {
     const r = window.Store.reviewWord(word.id, 'correct');
     steps.push(r.mastered ? 'освоено' : [r.days, new Date(r.due).getHours()]);
   }
   return steps;
 });
-check(JSON.stringify(ladder) === JSON.stringify([[1, 6], [3, 6], [7, 6], [14, 6], [30, 6], [60, 6], 'освоено']),
+check(JSON.stringify(ladder) === JSON.stringify([[1, 6], [2, 6], [3, 6], [7, 6], [14, 6], [30, 6], [90, 6], 'освоено']),
   `Лестница со временем появления неверна: ${JSON.stringify(ladder)}`);
 
 await browser.close();

@@ -589,15 +589,6 @@
 
   /* ---------- Экран: разбор ---------- */
 
-  function ladderHtml(level) {
-    var steps = Store.INTERVALS.map(function (days, i) {
-      var cls = 'ladder__step';
-      if (i < level - 1) cls += ' ladder__step--done';
-      else if (i === level - 1) cls += ' ladder__step--current';
-      return '<span class="' + cls + '">' + days + '</span>';
-    }).join('');
-    return '<div class="ladder">' + steps + '</div>';
-  }
 
   /* Панель над карточкой: выход, правка слова и размер. */
   function drillBar(wordId) {
