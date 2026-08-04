@@ -74,6 +74,13 @@ await page.waitForTimeout(500);
 check(await page.locator('#photo-row .picture:not(.picture--empty)').count() === 1,
   'Выбранный снимок не показан в форме');
 
+/* Ещё не привязанная картинка тоже открывается во весь экран */
+await page.click('#photo-row .picture');
+await page.waitForTimeout(500);
+check(await page.locator('#viewer').count() === 1, 'Картинка в форме не открылась во весь экран');
+await page.keyboard.press('Escape');
+await page.waitForTimeout(600);
+
 await page.click('[data-add-word]');
 await page.waitForTimeout(600);
 
@@ -214,6 +221,15 @@ await page.waitForTimeout(400);
 check(await page.locator('.modal .picture--slot').count() === 1, 'В правке слова нет картинки');
 check(await page.locator('[data-edit-photo-prompt]').count() === 1, 'В правке слова нет кнопки промпта');
 check(await page.locator('[data-edit-photo-paste]').count() === 1, 'В правке слова нет кнопки вставки');
+
+/* И в окне правки картинка открывается касанием */
+await page.click('.modal .picture--slot');
+await page.waitForTimeout(500);
+check(await page.locator('#viewer').count() === 1, 'Картинка в правке слова не открылась во весь экран');
+check(await page.locator('.modal').count() === 1, 'Окно правки закрылось вместе с картинкой');
+await page.keyboard.press('Escape');
+await page.waitForTimeout(600);
+
 await page.click('[data-edit-photo-drop]');
 await page.waitForTimeout(500);
 
