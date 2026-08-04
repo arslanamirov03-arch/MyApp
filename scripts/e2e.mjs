@@ -57,6 +57,18 @@ await page.click('#modal-form button[type="submit"]');
 await page.waitForTimeout(300);
 
 check(await page.locator('.ledger__row').count() === 6, 'В ведомости должно быть 6 слов');
+
+/* Возврат в пути — крупная стрелка без подписи */
+const crumbBack = await page.evaluate(() => {
+  const el = document.querySelector('[data-go-back]');
+  return el
+    ? { text: el.textContent.trim(), arrows: el.querySelectorAll('svg').length,
+        width: el.getBoundingClientRect().width }
+    : null;
+});
+check(crumbBack && crumbBack.text === '' && crumbBack.arrows === 1 && crumbBack.width >= 36,
+  `Стрелка возврата в пути не та: ${JSON.stringify(crumbBack)}`);
+
 check((await page.locator('.gauge__value').textContent()).includes('6 / 500'), 'Счётчик заполнения неверен');
 check((await page.locator('.ledger__de').last().textContent()).trim() === 'der Beschluss',
   'Нумерация из вставленной строки не отброшена');
@@ -103,7 +115,23 @@ const pairs = {
   'постановление': 'der Beschluss'
 };
 /* Панель над карточкой: выход, правка слова и размер */
-check(await page.locator('[data-drill-exit]').count() === 1, 'Нет кнопки «Назад» в проверке');
+check(await page.locator('[data-drill-exit]').count() === 1, 'Нет кнопки возврата в проверке');
+
+/* Возврат — одна крупная стрелка, слова рядом с ней нет */
+const back = await page.evaluate(() => {
+  const el = document.querySelector('[data-drill-exit]');
+  return {
+    text: el.textContent.trim(),
+    arrows: el.querySelectorAll('svg').length,
+    width: el.getBoundingClientRect().width,
+    crumbs: document.querySelectorAll('[data-go-back]').length
+  };
+});
+check(back.text === '', `Рядом со стрелкой осталось слово: «${back.text}»`);
+check(back.arrows === 1, 'На кнопке возврата нет стрелки');
+check(back.width >= 36, `Стрелка возврата мелковата: ${back.width}`);
+check(back.crumbs === 0, 'В разборе две стрелки назад подряд');
+
 check(await page.locator('[data-drill-edit]').count() === 1, 'Нет кнопки «Изменить» в проверке');
 check(await page.locator('[data-reveal]').count() === 1, 'Нет кнопки «Забыл» до ответа');
 
@@ -158,14 +186,58 @@ check((await page.locator('.verdict__word').textContent()).trim() === pairs[prom
   'Показано не то правильное слово');
 await page.screenshot({ path: join(outDir, '08-wrong.png'), fullPage: false });
 
-/* Размер карточки переключается и запоминается */
-const sizeBefore = await page.evaluate(() => window.Store.getDrillScale());
+/* Размеры текста и картинки тянутся порознь, шагов много */
 await page.click('[data-drill-size]');
 await page.waitForTimeout(400);
-const sizeAfter = await page.evaluate(() => window.Store.getDrillScale());
-check(sizeBefore !== sizeAfter, 'Размер карточки не переключился');
-check(await page.locator('.drill--' + sizeAfter).count() === (sizeAfter === 'm' ? 0 : 1),
-  'Класс размера не применился к карточке');
+check(await page.locator('#size-panel').count() === 1, 'Панель размеров не открылась');
+check(await page.locator('[data-size="text"]').count() === 1, 'Нет ползунка размера текста');
+check(await page.locator('[data-size="image"]').count() === 1, 'Нет ползунка размера картинки');
+
+const steps = await page.evaluate(() => {
+  const slider = document.querySelector('[data-size="text"]');
+  return (Number(slider.max) - Number(slider.min)) / Number(slider.step);
+});
+check(steps >= 20, `Размеров всего ${steps + 1} — должно быть много`);
+
+const setSize = async (kind, percent) => {
+  await page.evaluate(({ kind, percent }) => {
+    const slider = document.querySelector(`[data-size="${kind}"]`);
+    slider.value = String(percent);
+    slider.dispatchEvent(new Event('input', { bubbles: true }));
+    slider.dispatchEvent(new Event('change', { bubbles: true }));
+  }, { kind, percent });
+  await page.waitForTimeout(150);
+};
+
+const fontOf = (selector) => page.evaluate((sel) => {
+  const el = document.querySelector(sel);
+  return el ? parseFloat(getComputedStyle(el).fontSize) : 0;
+}, selector);
+
+const promptSmall = await fontOf('.drill__prompt');
+const wordSmall = await fontOf('.verdict__word');
+await setSize('text', 200);
+const promptBig = await fontOf('.drill__prompt');
+const wordBig = await fontOf('.verdict__word');
+check(promptBig > promptSmall * 1.5, `Перевод не вырос: ${promptSmall} → ${promptBig}`);
+check(wordBig > wordSmall * 1.5, `Ответ на карточке не вырос: ${wordSmall} → ${wordBig}`);
+
+/* Текст и картинка настраиваются независимо друг от друга */
+await setSize('image', 140);
+const scales = await page.evaluate(() => ({
+  text: window.Store.getTextScale(),
+  image: window.Store.getImageScale()
+}));
+check(Math.abs(scales.text - 2) < 0.01 && Math.abs(scales.image - 1.4) < 0.01,
+  `Размеры сохранились неверно: ${JSON.stringify(scales)}`);
+
+/* На самом крупном размере карточка всё равно не едет вбок */
+await setSize('text', 240);
+const wideText = await page.evaluate(() => [...document.querySelectorAll('.drill *')]
+  .filter((el) => el.getBoundingClientRect().right > window.innerWidth + 1)
+  .map((el) => el.className).slice(0, 4));
+check(wideText.length === 0, `На крупном тексте вылезают: ${wideText.join(', ')}`);
+await setSize('text', 200);
 
 /* «Забыл» возвращает слово в начало лестницы и в конец очереди */
 const queueBefore = await page.evaluate(() => document.querySelector('.drill__eyebrow').textContent);
@@ -179,6 +251,29 @@ const forgotten = await page.evaluate((ru) => {
 }, prompt2);
 check(forgotten.level === 0, `После «забыл» уровень должен быть 0, получено ${forgotten.level}`);
 check(forgotten.lapses === 1, 'Не засчитан срыв');
+
+/* Поле ответа растёт вместе с текстом — и стоит выше перевода,
+   чтобы клавиатура не подбрасывала карточку. */
+const answerBig = await fontOf('.answer__text');
+await setSize('text', 100);
+const answerSmall = await fontOf('.answer__text');
+check(answerBig > answerSmall * 1.5, `Поле ответа не тянется за текстом: ${answerSmall} → ${answerBig}`);
+
+const order = await page.evaluate(() => {
+  const card = document.querySelector('.drill');
+  const names = [...card.children].map((el) => el.className);
+  return {
+    answer: names.findIndex((c) => c.includes('answer')),
+    prompt: names.findIndex((c) => c.includes('drill__prompt'))
+  };
+});
+check(order.answer > -1 && order.answer < order.prompt,
+  `Поле ответа стоит не первым: ${JSON.stringify(order)}`);
+
+await setSize('image', 100);
+await page.click('[data-drill-size]');
+await page.waitForTimeout(300);
+check(await page.locator('#size-panel').count() === 0, 'Панель размеров не закрылась');
 
 /* 5. Лестница интервалов на данных: 1 → 3 → 7 → 14 → 30 → 60 → освоено */
 const ladder = await page.evaluate(() => {

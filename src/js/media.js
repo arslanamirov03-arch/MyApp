@@ -9,42 +9,78 @@ window.Media = (function () {
   var MAX_SIDE = 640;
   var QUALITY = 0.82;
 
+  var SLOT_WORD = '{слово}';
+  var SLOT_MEANING = '{перевод}';
+
   /* Промпт устроен просто: модель сама определяет, что это за слово, и берёт
      подходящую строчку из списка. Главное правило — рисовать как можно меньше:
      стрелки и раскадровки только мешали, а конкретному предмету не нужно
      ничего, кроме самого предмета. Абстрактное показывается через человека
      в обычной житейской сцене — так понятнее, чем через символы.
-     Запрещено ровно одно: само слово и его перевод в кадре. */
+     Запрещено ровно одно: само слово и его перевод в кадре.
+
+     Текст лежит здесь целиком и в готовом виде: его можно переписать
+     в настройках, и меняется ровно то, что уходит модели. Подстановки
+     всего две — {слово} и {перевод}. */
+  var DEFAULT_PROMPT =
+    'Draw a picture that instantly shows what a foreign word means. ' +
+    'A learner should understand it in one second, without thinking.\n\n' +
+    'WORD: "' + SLOT_WORD + '"\n' +
+    'MEANING: ' + SLOT_MEANING + '\n' +
+    '\nWork out for yourself what kind of word this is, and draw it accordingly:\n' +
+    '- a thing: just that thing, large, whole, centred, seen from its most recognisable ' +
+    'angle, and nothing else in the frame\n' +
+    '- an action: one person doing it, plainly\n' +
+    '- a quality: one object or person that obviously has this quality; only if the ' +
+    'quality makes no sense alone, put it beside its opposite\n' +
+    '- a manner: one scene in which the manner is unmistakable\n' +
+    '- a feeling: one face and posture that carry it\n' +
+    '- an abstract idea or idiom: the simplest everyday situation where the idea is obvious\n' +
+    '- a number or amount: exactly that many identical objects\n' +
+    '- a position word: two plain objects placed so their relation is the whole picture\n\n' +
+    'For anything abstract — a quality, a manner, a feeling, an idea, an idiom — show a ' +
+    'person in an ordinary everyday situation where the meaning is plain to see. People ' +
+    'and familiar scenes are remembered far better than symbols or abstract shapes.\n\n' +
+    'SIMPLICITY IS THE RULE. Use as few elements as you can. No arrows, no motion lines, ' +
+    'no split screens, no before-and-after pairs, no decorative extras, unless the meaning ' +
+    'truly cannot be shown without them. When in doubt, draw less. A calm obvious picture ' +
+    'is better than a clever one.\n\n' +
+    'STYLE: flat vector illustration, clean simple shapes, warm palette of terracotta, ' +
+    'sage green, sand and cream, plain light background, one clear subject, plenty of ' +
+    'empty space. Square, 1:1.\n\n' +
+    'THE ONLY RULE ABOUT TEXT: the picture must not show the word "' + SLOT_WORD + '"' +
+    ' or its translation "' + SLOT_MEANING + '"' +
+    ', or any form of either, anywhere. Other incidental text is acceptable, ' +
+    'but keep it to a minimum.';
+
+  function escapeSlot(slot) {
+    return slot.replace(/[{}]/g, function (ch) { return '\\' + ch; });
+  }
+
+  /* Подстановка. Перевода может не быть — тогда куски, которые без него
+     теряют смысл, из промпта уходят целиком. */
+  function fillPrompt(template, word, translation) {
+    var text = String(template == null ? '' : template);
+    if (!translation) {
+      text = text
+        /* Строка вида «MEANING: {перевод}» без перевода не нужна вовсе. */
+        .replace(new RegExp('^[^\\n]*:[ \\t]*' + escapeSlot(SLOT_MEANING) + '[ \\t]*\\n?', 'gm'), '')
+        /* Оговорка про перевод внутри строки — тоже. */
+        .replace(new RegExp('[ \\t]*or its translation "' + escapeSlot(SLOT_MEANING) + '"', 'g'), '');
+    }
+    return text
+      .split(SLOT_WORD).join(word == null ? '' : word)
+      .split(SLOT_MEANING).join(translation == null ? '' : translation);
+  }
+
+  /* Промпт берётся из настроек, если человек его переписал. */
+  function template() {
+    var own = window.Store.getPromptTemplate && window.Store.getPromptTemplate();
+    return own || DEFAULT_PROMPT;
+  }
+
   function buildPrompt(word, translation) {
-    return 'Draw a picture that instantly shows what a foreign word means. ' +
-      'A learner should understand it in one second, without thinking.\n\n' +
-      'WORD: "' + word + '"\n' +
-      (translation ? 'MEANING: ' + translation + '\n' : '') +
-      '\nWork out for yourself what kind of word this is, and draw it accordingly:\n' +
-      '- a thing: just that thing, large, whole, centred, seen from its most recognisable ' +
-      'angle, and nothing else in the frame\n' +
-      '- an action: one person doing it, plainly\n' +
-      '- a quality: one object or person that obviously has this quality; only if the ' +
-      'quality makes no sense alone, put it beside its opposite\n' +
-      '- a manner: one scene in which the manner is unmistakable\n' +
-      '- a feeling: one face and posture that carry it\n' +
-      '- an abstract idea or idiom: the simplest everyday situation where the idea is obvious\n' +
-      '- a number or amount: exactly that many identical objects\n' +
-      '- a position word: two plain objects placed so their relation is the whole picture\n\n' +
-      'For anything abstract — a quality, a manner, a feeling, an idea, an idiom — show a ' +
-      'person in an ordinary everyday situation where the meaning is plain to see. People ' +
-      'and familiar scenes are remembered far better than symbols or abstract shapes.\n\n' +
-      'SIMPLICITY IS THE RULE. Use as few elements as you can. No arrows, no motion lines, ' +
-      'no split screens, no before-and-after pairs, no decorative extras, unless the meaning ' +
-      'truly cannot be shown without them. When in doubt, draw less. A calm obvious picture ' +
-      'is better than a clever one.\n\n' +
-      'STYLE: flat vector illustration, clean simple shapes, warm palette of terracotta, ' +
-      'sage green, sand and cream, plain light background, one clear subject, plenty of ' +
-      'empty space. Square, 1:1.\n\n' +
-      'THE ONLY RULE ABOUT TEXT: the picture must not show the word "' + word + '"' +
-      (translation ? ' or its translation "' + translation + '"' : '') +
-      ', or any form of either, anywhere. Other incidental text is acceptable, ' +
-      'but keep it to a minimum.';
+    return fillPrompt(template(), word, translation);
   }
 
   /* ---------- Обмен через буфер ---------- */
@@ -185,7 +221,7 @@ window.Media = (function () {
     var key = window.Store.getApiKey();
     if (!key) return Promise.reject(new Error('Сначала укажите ключ Google AI в настройках'));
 
-    var url = ENDPOINT + (model || DEFAULT_MODEL) + ':generateContent';
+    var url = ENDPOINT + (model || window.Store.getModel() || DEFAULT_MODEL) + ':generateContent';
     var body = {
       contents: [{ parts: [{ text: buildPrompt(word, translation) }] }],
       generationConfig: {
@@ -262,6 +298,10 @@ window.Media = (function () {
 
   return {
     DEFAULT_MODEL: DEFAULT_MODEL,
+    DEFAULT_PROMPT: DEFAULT_PROMPT,
+    SLOT_WORD: SLOT_WORD,
+    SLOT_MEANING: SLOT_MEANING,
+    fillPrompt: fillPrompt,
     buildPrompt: buildPrompt,
     copyPrompt: copyPrompt,
     readClipboardImage: readClipboardImage,

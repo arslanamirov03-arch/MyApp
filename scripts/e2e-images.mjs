@@ -21,7 +21,8 @@ const browser = await chromium.launch({
 const context = await browser.newContext({
   viewport: { width: 390, height: 844 },
   deviceScaleFactor: 2,
-  permissions: ['clipboard-read', 'clipboard-write']
+  permissions: ['clipboard-read', 'clipboard-write'],
+  acceptDownloads: true
 });
 const page = await context.newPage();
 
@@ -32,9 +33,11 @@ const check = (condition, message) => { if (!condition) problems.push(message); 
 /* Перехватываем обращение к Gemini и смотрим, что именно уходит. */
 let sentBody = null;
 let sentHeaders = null;
+let sentUrl = '';
 await page.route('**generativelanguage.googleapis.com/**', async (route) => {
   sentBody = JSON.parse(route.request().postData() || '{}');
   sentHeaders = route.request().headers();
+  sentUrl = route.request().url();
   await route.fulfill({
     status: 200,
     contentType: 'application/json',
@@ -100,6 +103,8 @@ await page.click('[data-photo-ai]');
 await page.waitForTimeout(1200);
 
 check(sentHeaders && sentHeaders['x-goog-api-key'] === 'test-key-123', 'Ключ не ушёл в заголовке');
+check(/gemini-3\.1-flash-lite-image:generateContent/.test(sentUrl),
+  'Запрос ушёл не к модели по умолчанию: ' + sentUrl);
 const prompt = sentBody && sentBody.contents[0].parts[0].text;
 check(/schlafen/.test(prompt), 'В запросе нет самого слова');
 check(/must not show the word "schlafen"/i.test(prompt), 'В запросе не запрещено само слово');
@@ -171,6 +176,36 @@ await page.waitForTimeout(500);
 check(await page.locator('.picture--card').count() === 1, 'На карточке знакомства нет картинки');
 await page.screenshot({ path: join(outDir, 'learn-card.png') });
 
+/* Картинка тянется своим ползунком и на самом крупном размере
+   остаётся в пределах экрана. */
+await page.click('[data-drill-size]');
+await page.waitForTimeout(400);
+const cardWidth = () => page.evaluate(() =>
+  document.querySelector('.picture--card').getBoundingClientRect().width);
+
+const before = await cardWidth();
+await page.evaluate(() => {
+  const slider = document.querySelector('[data-size="image"]');
+  slider.value = '240';
+  slider.dispatchEvent(new Event('input', { bubbles: true }));
+});
+await page.waitForTimeout(250);
+const after = await cardWidth();
+check(after > before * 1.3, `Картинка не выросла: ${before} → ${after}`);
+check(after <= 390, `Картинка вылезла за экран: ${after}`);
+
+const promptFont = await page.evaluate(() =>
+  parseFloat(getComputedStyle(document.querySelector('.drill__prompt')).fontSize));
+check(promptFont < 40, `Текст вырос вместе с картинкой: ${promptFont}`);
+
+await page.evaluate(() => {
+  const slider = document.querySelector('[data-size="image"]');
+  slider.value = '100';
+  slider.dispatchEvent(new Event('input', { bubbles: true }));
+});
+await page.click('[data-drill-size]');
+await page.waitForTimeout(300);
+
 /* 5. Картинку можно убрать, и она исчезает из базы */
 await page.goBack();
 await page.waitForTimeout(400);
@@ -195,6 +230,151 @@ await page.waitForTimeout(600);
 const thumbs = await page.locator('.ledger .picture--thumb').count();
 check(thumbs === 2, `После перезагрузки миниатюр: ${thumbs}, ожидалось 2`);
 
+/* 7. Картинка открывается во весь экран: без кнопок, с увеличением,
+      закрывается движением вниз, сохраняется долгим нажатием. */
+await page.click('.ledger .picture--thumb');
+await page.waitForTimeout(500);
+check(await page.locator('#viewer').count() === 1, 'Картинка не открылась во весь экран');
+check(await page.locator('#viewer .viewer__img').count() === 1, 'В окне нет самой картинки');
+check(await page.locator('#viewer button').count() === 0, 'В окне картинки появились кнопки');
+
+const covers = await page.evaluate(() => {
+  const box = document.getElementById('viewer').getBoundingClientRect();
+  return box.width >= innerWidth - 1 && box.height >= innerHeight - 1;
+});
+check(covers, 'Окно картинки занимает не весь экран');
+
+/* Увеличение */
+const zoomed = await page.evaluate(() => {
+  const node = document.getElementById('viewer');
+  for (let i = 0; i < 4; i++) {
+    node.dispatchEvent(new WheelEvent('wheel', { deltaY: -240, bubbles: true, cancelable: true }));
+  }
+  const matrix = new DOMMatrixReadOnly(getComputedStyle(document.getElementById('viewer-img')).transform);
+  return matrix.a;
+});
+check(zoomed > 1.2, `Картинка не увеличилась: ${zoomed}`);
+await page.screenshot({ path: join(outDir, 'viewer.png') });
+
+await page.keyboard.press('Escape');
+await page.waitForTimeout(600);
+check(await page.locator('#viewer').count() === 0, 'Картинка не закрылась');
+
+/* Системная «назад» закрывает картинку и оставляет на том же экране */
+await page.click('.ledger .picture--thumb');
+await page.waitForTimeout(450);
+await page.goBack();
+await page.waitForTimeout(600);
+check(await page.locator('#viewer').count() === 0, 'Кнопка «назад» не закрыла картинку');
+check(await page.locator('.ledger').count() === 1, '«Назад» из картинки увела с экрана');
+
+/* Сохранение долгим нажатием — кнопки для этого нет */
+await page.click('.ledger .picture--thumb');
+await page.waitForTimeout(450);
+const downloading = page.waitForEvent('download', { timeout: 8000 });
+await page.mouse.move(195, 420);
+await page.mouse.down();
+await page.waitForTimeout(900);
+await page.mouse.up();
+const saved = await downloading;
+check(/\.(jpg|png)$/.test(saved.suggestedFilename()),
+  'Картинка сохранилась под непонятным именем: ' + saved.suggestedFilename());
+
+/* Закрытие движением вниз */
+await page.mouse.move(195, 380);
+await page.mouse.down();
+await page.mouse.move(195, 460, { steps: 4 });
+await page.mouse.move(195, 620, { steps: 6 });
+await page.mouse.up();
+await page.waitForTimeout(700);
+check(await page.locator('#viewer').count() === 0, 'Картинка не закрылась движением вниз');
+
+/* 8. Модель рисования выбирается в настройках */
+await page.click('#btn-archive');
+await page.waitForTimeout(300);
+await page.click('[data-open-settings]');
+await page.waitForTimeout(300);
+
+const models = await page.locator('.model__title').allTextContents();
+check(models.join(' · ') === 'Nano Banana 2 · Nano Banana 2 Lite · Nano Banana Pro',
+  'В настройках не те модели: ' + models.join(' · '));
+
+await page.locator('.model').nth(0).click();
+await page.waitForTimeout(200);
+check(await page.evaluate(() => window.Store.getModel()) === 'gemini-3.1-flash-image',
+  'Выбранная модель не запомнилась');
+check(await page.locator('.model--on').count() === 1, 'Отмечена не одна модель');
+
+/* Своя модель добавляется кнопкой «+» и так же убирается */
+await page.click('[data-model-add]');
+await page.fill('#f-model', 'gemini-own-image');
+await page.click('[data-model-save]');
+await page.waitForTimeout(300);
+check(await page.locator('.model').count() === 4, 'Своя модель не добавилась');
+check(await page.evaluate(() => window.Store.getModel()) === 'gemini-own-image',
+  'Добавленная модель не выбралась');
+
+await page.click('[data-model-remove="gemini-own-image"]');
+await page.waitForTimeout(300);
+check(await page.locator('.model').count() === 3, 'Своя модель не убралась');
+
+await page.locator('.model').nth(2).click();
+await page.waitForTimeout(200);
+
+/* 9. Промпт правится прямо в настройках */
+const shownPrompt = await page.inputValue('#f-prompt');
+check(/SIMPLICITY IS THE RULE/.test(shownPrompt), 'В настройках не показан промпт');
+check(shownPrompt.includes('{слово}') && shownPrompt.includes('{перевод}'),
+  'В промпте нет подстановок для слова и перевода');
+
+await page.fill('#f-prompt', 'Нарисуй «{слово}» — это {перевод}. Никаких надписей.');
+await page.click('#modal-form button[type="submit"]');
+await page.waitForTimeout(400);
+await page.screenshot({ path: join(outDir, 'settings.png'), fullPage: true });
+
+await page.fill('#input-de', 'der Löffel');
+await page.fill('#input-ru', 'ложка');
+await page.click('[data-photo-ai]');
+await page.waitForTimeout(1200);
+
+check(/gemini-3-pro-image:generateContent/.test(sentUrl),
+  'Запрос ушёл не к выбранной модели: ' + sentUrl);
+check(sentBody.contents[0].parts[0].text === 'Нарисуй «der Löffel» — это ложка. Никаких надписей.',
+  'Свой промпт не подставился: ' + sentBody.contents[0].parts[0].text);
+
+/* Кнопка «Промпт» кладёт в буфер тот же самый текст */
+await page.click('[data-photo-prompt]');
+await page.waitForTimeout(400);
+check(await page.evaluate(() => navigator.clipboard.readText()) ===
+  'Нарисуй «der Löffel» — это ложка. Никаких надписей.', 'В буфер ушёл не свой промпт');
+
+/* Возврат к стандартному промпту */
+await page.click('#btn-archive');
+await page.waitForTimeout(300);
+await page.click('[data-open-settings]');
+await page.waitForTimeout(300);
+await page.click('[data-prompt-reset]');
+await page.waitForTimeout(200);
+check(/SIMPLICITY IS THE RULE/.test(await page.inputValue('#f-prompt')),
+  'Стандартный промпт не вернулся в поле');
+await page.click('#modal-form button[type="submit"]');
+await page.waitForTimeout(300);
+check(await page.evaluate(() => window.Store.getPromptTemplate()) === '',
+  'Стандартный промпт запомнился как свой');
+const backToDefault = await page.evaluate(() => window.Media.buildPrompt('gehen', 'идти'));
+check(/SIMPLICITY IS THE RULE/.test(backToDefault) && /must not show the word "gehen"/.test(backToDefault),
+  'После сброса промпт собрался неверно');
+
+/* Настройки переживают перезагрузку */
+await page.reload();
+await page.waitForTimeout(600);
+const kept = await page.evaluate(() => ({
+  model: window.Store.getModel(),
+  prompt: window.Store.getPromptTemplate()
+}));
+check(kept.model === 'gemini-3-pro-image' && kept.prompt === '',
+  'Настройки не пережили перезагрузку: ' + JSON.stringify(kept));
+
 await browser.close();
 
 if (problems.length) {
@@ -202,4 +382,5 @@ if (problems.length) {
   problems.forEach((p) => console.error(' · ' + p));
   process.exit(1);
 }
-console.log('Картинки проверены: снимок, рисунок ИИ, копирование промпта, вставка готовой картинки, показ, удаление, сохранность.');
+console.log('Картинки проверены: снимок, рисунок ИИ, копирование промпта, вставка готовой картинки, ' +
+  'показ во весь экран с увеличением и сохранением, выбор модели, свой промпт, удаление, сохранность.');

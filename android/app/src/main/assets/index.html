@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <meta name="theme-color" content="#F2EDE4">
 <meta name="description" content="Слова наизусть: блоки, списки по 500 слов, разбор по интервалам и выгрузка в PDF и Word.">
 <title>Lexis — слова наизусть</title>
@@ -280,25 +280,31 @@ body::after {
 
 .crumbs__link:hover { color: var(--accent); border-bottom-color: var(--accent); }
 
-/* Возврат на шаг назад — рядом с путём, чтобы не искать системную кнопку. */
-.crumbs__back {
+/* Возврат — крупная стрелка без подписи: в неё легко попасть пальцем. */
+.round-btn {
   display: grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
-  margin-right: 2px;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-  font-size: 14px;
+  font-size: 20px;
   line-height: 1;
   color: var(--ink-soft);
   background: var(--surface-2);
   border: 1px solid var(--glass-edge);
+  box-shadow: inset 0 1px 0 var(--glass-inner);
   cursor: pointer;
-  transition: color .32s ease, transform .34s cubic-bezier(.16, .84, .44, 1);
+  transition: color .32s ease, background .32s ease,
+    transform .34s cubic-bezier(.16, .84, .44, 1);
 }
 
-.crumbs__back:hover { color: var(--accent); }
-.crumbs__back:active { transform: scale(.9); }
+.round-btn:hover { color: var(--accent); }
+.round-btn:active { transform: scale(.9); }
+
+.round-btn--small { width: 30px; height: 30px; font-size: 17px; }
+
+.crumbs__back { margin-right: 4px; }
 
 .crumbs__sep { opacity: .45; }
 .crumbs__current { color: var(--ink); }
@@ -610,6 +616,86 @@ body::after {
   resize: vertical;
 }
 
+/* Промпт длинный — ему нужно поле повыше и построже. */
+.textarea--tall {
+  min-height: 200px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+/* ---------- Настройка внутри окна ---------- */
+
+.setting { margin: 17px 0 3px; }
+
+.setting__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 9px;
+}
+
+.setting__head .field__label { margin: 0 0 0 4px; }
+
+.setting__note {
+  margin: 8px 4px 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--ink-faint);
+}
+
+.models { display: grid; gap: 8px; }
+
+.model {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 13px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--glass-edge);
+  cursor: pointer;
+  transition: border-color .34s ease, background .34s ease;
+}
+
+.model--on {
+  border-color: rgba(192, 95, 60, .45);
+  background: var(--accent-wash);
+}
+
+.model__mark {
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(122, 96, 70, .4);
+  transition: border-color .34s ease, box-shadow .34s ease;
+}
+
+.model--on .model__mark {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 3.5px var(--accent);
+}
+
+.model__text {
+  display: grid;
+  gap: 1px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.model__title { font-size: 14px; color: var(--ink); }
+
+.model__id {
+  font-size: 11px;
+  color: var(--ink-faint);
+  overflow-wrap: anywhere;
+}
+
+.model-add { display: flex; gap: 8px; margin-top: 9px; }
+.model-add[hidden] { display: none; }
+.model-add .input { flex: 1 1 auto; min-width: 0; }
+
 /* ---------- Полоса заполнения ---------- */
 
 .gauge { padding: 15px 18px; margin-bottom: 14px; }
@@ -748,7 +834,12 @@ body::after {
   border-color: rgba(122, 96, 70, .3);
   background-color: transparent;
   box-shadow: none;
+  cursor: default;
 }
+
+/* Любую картинку можно открыть во весь экран — отсюда и курсор. */
+.picture[data-image-id],
+.picture[data-image-pending] { cursor: zoom-in; }
 
 .picture--card {
   width: min(240px, 68vw);
@@ -860,6 +951,7 @@ body::after {
   line-height: 1.25;
   color: var(--ink);
   text-wrap: balance;
+  overflow-wrap: anywhere;
 }
 
 .drill__hint {
@@ -867,6 +959,9 @@ body::after {
   font-size: 13px;
   color: var(--ink-faint);
 }
+
+/* Подпись под полем ответа: поле стоит первым, и подсказка идёт за ним. */
+.drill__hint--under { margin: 9px 0 2px; }
 
 /* Поле ответа: буквы принимает скрытый ввод, показывает — эта строка. */
 .answer {
@@ -935,16 +1030,6 @@ body::after {
   -webkit-text-fill-color: transparent;
 }
 
-.drill--s .answer { min-height: 50px; padding: 10px 14px; }
-.drill--s .answer__text,
-.drill--s .answer__hint { font-size: 17px; }
-.drill--s .answer__caret { height: 20px; }
-
-.drill--l .answer { min-height: 66px; }
-.drill--l .answer__text,
-.drill--l .answer__hint { font-size: 25px; }
-.drill--l .answer__caret { height: 28px; }
-
 .drill__actions {
   display: flex;
   gap: 9px;
@@ -981,19 +1066,97 @@ body::after {
 .mini-btn:hover { color: var(--accent); }
 .mini-btn:active { transform: scale(.94); }
 
-/* Три размера карточки: слишком крупный текст на телефоне мешает,
-   слишком мелкий — тоже, поэтому выбор остаётся за человеком. */
-.drill--s .drill__prompt { font-size: clamp(19px, 5vw, 24px); }
-.drill--s .drill__input { font-size: 17px; padding: 12px 14px; }
-.drill--s .learn__translation { font-size: 15px; margin-bottom: 12px; }
-.drill--s .picture--card { width: min(150px, 42vw); height: min(150px, 42vw); margin-bottom: 12px; }
-.drill--s .verdict__word { font-size: 20px; }
-.drill--s { padding: 20px 18px 18px; }
+/* Размеры тянутся плавно и порознь: текст с полем ответа — своим
+   множителем, картинка — своим. Настройка живёт в самой карточке. */
+.drill {
+  --drill-text: 1;
+  --drill-image: 1;
+}
 
-.drill--l .drill__prompt { font-size: clamp(30px, 8.5vw, 40px); }
-.drill--l .drill__input { font-size: 24px; }
-.drill--l .learn__translation { font-size: 19px; }
-.drill--l .picture--card { width: min(300px, 78vw); height: min(300px, 78vw); }
+.drill .drill__prompt { font-size: calc(clamp(26px, 7vw, 34px) * var(--drill-text)); }
+.drill .learn__translation { font-size: calc(17px * var(--drill-text)); }
+.drill .verdict__word { font-size: calc(24px * var(--drill-text)); }
+.drill .answer { min-height: calc(58px * var(--drill-text)); margin-top: 15px; }
+.drill .answer__text,
+.drill .answer__hint { font-size: calc(21px * var(--drill-text)); }
+.drill .answer__caret { height: calc(24px * var(--drill-text)); }
+
+.drill .picture--card {
+  width: min(calc(240px * var(--drill-image)), 88vw);
+  height: min(calc(240px * var(--drill-image)), 88vw);
+}
+
+/* Ползунки размера: шагов много, значение видно числом. */
+.sizes {
+  display: grid;
+  gap: 14px;
+  padding: 16px 18px;
+  margin-bottom: 14px;
+}
+
+.sizes__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 7px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.sizes__value {
+  font-family: var(--display);
+  font-size: 13px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 22px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.slider::-webkit-slider-runnable-track {
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(122, 96, 70, .18);
+}
+
+.slider::-moz-range-track {
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(122, 96, 70, .18);
+}
+
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  margin-top: -8.5px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 3px solid var(--surface-1);
+  box-shadow: var(--lift);
+}
+
+.slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 3px solid var(--surface-1);
+}
+
+.mini-btn--on {
+  color: var(--accent);
+  border-color: rgba(192, 95, 60, .45);
+  background: var(--accent-wash);
+}
 
 .drill__verdict { margin-top: 18px; }
 
@@ -1134,6 +1297,53 @@ body::after {
 
 .modal__actions { display: flex; gap: 9px; margin-top: 18px; }
 .modal__actions .btn { flex: 1 1 0; }
+
+/* ---------- Картинка во весь экран ---------- */
+
+/* Никаких кнопок: пальцами приближают, вниз — закрывают,
+   долгим нажатием сохраняют. Подпись внизу об этом и напоминает. */
+.viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(22, 16, 11, var(--viewer-veil, 1));
+  opacity: 0;
+  transition: opacity .4s ease;
+  touch-action: none;
+  overscroll-behavior: contain;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.viewer--in { opacity: 1; }
+
+.viewer__img {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: var(--radius-md);
+  will-change: transform;
+  -webkit-user-drag: none;
+}
+
+.viewer__img--eased { transition: transform .36s cubic-bezier(.16, .84, .44, 1); }
+
+.viewer__hint {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(22px + env(safe-area-inset-bottom));
+  margin: 0;
+  font-size: 12px;
+  text-align: center;
+  color: rgba(255, 248, 240, .6);
+  opacity: var(--viewer-veil, 1);
+  pointer-events: none;
+}
 
 /* ---------- Уведомление ---------- */
 
@@ -2420,42 +2630,78 @@ window.Media = (function () {
   var MAX_SIDE = 640;
   var QUALITY = 0.82;
 
+  var SLOT_WORD = '{слово}';
+  var SLOT_MEANING = '{перевод}';
+
   /* Промпт устроен просто: модель сама определяет, что это за слово, и берёт
      подходящую строчку из списка. Главное правило — рисовать как можно меньше:
      стрелки и раскадровки только мешали, а конкретному предмету не нужно
      ничего, кроме самого предмета. Абстрактное показывается через человека
      в обычной житейской сцене — так понятнее, чем через символы.
-     Запрещено ровно одно: само слово и его перевод в кадре. */
+     Запрещено ровно одно: само слово и его перевод в кадре.
+
+     Текст лежит здесь целиком и в готовом виде: его можно переписать
+     в настройках, и меняется ровно то, что уходит модели. Подстановки
+     всего две — {слово} и {перевод}. */
+  var DEFAULT_PROMPT =
+    'Draw a picture that instantly shows what a foreign word means. ' +
+    'A learner should understand it in one second, without thinking.\n\n' +
+    'WORD: "' + SLOT_WORD + '"\n' +
+    'MEANING: ' + SLOT_MEANING + '\n' +
+    '\nWork out for yourself what kind of word this is, and draw it accordingly:\n' +
+    '- a thing: just that thing, large, whole, centred, seen from its most recognisable ' +
+    'angle, and nothing else in the frame\n' +
+    '- an action: one person doing it, plainly\n' +
+    '- a quality: one object or person that obviously has this quality; only if the ' +
+    'quality makes no sense alone, put it beside its opposite\n' +
+    '- a manner: one scene in which the manner is unmistakable\n' +
+    '- a feeling: one face and posture that carry it\n' +
+    '- an abstract idea or idiom: the simplest everyday situation where the idea is obvious\n' +
+    '- a number or amount: exactly that many identical objects\n' +
+    '- a position word: two plain objects placed so their relation is the whole picture\n\n' +
+    'For anything abstract — a quality, a manner, a feeling, an idea, an idiom — show a ' +
+    'person in an ordinary everyday situation where the meaning is plain to see. People ' +
+    'and familiar scenes are remembered far better than symbols or abstract shapes.\n\n' +
+    'SIMPLICITY IS THE RULE. Use as few elements as you can. No arrows, no motion lines, ' +
+    'no split screens, no before-and-after pairs, no decorative extras, unless the meaning ' +
+    'truly cannot be shown without them. When in doubt, draw less. A calm obvious picture ' +
+    'is better than a clever one.\n\n' +
+    'STYLE: flat vector illustration, clean simple shapes, warm palette of terracotta, ' +
+    'sage green, sand and cream, plain light background, one clear subject, plenty of ' +
+    'empty space. Square, 1:1.\n\n' +
+    'THE ONLY RULE ABOUT TEXT: the picture must not show the word "' + SLOT_WORD + '"' +
+    ' or its translation "' + SLOT_MEANING + '"' +
+    ', or any form of either, anywhere. Other incidental text is acceptable, ' +
+    'but keep it to a minimum.';
+
+  function escapeSlot(slot) {
+    return slot.replace(/[{}]/g, function (ch) { return '\\' + ch; });
+  }
+
+  /* Подстановка. Перевода может не быть — тогда куски, которые без него
+     теряют смысл, из промпта уходят целиком. */
+  function fillPrompt(template, word, translation) {
+    var text = String(template == null ? '' : template);
+    if (!translation) {
+      text = text
+        /* Строка вида «MEANING: {перевод}» без перевода не нужна вовсе. */
+        .replace(new RegExp('^[^\\n]*:[ \\t]*' + escapeSlot(SLOT_MEANING) + '[ \\t]*\\n?', 'gm'), '')
+        /* Оговорка про перевод внутри строки — тоже. */
+        .replace(new RegExp('[ \\t]*or its translation "' + escapeSlot(SLOT_MEANING) + '"', 'g'), '');
+    }
+    return text
+      .split(SLOT_WORD).join(word == null ? '' : word)
+      .split(SLOT_MEANING).join(translation == null ? '' : translation);
+  }
+
+  /* Промпт берётся из настроек, если человек его переписал. */
+  function template() {
+    var own = window.Store.getPromptTemplate && window.Store.getPromptTemplate();
+    return own || DEFAULT_PROMPT;
+  }
+
   function buildPrompt(word, translation) {
-    return 'Draw a picture that instantly shows what a foreign word means. ' +
-      'A learner should understand it in one second, without thinking.\n\n' +
-      'WORD: "' + word + '"\n' +
-      (translation ? 'MEANING: ' + translation + '\n' : '') +
-      '\nWork out for yourself what kind of word this is, and draw it accordingly:\n' +
-      '- a thing: just that thing, large, whole, centred, seen from its most recognisable ' +
-      'angle, and nothing else in the frame\n' +
-      '- an action: one person doing it, plainly\n' +
-      '- a quality: one object or person that obviously has this quality; only if the ' +
-      'quality makes no sense alone, put it beside its opposite\n' +
-      '- a manner: one scene in which the manner is unmistakable\n' +
-      '- a feeling: one face and posture that carry it\n' +
-      '- an abstract idea or idiom: the simplest everyday situation where the idea is obvious\n' +
-      '- a number or amount: exactly that many identical objects\n' +
-      '- a position word: two plain objects placed so their relation is the whole picture\n\n' +
-      'For anything abstract — a quality, a manner, a feeling, an idea, an idiom — show a ' +
-      'person in an ordinary everyday situation where the meaning is plain to see. People ' +
-      'and familiar scenes are remembered far better than symbols or abstract shapes.\n\n' +
-      'SIMPLICITY IS THE RULE. Use as few elements as you can. No arrows, no motion lines, ' +
-      'no split screens, no before-and-after pairs, no decorative extras, unless the meaning ' +
-      'truly cannot be shown without them. When in doubt, draw less. A calm obvious picture ' +
-      'is better than a clever one.\n\n' +
-      'STYLE: flat vector illustration, clean simple shapes, warm palette of terracotta, ' +
-      'sage green, sand and cream, plain light background, one clear subject, plenty of ' +
-      'empty space. Square, 1:1.\n\n' +
-      'THE ONLY RULE ABOUT TEXT: the picture must not show the word "' + word + '"' +
-      (translation ? ' or its translation "' + translation + '"' : '') +
-      ', or any form of either, anywhere. Other incidental text is acceptable, ' +
-      'but keep it to a minimum.';
+    return fillPrompt(template(), word, translation);
   }
 
   /* ---------- Обмен через буфер ---------- */
@@ -2596,7 +2842,7 @@ window.Media = (function () {
     var key = window.Store.getApiKey();
     if (!key) return Promise.reject(new Error('Сначала укажите ключ Google AI в настройках'));
 
-    var url = ENDPOINT + (model || DEFAULT_MODEL) + ':generateContent';
+    var url = ENDPOINT + (model || window.Store.getModel() || DEFAULT_MODEL) + ':generateContent';
     var body = {
       contents: [{ parts: [{ text: buildPrompt(word, translation) }] }],
       generationConfig: {
@@ -2673,6 +2919,10 @@ window.Media = (function () {
 
   return {
     DEFAULT_MODEL: DEFAULT_MODEL,
+    DEFAULT_PROMPT: DEFAULT_PROMPT,
+    SLOT_WORD: SLOT_WORD,
+    SLOT_MEANING: SLOT_MEANING,
+    fillPrompt: fillPrompt,
     buildPrompt: buildPrompt,
     copyPrompt: copyPrompt,
     readClipboardImage: readClipboardImage,
@@ -2715,11 +2965,38 @@ window.Store = (function () {
   var DAY = 24 * 60 * 60 * 1000;
   var DAY_START_HOUR = 6;
 
-  var state = { version: 2, blocks: [], settings: { collapsed: {}, drillScale: 'm' } };
+  /* Размеры в карточке проверки: текст и картинка тянутся независимо. */
+  var DEFAULT_SETTINGS = {
+    collapsed: {},
+    drillTextScale: 1,
+    drillImageScale: 1,
+    imageModel: 'gemini-3.1-flash-lite-image',
+    customModels: [],
+    promptTemplate: ''
+  };
+
+  var state = { version: 2, blocks: [], settings: cloneSettings(DEFAULT_SETTINGS) };
   var listeners = [];
   var memoryOnly = false;
   var lastSavedAt = 0;
   var clockWentBack = false;
+
+  function cloneSettings(source) {
+    return {
+      collapsed: Object.assign({}, source.collapsed),
+      drillTextScale: source.drillTextScale,
+      drillImageScale: source.drillImageScale,
+      imageModel: source.imageModel,
+      customModels: (source.customModels || []).slice(),
+      promptTemplate: source.promptTemplate || ''
+    };
+  }
+
+  function clampScale(value, fallback) {
+    var number = Number(value);
+    if (!isFinite(number)) return fallback;
+    return Math.min(2.4, Math.max(0.6, number));
+  }
 
   function uid() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -2801,7 +3078,15 @@ window.Store = (function () {
       version: 2,
       settings: {
         collapsed: settings.collapsed || {},
-        drillScale: settings.drillScale || 'm'
+        drillTextScale: clampScale(settings.drillTextScale, 1),
+        drillImageScale: clampScale(settings.drillImageScale, 1),
+        imageModel: settings.imageModel || DEFAULT_SETTINGS.imageModel,
+        customModels: (settings.customModels || []).filter(function (m) {
+          return m && m.id;
+        }).map(function (m) {
+          return { id: String(m.id), title: String(m.title || m.id) };
+        }),
+        promptTemplate: String(settings.promptTemplate || '')
       },
       blocks: (data.blocks || []).filter(Boolean).map(function (b) {
         return {
@@ -3004,11 +3289,69 @@ window.Store = (function () {
 
   function isCollapsed(setId) { return !!state.settings.collapsed[setId]; }
 
-  /* Размер карточки в проверке: 's', 'm' или 'l'. */
-  function getDrillScale() { return state.settings.drillScale || 'm'; }
+  /* Размеры в карточке проверки. Текст и картинка настраиваются порознь:
+     кому-то нужен крупный перевод при маленькой картинке, кому-то наоборот. */
+  function getTextScale() { return clampScale(state.settings.drillTextScale, 1); }
+  function getImageScale() { return clampScale(state.settings.drillImageScale, 1); }
 
-  function setDrillScale(scale) {
-    state.settings.drillScale = scale;
+  function setTextScale(value) {
+    state.settings.drillTextScale = clampScale(value, 1);
+    save();
+  }
+
+  function setImageScale(value) {
+    state.settings.drillImageScale = clampScale(value, 1);
+    save();
+  }
+
+  /* ---------- Модели рисования ---------- */
+
+  var BUILTIN_MODELS = [
+    { id: 'gemini-3.1-flash-image', title: 'Nano Banana 2' },
+    { id: 'gemini-3.1-flash-lite-image', title: 'Nano Banana 2 Lite' },
+    { id: 'gemini-3-pro-image', title: 'Nano Banana Pro' }
+  ];
+
+  function listModels() {
+    return BUILTIN_MODELS.concat(state.settings.customModels.map(function (m) {
+      return { id: m.id, title: m.title, custom: true };
+    }));
+  }
+
+  function getModel() { return state.settings.imageModel || DEFAULT_SETTINGS.imageModel; }
+
+  function setModel(id) {
+    if (!id) return;
+    state.settings.imageModel = String(id).trim();
+    save();
+  }
+
+  function addModel(id, title) {
+    id = String(id || '').trim();
+    if (!id) return false;
+    var known = listModels().some(function (m) { return m.id === id; });
+    if (!known) {
+      state.settings.customModels.push({ id: id, title: String(title || '').trim() || id });
+    }
+    state.settings.imageModel = id;
+    save();
+    return !known;
+  }
+
+  function removeModel(id) {
+    state.settings.customModels = state.settings.customModels.filter(function (m) {
+      return m.id !== id;
+    });
+    if (state.settings.imageModel === id) state.settings.imageModel = DEFAULT_SETTINGS.imageModel;
+    save();
+  }
+
+  /* ---------- Свой промпт ---------- */
+
+  function getPromptTemplate() { return state.settings.promptTemplate || ''; }
+
+  function setPromptTemplate(text) {
+    state.settings.promptTemplate = String(text || '').trim();
     save();
   }
 
@@ -3422,7 +3765,12 @@ window.Store = (function () {
     calendarDaysBetween: calendarDaysBetween,
 
     isCollapsed: isCollapsed, toggleCollapsed: toggleCollapsed,
-    getDrillScale: getDrillScale, setDrillScale: setDrillScale, findSameWords: findSameWords,
+    getTextScale: getTextScale, setTextScale: setTextScale,
+    getImageScale: getImageScale, setImageScale: setImageScale,
+    listModels: listModels, getModel: getModel, setModel: setModel,
+    addModel: addModel, removeModel: removeModel,
+    getPromptTemplate: getPromptTemplate, setPromptTemplate: setPromptTemplate,
+    findSameWords: findSameWords,
 
     getBlock: getBlock, getSet: getSet, countWords: countWords,
     addBlock: addBlock, renameBlock: renameBlock, removeBlock: removeBlock,
@@ -3474,6 +3822,11 @@ window.Store = (function () {
   var ICON_DELETE = '<svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" ' +
     'stroke-width="1.5" stroke-linecap="round" aria-hidden="true">' +
     '<path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/></svg>';
+
+  /* Возврат — одна крупная стрелка: слово «назад» рядом с ней лишнее. */
+  var ICON_BACK = '<svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" ' +
+    'stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<path d="M15.5 4.5L8 12l7.5 7.5"/></svg>';
 
   function esc(str) {
     return String(str == null ? '' : str)
@@ -3571,6 +3924,9 @@ window.Store = (function () {
   }
 
   window.addEventListener('popstate', function (event) {
+    /* Открытая во весь экран картинка — первое, что закрывает «назад». */
+    if (viewer) { closeViewer(viewer.slideOut); return; }
+
     if (advanceTimer) { clearTimeout(advanceTimer); advanceTimer = null; }
     route = event.state || { name: 'blocks' };
     filter = '';
@@ -3680,12 +4036,277 @@ window.Store = (function () {
     }
   }
 
+  function applySize(slider) {
+    var kind = slider.getAttribute('data-size');
+    var scale = Number(slider.value) / 100;
+    if (!isFinite(scale)) return;
+
+    var card = screenEl.querySelector('.drill');
+    if (card) card.style.setProperty('--drill-' + kind, scale.toFixed(2));
+
+    var value = screenEl.querySelector('[data-size-value="' + kind + '"]');
+    if (value) value.textContent = Math.round(scale * 100) + '%';
+
+    if (kind === 'image') Store.setImageScale(scale);
+    else Store.setTextScale(scale);
+  }
+
+  /* ---------- Картинка во весь экран ---------- */
+
+  /* Откуда взять саму картинку: у сохранённых есть номер в базе,
+     у ещё не привязанной — только то, что лежит в форме. */
+  function pictureSource(el) {
+    var id = el.getAttribute('data-image-id');
+    if (id) {
+      if (imageCache.has(id)) return Promise.resolve(imageCache.get(id));
+      return Store.imageLoad(id).then(function (url) {
+        if (url) imageCache.set(id, url);
+        return url;
+      });
+    }
+    if (el.hasAttribute('data-image-pending')) return Promise.resolve(pendingImage);
+    return Promise.resolve(null);
+  }
+
+  function openPicture(el) {
+    pictureSource(el).then(function (url) {
+      if (url) openViewer(url);
+    });
+  }
+
+  var viewer = null;
+
+  /* Картинка на весь экран без единой кнопки: двумя пальцами приближается,
+     двойным касанием тоже, вниз — закрывается, долгим нажатием сохраняется. */
+  function openViewer(url) {
+    if (viewer) return;
+
+    var node = document.createElement('div');
+    node.className = 'viewer';
+    node.id = 'viewer';
+
+    var image = document.createElement('img');
+    image.className = 'viewer__img';
+    image.id = 'viewer-img';
+    image.alt = '';
+    image.src = url;
+
+    var hint = document.createElement('p');
+    hint.className = 'viewer__hint';
+    hint.textContent = 'потяните вниз — закроется · подержите — сохранится';
+
+    node.appendChild(image);
+    node.appendChild(hint);
+    document.body.appendChild(node);
+
+    viewer = {
+      node: node, image: image, url: url,
+      scale: 1, x: 0, y: 0, slideOut: false,
+      points: new Map(), start: null, hold: null, lastTap: 0, closing: false
+    };
+
+    /* Своя запись в истории: системная кнопка «назад» сначала закрывает
+       картинку и только потом уводит с экрана. */
+    history.pushState({ name: 'viewer' }, '');
+
+    requestAnimationFrame(function () { node.classList.add('viewer--in'); });
+    bindViewer();
+  }
+
+  /* Закрытие идёт через историю — чтобы лишняя запись не оставалась. */
+  function dismissViewer(slideDown) {
+    if (!viewer || viewer.closing) return;
+    viewer.slideOut = !!slideDown;
+    history.back();
+  }
+
+  function closeViewer(slideDown) {
+    if (!viewer || viewer.closing) return;
+    viewer.closing = true;
+    var node = viewer.node;
+    var image = viewer.image;
+    node.classList.remove('viewer--in');
+    if (slideDown) image.style.transform = 'translate3d(0,' + (window.innerHeight * 0.5) + 'px,0) scale(.86)';
+    viewer = null;
+    setTimeout(function () {
+      if (node.parentNode) node.parentNode.removeChild(node);
+    }, 420);
+  }
+
+  function paintViewer() {
+    if (!viewer) return;
+    viewer.image.style.transform = 'translate3d(' + viewer.x.toFixed(1) + 'px,' +
+      viewer.y.toFixed(1) + 'px,0) scale(' + viewer.scale.toFixed(3) + ')';
+  }
+
+  function viewerCenter() {
+    var points = [];
+    viewer.points.forEach(function (p) { points.push(p); });
+    if (!points.length) return { x: 0, y: 0 };
+    var sumX = 0, sumY = 0;
+    points.forEach(function (p) { sumX += p.x; sumY += p.y; });
+    return { x: sumX / points.length, y: sumY / points.length };
+  }
+
+  function viewerSpread() {
+    var points = [];
+    viewer.points.forEach(function (p) { points.push(p); });
+    if (points.length < 2) return 0;
+    return Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
+  }
+
+  function cancelHold() {
+    if (viewer && viewer.hold) { clearTimeout(viewer.hold); viewer.hold = null; }
+  }
+
+  function bindViewer() {
+    var node = viewer.node;
+
+    node.addEventListener('pointerdown', function (event) {
+      if (!viewer) return;
+      event.preventDefault();
+      node.setPointerCapture(event.pointerId);
+      viewer.points.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      viewer.start = {
+        spread: viewerSpread(), center: viewerCenter(),
+        scale: viewer.scale, x: viewer.x, y: viewer.y, moved: 0
+      };
+
+      /* Долгое нажатие сохраняет картинку — кнопка для этого не нужна. */
+      cancelHold();
+      if (viewer.points.size === 1) {
+        var saveUrl = viewer.url;
+        viewer.hold = setTimeout(function () {
+          if (!viewer) return;
+          viewer.hold = null;
+          viewer.start = null;
+          viewer.points.clear();
+          saveImageFile(saveUrl);
+        }, 620);
+      }
+    });
+
+    node.addEventListener('pointermove', function (event) {
+      if (!viewer || !viewer.points.has(event.pointerId) || !viewer.start) return;
+      viewer.points.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+      var center = viewerCenter();
+      var shiftX = center.x - viewer.start.center.x;
+      var shiftY = center.y - viewer.start.center.y;
+      viewer.start.moved = Math.max(viewer.start.moved, Math.hypot(shiftX, shiftY));
+      if (viewer.start.moved > 9) cancelHold();
+
+      if (viewer.points.size >= 2 && viewer.start.spread > 0) {
+        viewer.scale = Math.min(6, Math.max(1, viewer.start.scale * (viewerSpread() / viewer.start.spread)));
+        viewer.x = viewer.start.x + shiftX;
+        viewer.y = viewer.start.y + shiftY;
+        paintViewer();
+        return;
+      }
+
+      if (viewer.scale > 1.02) {
+        viewer.x = viewer.start.x + shiftX;
+        viewer.y = viewer.start.y + shiftY;
+        paintViewer();
+        return;
+      }
+
+      /* Не увеличенную картинку тянут вниз — она уходит вместе с экраном. */
+      viewer.y = Math.max(0, shiftY);
+      viewer.x = shiftX * 0.25;
+      viewer.node.style.setProperty('--viewer-veil', String(Math.max(0, 1 - viewer.y / 340)));
+      paintViewer();
+    });
+
+    function release(event) {
+      if (!viewer) return;
+      cancelHold();
+      viewer.points.delete(event.pointerId);
+      if (viewer.points.size > 0) { viewer.start = null; return; }
+
+      var dragged = viewer.y;
+      var moved = viewer.start ? viewer.start.moved : 0;
+      viewer.start = null;
+
+      if (viewer.scale <= 1.02 && dragged > 108) { dismissViewer(true); return; }
+
+      if (viewer.scale <= 1.02) {
+        viewer.x = 0;
+        viewer.y = 0;
+        viewer.node.style.setProperty('--viewer-veil', '1');
+        viewer.image.classList.add('viewer__img--eased');
+        paintViewer();
+        setTimeout(function () {
+          if (viewer) viewer.image.classList.remove('viewer__img--eased');
+        }, 380);
+      }
+
+      /* Двойное касание приближает и возвращает обратно. */
+      if (moved < 9) {
+        var now = Date.now();
+        if (now - viewer.lastTap < 320) {
+          viewer.lastTap = 0;
+          viewer.image.classList.add('viewer__img--eased');
+          if (viewer.scale > 1.02) { viewer.scale = 1; viewer.x = 0; viewer.y = 0; }
+          else viewer.scale = 2.6;
+          paintViewer();
+          setTimeout(function () {
+            if (viewer) viewer.image.classList.remove('viewer__img--eased');
+          }, 380);
+        } else {
+          viewer.lastTap = now;
+        }
+      }
+    }
+
+    node.addEventListener('pointerup', release);
+    node.addEventListener('pointercancel', release);
+
+    /* На большом экране колесо тоже приближает. */
+    node.addEventListener('wheel', function (event) {
+      if (!viewer) return;
+      event.preventDefault();
+      viewer.scale = Math.min(6, Math.max(1, viewer.scale * (event.deltaY < 0 ? 1.12 : 0.89)));
+      if (viewer.scale <= 1.02) { viewer.x = 0; viewer.y = 0; }
+      paintViewer();
+    }, { passive: false });
+  }
+
+  document.addEventListener('keydown', function (event) {
+    if (viewer && event.key === 'Escape') dismissViewer(false);
+  });
+
+  /* Сохранение картинки на устройство: в приложении её кладёт оболочка,
+     в браузере — обычная ссылка на скачивание. */
+  function saveImageFile(dataUrl) {
+    if (!dataUrl) return;
+    var comma = dataUrl.indexOf(',');
+    var head = dataUrl.slice(0, comma);
+    var mime = (head.split(':')[1] || 'image/jpeg').split(';')[0];
+    var name = 'lexis-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') +
+      '.' + (mime.indexOf('png') >= 0 ? 'png' : 'jpg');
+
+    if (window.AndroidBridge && typeof window.AndroidBridge.saveFile === 'function') {
+      toast(window.AndroidBridge.saveFile(name, dataUrl.slice(comma + 1), mime) || 'Картинка сохранена');
+      return;
+    }
+
+    var link = document.createElement('a');
+    link.href = dataUrl;
+    link.download = name;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast('Картинка сохранена');
+  }
+
   /* Полоса под формой ввода. Кроме готовой генерации есть путь без затрат:
      скопировать промпт, нарисовать картинку где угодно и вставить обратно. */
   function photoRow() {
     return '<div class="photo-row" id="photo-row">' +
       (pendingImage
-        ? '<span class="picture picture--slot" style="background-image:url(' + pendingImage + ')"></span>'
+        ? '<span class="picture picture--slot" data-image-pending ' +
+          'title="Открыть во весь экран" style="background-image:url(' + pendingImage + ')"></span>'
         : '<span class="picture picture--slot picture--empty" aria-hidden="true"></span>') +
       '<div class="photo-row__actions">' +
       '<button class="btn btn--quiet" data-photo-pick>Фото</button>' +
@@ -4034,20 +4655,46 @@ window.Store = (function () {
 
 
   /* Панель над карточкой: выход, правка слова и размер. */
+  var sizePanelOpen = false;
+
   function drillBar(wordId) {
     return '<div class="drill__bar">' +
       '<div class="drill__bar-side">' +
-      '<button class="mini-btn" data-drill-exit>← Назад</button>' +
+      '<button class="round-btn" data-drill-exit title="Назад" aria-label="Назад">' + ICON_BACK + '</button>' +
       '</div>' +
       '<div class="drill__bar-side">' +
       (wordId ? '<button class="mini-btn" data-drill-edit="' + wordId + '">Изменить</button>' : '') +
-      '<button class="mini-btn" data-drill-size title="Размер карточки">Aa</button>' +
-      '</div></div>';
+      '<button class="mini-btn' + (sizePanelOpen ? ' mini-btn--on' : '') + '" data-drill-size ' +
+      'title="Размер текста и картинки" aria-label="Размер текста и картинки">Aa</button>' +
+      '</div></div>' +
+      (sizePanelOpen ? sizePanel() : '');
   }
 
-  function drillClass() {
-    var scale = Store.getDrillScale();
-    return 'glass drill' + (scale === 'm' ? '' : ' drill--' + scale);
+  /* Размеры тянутся плавно и порознь: перевод с полем ответа — одним
+     ползунком, картинка — другим. Карточка меняется прямо под рукой. */
+  function sizePanel() {
+    return '<section class="glass sizes" id="size-panel">' +
+      sizeRow('text', 'Текст и поле ответа', Store.getTextScale()) +
+      sizeRow('image', 'Картинка', Store.getImageScale()) +
+      '</section>';
+  }
+
+  function sizeRow(kind, label, value) {
+    var percent = Math.round(value * 100);
+    return '<div class="sizes__row">' +
+      '<div class="sizes__head"><span>' + label + '</span>' +
+      '<span class="sizes__value" data-size-value="' + kind + '">' + percent + '%</span></div>' +
+      '<input class="slider" type="range" min="60" max="240" step="4" value="' + percent + '" ' +
+      'data-size="' + kind + '" aria-label="' + esc(label) + '">' +
+      '</div>';
+  }
+
+  /* Размеры живут в самой карточке: так их можно менять на ходу,
+     не перерисовывая экран под пальцем. */
+  function drillAttrs(dataId) {
+    return 'class="glass drill" style="--drill-text:' + Store.getTextScale().toFixed(2) +
+      ';--drill-image:' + Store.getImageScale().toFixed(2) + '"' +
+      (dataId ? ' data-id="' + dataId + '"' : '');
   }
 
   /* Показ новых слов: немецкое слово, под ним перевод и картинка. */
@@ -4059,7 +4706,7 @@ window.Store = (function () {
     var last = session.index === total - 1;
 
     screenEl.innerHTML = drillBar(word.id) +
-      '<section class="' + drillClass() + '" data-id="learn-' + word.id + '">' +
+      '<section ' + drillAttrs('learn-' + word.id) + '>' +
       '<div class="drill__progress"><div class="drill__progress-fill" style="width:' + percent.toFixed(1) + '%"></div></div>' +
       '<div class="drill__eyebrow">Знакомство · ' + (session.index + 1) + ' из ' + total + '</div>' +
       '<h2 class="drill__prompt">' + esc(word.de) + '</h2>' +
@@ -4082,7 +4729,7 @@ window.Store = (function () {
 
     if (session.index >= session.queue.length) {
       var moreFresh = session.mode === 'learn' ? Store.freshCount(session.scope) : 0;
-      screenEl.innerHTML = '<section class="' + drillClass() + '">' +
+      screenEl.innerHTML = '<section ' + drillAttrs() + '>' +
         '<h2 class="drill__prompt">' +
         (session.mode === 'learn' ? 'Десятка пройдена' : 'Разбор окончен') + '</h2>' +
         '<p class="drill__hint">Верно с первого раза: ' + session.correct + ' из ' + session.asked + '</p>' +
@@ -4101,18 +4748,18 @@ window.Store = (function () {
     var word = item.word;
 
     var html = drillBar(word.id) +
-      '<section class="' + drillClass() + '" data-id="drill-' + word.id + '-' + session.index + '">' +
+      '<section ' + drillAttrs('drill-' + word.id + '-' + session.index) + '>' +
       '<div class="drill__progress"><div class="drill__progress-fill" style="width:' + percent.toFixed(1) + '%"></div></div>' +
-      '<div class="drill__eyebrow">Слово ' + (done + 1) + ' из ' + total + '</div>' +
-      '<h2 class="drill__prompt">' + esc(word.ru) + '</h2>';
+      '<div class="drill__eyebrow">Слово ' + (done + 1) + ' из ' + total + '</div>';
 
     if (session.state === 'ask') {
-      /* Буквы принимает скрытое парольное поле — на нём клавиатура не
+      /* Поле стоит первым: когда открывается клавиатура, экран сжимается
+         снизу — и перевод с картинкой остаются на месте, а не подпрыгивают.
+
+         Буквы принимает скрытое парольное поле — на нём клавиатура не
          предлагает готовые слова. Сам набранный текст рисуется рядом,
          поэтому видно, что печатаешь. */
-      html += (word.image ? imageBox(word.image.id, 'picture--card') : '') +
-        '<p class="drill__hint">Напишите это слово по-немецки</p>' +
-        '<div class="answer" data-answer-shell>' +
+      html += '<div class="answer" data-answer-shell>' +
         '<span class="answer__text" id="answer-text"></span>' +
         '<span class="answer__caret" aria-hidden="true"></span>' +
         '<span class="answer__hint" id="answer-hint">…</span>' +
@@ -4120,12 +4767,16 @@ window.Store = (function () {
         'autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" ' +
         'inputmode="text" name="answer" aria-label="Ответ">' +
         '</div>' +
+        '<p class="drill__hint drill__hint--under">Напишите это слово по-немецки</p>' +
+        '<h2 class="drill__prompt">' + esc(word.ru) + '</h2>' +
+        (word.image ? imageBox(word.image.id, 'picture--card') : '') +
         '<div class="drill__actions">' +
         '<button class="btn" data-reveal>Забыл</button>' +
         '<button class="btn btn--accent" data-check>Проверить</button>' +
         '</div>';
     } else {
-      html += '<div class="drill__verdict">' +
+      html += '<h2 class="drill__prompt">' + esc(word.ru) + '</h2>' +
+        '<div class="drill__verdict">' +
         '<div class="verdict verdict--wrong">' +
         '<div class="verdict__label">' +
         (session.state === 'revealed' ? 'Правильный ответ' : 'Не совпало') + '</div>' +
@@ -4279,7 +4930,12 @@ window.Store = (function () {
     if (route.name === 'blocks') {
       parts.push('<span class="crumbs__current">Все блоки</span>');
     } else {
-      parts.push('<button class="crumbs__back" data-go-back aria-label="Назад">←</button>');
+      /* В разборе стрелка уже стоит над карточкой — второй такой же
+         рядом с путём быть не должно. */
+      if (route.name !== 'drill') {
+        parts.push('<button class="round-btn crumbs__back" data-go-back title="Назад" ' +
+          'aria-label="Назад">' + ICON_BACK + '</button>');
+      }
       parts.push('<button class="crumbs__link" data-go-blocks>Все блоки</button>');
       var block = Store.getBlock(route.blockId);
       if (block) {
@@ -4633,8 +5289,28 @@ window.Store = (function () {
 
   /* ---------- Настройки ---------- */
 
+  /* Список моделей: выбранная отмечена, свою можно добавить и убрать. */
+  function modelsHtml() {
+    var current = Store.getModel();
+    return Store.listModels().map(function (model) {
+      return '<div class="model' + (model.id === current ? ' model--on' : '') +
+        '" data-model="' + esc(model.id) + '" role="button" tabindex="0">' +
+        '<span class="model__mark" aria-hidden="true"></span>' +
+        '<span class="model__text">' +
+        '<span class="model__title">' + esc(model.title) + '</span>' +
+        '<span class="model__id">' + esc(model.id) + '</span></span>' +
+        (model.custom
+          ? '<button type="button" class="icon-btn" data-model-remove="' + esc(model.id) +
+            '" title="Убрать" aria-label="Убрать модель">' + ICON_DELETE + '</button>'
+          : '') +
+        '</div>';
+    }).join('');
+  }
+
   function openSettings() {
     var key = Store.getApiKey();
+    var prompt = Store.getPromptTemplate() || window.Media.DEFAULT_PROMPT;
+
     openForm({
       title: 'Картинки от ИИ',
       hint: 'Картинки рисует Gemini («Nano Banana») по вашему ключу Google AI. ' +
@@ -4649,12 +5325,88 @@ window.Store = (function () {
       }],
       extra: '<div class="btn-row" style="margin-top:2px">' +
         '<button type="button" class="btn btn--quiet btn--wide" data-check-access>Проверить связь</button>' +
+        '</div>' +
+
+        '<div class="setting">' +
+        '<div class="setting__head"><span class="field__label">Модель рисования</span>' +
+        '<button type="button" class="round-btn round-btn--small" data-model-add ' +
+        'title="Добавить свою модель" aria-label="Добавить свою модель">+</button></div>' +
+        '<div class="models" id="models">' + modelsHtml() + '</div>' +
+        '<div class="model-add" id="model-add" hidden>' +
+        '<input class="input" type="text" id="f-model" placeholder="имя модели, например gemini-3-pro-image" ' +
+        'autocomplete="off" autocapitalize="off" spellcheck="false">' +
+        '<button type="button" class="btn btn--quiet" data-model-save>Добавить</button>' +
+        '</div></div>' +
+
+        '<div class="setting">' +
+        '<div class="setting__head"><span class="field__label">Промпт для картинок</span>' +
+        '<button type="button" class="mini-btn" data-prompt-reset>Вернуть стандартный</button></div>' +
+        '<textarea class="textarea textarea--tall" id="f-prompt" spellcheck="false">' +
+        esc(prompt) + '</textarea>' +
+        '<p class="setting__note">Вместо ' + esc(window.Media.SLOT_WORD) + ' подставится слово, ' +
+        'вместо ' + esc(window.Media.SLOT_MEANING) + ' — перевод. Этот же текст уходит ' +
+        'по кнопке «Промпт».</p>' +
         '</div>',
       submitText: 'Сохранить',
       onSubmit: function (values) {
         Store.setApiKey(values.key);
-        toast(values.key.trim() ? 'Ключ сохранён' : 'Ключ удалён');
+        var area = document.getElementById('f-prompt');
+        if (area) {
+          var text = area.value.trim();
+          /* Нетронутый промпт не запоминаем — тогда он будет обновляться
+             вместе с приложением. */
+          Store.setPromptTemplate(text === window.Media.DEFAULT_PROMPT.trim() ? '' : text);
+        }
+        toast('Сохранено');
       }
+    });
+
+    var models = document.getElementById('models');
+    var adder = document.getElementById('model-add');
+
+    models.addEventListener('click', function (event) {
+      var drop = event.target.closest('[data-model-remove]');
+      if (drop) {
+        Store.removeModel(drop.getAttribute('data-model-remove'));
+        models.innerHTML = modelsHtml();
+        return;
+      }
+      var row = event.target.closest('[data-model]');
+      if (!row) return;
+      Store.setModel(row.getAttribute('data-model'));
+      models.innerHTML = modelsHtml();
+    });
+
+    modalRoot.querySelector('[data-model-add]').addEventListener('click', function () {
+      adder.hidden = !adder.hidden;
+      if (!adder.hidden) document.getElementById('f-model').focus();
+    });
+
+    function saveModel() {
+      var field = document.getElementById('f-model');
+      var id = field.value.trim();
+      if (!id) { field.focus(); return; }
+      Store.addModel(id, id);
+      field.value = '';
+      adder.hidden = true;
+      models.innerHTML = modelsHtml();
+      toast('Модель добавлена и выбрана');
+    }
+
+    modalRoot.querySelector('[data-model-save]').addEventListener('click', saveModel);
+
+    /* Enter в имени модели добавляет её, а не сохраняет всё окно. */
+    document.getElementById('f-model').addEventListener('keydown', function (event) {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      saveModel();
+    });
+
+    modalRoot.querySelector('[data-prompt-reset]').addEventListener('click', function () {
+      var area = document.getElementById('f-prompt');
+      if (area) area.value = window.Media.DEFAULT_PROMPT;
+      Store.setPromptTemplate('');
+      toast('Промпт вернулся к стандартному');
     });
 
     modalRoot.querySelector('[data-check-access]').addEventListener('click', function () {
@@ -4731,7 +5483,7 @@ window.Store = (function () {
         '</div>' +
         '<div class="btn-row" style="margin-top:9px">' +
         '<button type="button" class="btn btn--quiet btn--wide" data-open-settings>' +
-        (window.Media.hasKey() ? 'Ключ для картинок ИИ · указан' : 'Ключ для картинок ИИ') +
+        'Картинки от ИИ · ключ, модель, промпт' +
         '</button></div>',
       onSubmit: function () { }
     });
@@ -4783,6 +5535,12 @@ window.Store = (function () {
 
   document.getElementById('btn-archive').addEventListener('click', openArchive);
 
+  /* Картинка в окне правки открывается так же, как и везде. */
+  modalRoot.addEventListener('click', function (event) {
+    var picture = event.target.closest('.picture[data-image-id], .picture[data-image-pending]');
+    if (picture) openPicture(picture);
+  });
+
   crumbsEl.addEventListener('click', function (event) {
     if (event.target.closest('[data-go-back]')) { session = null; history.back(); }
     else if (event.target.closest('[data-go-blocks]')) go({ name: 'blocks' });
@@ -4793,6 +5551,12 @@ window.Store = (function () {
   screenEl.addEventListener('click', function (event) {
     var target = event.target;
     var el;
+
+    /* Любая картинка открывается во весь экран — и в списке, и в проверке. */
+    if ((el = target.closest('.picture[data-image-id], .picture[data-image-pending]'))) {
+      openPicture(el);
+      return;
+    }
 
     if ((el = target.closest('[data-rename-block]'))) {
       var blockId = el.getAttribute('data-rename-block');
@@ -4894,11 +5658,8 @@ window.Store = (function () {
     if (target.closest('[data-next]')) { nextWord(); return; }
 
     if (target.closest('[data-drill-size]')) {
-      var order = ['s', 'm', 'l'];
-      var next = order[(order.indexOf(Store.getDrillScale()) + 1) % order.length];
-      Store.setDrillScale(next);
+      sizePanelOpen = !sizePanelOpen;
       render();
-      toast('Размер: ' + ({ s: 'мелкий', m: 'обычный', l: 'крупный' })[next]);
       return;
     }
 
@@ -5038,7 +5799,11 @@ window.Store = (function () {
     }
   });
 
+  /* Ползунок размера: карточка меняется прямо под пальцем, без перерисовки. */
   screenEl.addEventListener('input', function (event) {
+    var slider = event.target.closest && event.target.closest('[data-size]');
+    if (slider) { applySize(slider); return; }
+
     if (event.target.id !== 'input-search') return;
     filter = event.target.value;
     var caret = event.target.selectionStart;

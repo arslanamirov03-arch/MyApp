@@ -32,6 +32,11 @@
     'stroke-width="1.5" stroke-linecap="round" aria-hidden="true">' +
     '<path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/></svg>';
 
+  /* Возврат — одна крупная стрелка: слово «назад» рядом с ней лишнее. */
+  var ICON_BACK = '<svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" ' +
+    'stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<path d="M15.5 4.5L8 12l7.5 7.5"/></svg>';
+
   function esc(str) {
     return String(str == null ? '' : str)
       .replace(/&/g, '&amp;')
@@ -128,6 +133,9 @@
   }
 
   window.addEventListener('popstate', function (event) {
+    /* Открытая во весь экран картинка — первое, что закрывает «назад». */
+    if (viewer) { closeViewer(viewer.slideOut); return; }
+
     if (advanceTimer) { clearTimeout(advanceTimer); advanceTimer = null; }
     route = event.state || { name: 'blocks' };
     filter = '';
@@ -237,12 +245,277 @@
     }
   }
 
+  function applySize(slider) {
+    var kind = slider.getAttribute('data-size');
+    var scale = Number(slider.value) / 100;
+    if (!isFinite(scale)) return;
+
+    var card = screenEl.querySelector('.drill');
+    if (card) card.style.setProperty('--drill-' + kind, scale.toFixed(2));
+
+    var value = screenEl.querySelector('[data-size-value="' + kind + '"]');
+    if (value) value.textContent = Math.round(scale * 100) + '%';
+
+    if (kind === 'image') Store.setImageScale(scale);
+    else Store.setTextScale(scale);
+  }
+
+  /* ---------- Картинка во весь экран ---------- */
+
+  /* Откуда взять саму картинку: у сохранённых есть номер в базе,
+     у ещё не привязанной — только то, что лежит в форме. */
+  function pictureSource(el) {
+    var id = el.getAttribute('data-image-id');
+    if (id) {
+      if (imageCache.has(id)) return Promise.resolve(imageCache.get(id));
+      return Store.imageLoad(id).then(function (url) {
+        if (url) imageCache.set(id, url);
+        return url;
+      });
+    }
+    if (el.hasAttribute('data-image-pending')) return Promise.resolve(pendingImage);
+    return Promise.resolve(null);
+  }
+
+  function openPicture(el) {
+    pictureSource(el).then(function (url) {
+      if (url) openViewer(url);
+    });
+  }
+
+  var viewer = null;
+
+  /* Картинка на весь экран без единой кнопки: двумя пальцами приближается,
+     двойным касанием тоже, вниз — закрывается, долгим нажатием сохраняется. */
+  function openViewer(url) {
+    if (viewer) return;
+
+    var node = document.createElement('div');
+    node.className = 'viewer';
+    node.id = 'viewer';
+
+    var image = document.createElement('img');
+    image.className = 'viewer__img';
+    image.id = 'viewer-img';
+    image.alt = '';
+    image.src = url;
+
+    var hint = document.createElement('p');
+    hint.className = 'viewer__hint';
+    hint.textContent = 'потяните вниз — закроется · подержите — сохранится';
+
+    node.appendChild(image);
+    node.appendChild(hint);
+    document.body.appendChild(node);
+
+    viewer = {
+      node: node, image: image, url: url,
+      scale: 1, x: 0, y: 0, slideOut: false,
+      points: new Map(), start: null, hold: null, lastTap: 0, closing: false
+    };
+
+    /* Своя запись в истории: системная кнопка «назад» сначала закрывает
+       картинку и только потом уводит с экрана. */
+    history.pushState({ name: 'viewer' }, '');
+
+    requestAnimationFrame(function () { node.classList.add('viewer--in'); });
+    bindViewer();
+  }
+
+  /* Закрытие идёт через историю — чтобы лишняя запись не оставалась. */
+  function dismissViewer(slideDown) {
+    if (!viewer || viewer.closing) return;
+    viewer.slideOut = !!slideDown;
+    history.back();
+  }
+
+  function closeViewer(slideDown) {
+    if (!viewer || viewer.closing) return;
+    viewer.closing = true;
+    var node = viewer.node;
+    var image = viewer.image;
+    node.classList.remove('viewer--in');
+    if (slideDown) image.style.transform = 'translate3d(0,' + (window.innerHeight * 0.5) + 'px,0) scale(.86)';
+    viewer = null;
+    setTimeout(function () {
+      if (node.parentNode) node.parentNode.removeChild(node);
+    }, 420);
+  }
+
+  function paintViewer() {
+    if (!viewer) return;
+    viewer.image.style.transform = 'translate3d(' + viewer.x.toFixed(1) + 'px,' +
+      viewer.y.toFixed(1) + 'px,0) scale(' + viewer.scale.toFixed(3) + ')';
+  }
+
+  function viewerCenter() {
+    var points = [];
+    viewer.points.forEach(function (p) { points.push(p); });
+    if (!points.length) return { x: 0, y: 0 };
+    var sumX = 0, sumY = 0;
+    points.forEach(function (p) { sumX += p.x; sumY += p.y; });
+    return { x: sumX / points.length, y: sumY / points.length };
+  }
+
+  function viewerSpread() {
+    var points = [];
+    viewer.points.forEach(function (p) { points.push(p); });
+    if (points.length < 2) return 0;
+    return Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
+  }
+
+  function cancelHold() {
+    if (viewer && viewer.hold) { clearTimeout(viewer.hold); viewer.hold = null; }
+  }
+
+  function bindViewer() {
+    var node = viewer.node;
+
+    node.addEventListener('pointerdown', function (event) {
+      if (!viewer) return;
+      event.preventDefault();
+      node.setPointerCapture(event.pointerId);
+      viewer.points.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      viewer.start = {
+        spread: viewerSpread(), center: viewerCenter(),
+        scale: viewer.scale, x: viewer.x, y: viewer.y, moved: 0
+      };
+
+      /* Долгое нажатие сохраняет картинку — кнопка для этого не нужна. */
+      cancelHold();
+      if (viewer.points.size === 1) {
+        var saveUrl = viewer.url;
+        viewer.hold = setTimeout(function () {
+          if (!viewer) return;
+          viewer.hold = null;
+          viewer.start = null;
+          viewer.points.clear();
+          saveImageFile(saveUrl);
+        }, 620);
+      }
+    });
+
+    node.addEventListener('pointermove', function (event) {
+      if (!viewer || !viewer.points.has(event.pointerId) || !viewer.start) return;
+      viewer.points.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+      var center = viewerCenter();
+      var shiftX = center.x - viewer.start.center.x;
+      var shiftY = center.y - viewer.start.center.y;
+      viewer.start.moved = Math.max(viewer.start.moved, Math.hypot(shiftX, shiftY));
+      if (viewer.start.moved > 9) cancelHold();
+
+      if (viewer.points.size >= 2 && viewer.start.spread > 0) {
+        viewer.scale = Math.min(6, Math.max(1, viewer.start.scale * (viewerSpread() / viewer.start.spread)));
+        viewer.x = viewer.start.x + shiftX;
+        viewer.y = viewer.start.y + shiftY;
+        paintViewer();
+        return;
+      }
+
+      if (viewer.scale > 1.02) {
+        viewer.x = viewer.start.x + shiftX;
+        viewer.y = viewer.start.y + shiftY;
+        paintViewer();
+        return;
+      }
+
+      /* Не увеличенную картинку тянут вниз — она уходит вместе с экраном. */
+      viewer.y = Math.max(0, shiftY);
+      viewer.x = shiftX * 0.25;
+      viewer.node.style.setProperty('--viewer-veil', String(Math.max(0, 1 - viewer.y / 340)));
+      paintViewer();
+    });
+
+    function release(event) {
+      if (!viewer) return;
+      cancelHold();
+      viewer.points.delete(event.pointerId);
+      if (viewer.points.size > 0) { viewer.start = null; return; }
+
+      var dragged = viewer.y;
+      var moved = viewer.start ? viewer.start.moved : 0;
+      viewer.start = null;
+
+      if (viewer.scale <= 1.02 && dragged > 108) { dismissViewer(true); return; }
+
+      if (viewer.scale <= 1.02) {
+        viewer.x = 0;
+        viewer.y = 0;
+        viewer.node.style.setProperty('--viewer-veil', '1');
+        viewer.image.classList.add('viewer__img--eased');
+        paintViewer();
+        setTimeout(function () {
+          if (viewer) viewer.image.classList.remove('viewer__img--eased');
+        }, 380);
+      }
+
+      /* Двойное касание приближает и возвращает обратно. */
+      if (moved < 9) {
+        var now = Date.now();
+        if (now - viewer.lastTap < 320) {
+          viewer.lastTap = 0;
+          viewer.image.classList.add('viewer__img--eased');
+          if (viewer.scale > 1.02) { viewer.scale = 1; viewer.x = 0; viewer.y = 0; }
+          else viewer.scale = 2.6;
+          paintViewer();
+          setTimeout(function () {
+            if (viewer) viewer.image.classList.remove('viewer__img--eased');
+          }, 380);
+        } else {
+          viewer.lastTap = now;
+        }
+      }
+    }
+
+    node.addEventListener('pointerup', release);
+    node.addEventListener('pointercancel', release);
+
+    /* На большом экране колесо тоже приближает. */
+    node.addEventListener('wheel', function (event) {
+      if (!viewer) return;
+      event.preventDefault();
+      viewer.scale = Math.min(6, Math.max(1, viewer.scale * (event.deltaY < 0 ? 1.12 : 0.89)));
+      if (viewer.scale <= 1.02) { viewer.x = 0; viewer.y = 0; }
+      paintViewer();
+    }, { passive: false });
+  }
+
+  document.addEventListener('keydown', function (event) {
+    if (viewer && event.key === 'Escape') dismissViewer(false);
+  });
+
+  /* Сохранение картинки на устройство: в приложении её кладёт оболочка,
+     в браузере — обычная ссылка на скачивание. */
+  function saveImageFile(dataUrl) {
+    if (!dataUrl) return;
+    var comma = dataUrl.indexOf(',');
+    var head = dataUrl.slice(0, comma);
+    var mime = (head.split(':')[1] || 'image/jpeg').split(';')[0];
+    var name = 'lexis-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') +
+      '.' + (mime.indexOf('png') >= 0 ? 'png' : 'jpg');
+
+    if (window.AndroidBridge && typeof window.AndroidBridge.saveFile === 'function') {
+      toast(window.AndroidBridge.saveFile(name, dataUrl.slice(comma + 1), mime) || 'Картинка сохранена');
+      return;
+    }
+
+    var link = document.createElement('a');
+    link.href = dataUrl;
+    link.download = name;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast('Картинка сохранена');
+  }
+
   /* Полоса под формой ввода. Кроме готовой генерации есть путь без затрат:
      скопировать промпт, нарисовать картинку где угодно и вставить обратно. */
   function photoRow() {
     return '<div class="photo-row" id="photo-row">' +
       (pendingImage
-        ? '<span class="picture picture--slot" style="background-image:url(' + pendingImage + ')"></span>'
+        ? '<span class="picture picture--slot" data-image-pending ' +
+          'title="Открыть во весь экран" style="background-image:url(' + pendingImage + ')"></span>'
         : '<span class="picture picture--slot picture--empty" aria-hidden="true"></span>') +
       '<div class="photo-row__actions">' +
       '<button class="btn btn--quiet" data-photo-pick>Фото</button>' +
@@ -591,20 +864,46 @@
 
 
   /* Панель над карточкой: выход, правка слова и размер. */
+  var sizePanelOpen = false;
+
   function drillBar(wordId) {
     return '<div class="drill__bar">' +
       '<div class="drill__bar-side">' +
-      '<button class="mini-btn" data-drill-exit>← Назад</button>' +
+      '<button class="round-btn" data-drill-exit title="Назад" aria-label="Назад">' + ICON_BACK + '</button>' +
       '</div>' +
       '<div class="drill__bar-side">' +
       (wordId ? '<button class="mini-btn" data-drill-edit="' + wordId + '">Изменить</button>' : '') +
-      '<button class="mini-btn" data-drill-size title="Размер карточки">Aa</button>' +
-      '</div></div>';
+      '<button class="mini-btn' + (sizePanelOpen ? ' mini-btn--on' : '') + '" data-drill-size ' +
+      'title="Размер текста и картинки" aria-label="Размер текста и картинки">Aa</button>' +
+      '</div></div>' +
+      (sizePanelOpen ? sizePanel() : '');
   }
 
-  function drillClass() {
-    var scale = Store.getDrillScale();
-    return 'glass drill' + (scale === 'm' ? '' : ' drill--' + scale);
+  /* Размеры тянутся плавно и порознь: перевод с полем ответа — одним
+     ползунком, картинка — другим. Карточка меняется прямо под рукой. */
+  function sizePanel() {
+    return '<section class="glass sizes" id="size-panel">' +
+      sizeRow('text', 'Текст и поле ответа', Store.getTextScale()) +
+      sizeRow('image', 'Картинка', Store.getImageScale()) +
+      '</section>';
+  }
+
+  function sizeRow(kind, label, value) {
+    var percent = Math.round(value * 100);
+    return '<div class="sizes__row">' +
+      '<div class="sizes__head"><span>' + label + '</span>' +
+      '<span class="sizes__value" data-size-value="' + kind + '">' + percent + '%</span></div>' +
+      '<input class="slider" type="range" min="60" max="240" step="4" value="' + percent + '" ' +
+      'data-size="' + kind + '" aria-label="' + esc(label) + '">' +
+      '</div>';
+  }
+
+  /* Размеры живут в самой карточке: так их можно менять на ходу,
+     не перерисовывая экран под пальцем. */
+  function drillAttrs(dataId) {
+    return 'class="glass drill" style="--drill-text:' + Store.getTextScale().toFixed(2) +
+      ';--drill-image:' + Store.getImageScale().toFixed(2) + '"' +
+      (dataId ? ' data-id="' + dataId + '"' : '');
   }
 
   /* Показ новых слов: немецкое слово, под ним перевод и картинка. */
@@ -616,7 +915,7 @@
     var last = session.index === total - 1;
 
     screenEl.innerHTML = drillBar(word.id) +
-      '<section class="' + drillClass() + '" data-id="learn-' + word.id + '">' +
+      '<section ' + drillAttrs('learn-' + word.id) + '>' +
       '<div class="drill__progress"><div class="drill__progress-fill" style="width:' + percent.toFixed(1) + '%"></div></div>' +
       '<div class="drill__eyebrow">Знакомство · ' + (session.index + 1) + ' из ' + total + '</div>' +
       '<h2 class="drill__prompt">' + esc(word.de) + '</h2>' +
@@ -639,7 +938,7 @@
 
     if (session.index >= session.queue.length) {
       var moreFresh = session.mode === 'learn' ? Store.freshCount(session.scope) : 0;
-      screenEl.innerHTML = '<section class="' + drillClass() + '">' +
+      screenEl.innerHTML = '<section ' + drillAttrs() + '>' +
         '<h2 class="drill__prompt">' +
         (session.mode === 'learn' ? 'Десятка пройдена' : 'Разбор окончен') + '</h2>' +
         '<p class="drill__hint">Верно с первого раза: ' + session.correct + ' из ' + session.asked + '</p>' +
@@ -658,18 +957,18 @@
     var word = item.word;
 
     var html = drillBar(word.id) +
-      '<section class="' + drillClass() + '" data-id="drill-' + word.id + '-' + session.index + '">' +
+      '<section ' + drillAttrs('drill-' + word.id + '-' + session.index) + '>' +
       '<div class="drill__progress"><div class="drill__progress-fill" style="width:' + percent.toFixed(1) + '%"></div></div>' +
-      '<div class="drill__eyebrow">Слово ' + (done + 1) + ' из ' + total + '</div>' +
-      '<h2 class="drill__prompt">' + esc(word.ru) + '</h2>';
+      '<div class="drill__eyebrow">Слово ' + (done + 1) + ' из ' + total + '</div>';
 
     if (session.state === 'ask') {
-      /* Буквы принимает скрытое парольное поле — на нём клавиатура не
+      /* Поле стоит первым: когда открывается клавиатура, экран сжимается
+         снизу — и перевод с картинкой остаются на месте, а не подпрыгивают.
+
+         Буквы принимает скрытое парольное поле — на нём клавиатура не
          предлагает готовые слова. Сам набранный текст рисуется рядом,
          поэтому видно, что печатаешь. */
-      html += (word.image ? imageBox(word.image.id, 'picture--card') : '') +
-        '<p class="drill__hint">Напишите это слово по-немецки</p>' +
-        '<div class="answer" data-answer-shell>' +
+      html += '<div class="answer" data-answer-shell>' +
         '<span class="answer__text" id="answer-text"></span>' +
         '<span class="answer__caret" aria-hidden="true"></span>' +
         '<span class="answer__hint" id="answer-hint">…</span>' +
@@ -677,12 +976,16 @@
         'autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" ' +
         'inputmode="text" name="answer" aria-label="Ответ">' +
         '</div>' +
+        '<p class="drill__hint drill__hint--under">Напишите это слово по-немецки</p>' +
+        '<h2 class="drill__prompt">' + esc(word.ru) + '</h2>' +
+        (word.image ? imageBox(word.image.id, 'picture--card') : '') +
         '<div class="drill__actions">' +
         '<button class="btn" data-reveal>Забыл</button>' +
         '<button class="btn btn--accent" data-check>Проверить</button>' +
         '</div>';
     } else {
-      html += '<div class="drill__verdict">' +
+      html += '<h2 class="drill__prompt">' + esc(word.ru) + '</h2>' +
+        '<div class="drill__verdict">' +
         '<div class="verdict verdict--wrong">' +
         '<div class="verdict__label">' +
         (session.state === 'revealed' ? 'Правильный ответ' : 'Не совпало') + '</div>' +
@@ -836,7 +1139,12 @@
     if (route.name === 'blocks') {
       parts.push('<span class="crumbs__current">Все блоки</span>');
     } else {
-      parts.push('<button class="crumbs__back" data-go-back aria-label="Назад">←</button>');
+      /* В разборе стрелка уже стоит над карточкой — второй такой же
+         рядом с путём быть не должно. */
+      if (route.name !== 'drill') {
+        parts.push('<button class="round-btn crumbs__back" data-go-back title="Назад" ' +
+          'aria-label="Назад">' + ICON_BACK + '</button>');
+      }
       parts.push('<button class="crumbs__link" data-go-blocks>Все блоки</button>');
       var block = Store.getBlock(route.blockId);
       if (block) {
@@ -1190,8 +1498,28 @@
 
   /* ---------- Настройки ---------- */
 
+  /* Список моделей: выбранная отмечена, свою можно добавить и убрать. */
+  function modelsHtml() {
+    var current = Store.getModel();
+    return Store.listModels().map(function (model) {
+      return '<div class="model' + (model.id === current ? ' model--on' : '') +
+        '" data-model="' + esc(model.id) + '" role="button" tabindex="0">' +
+        '<span class="model__mark" aria-hidden="true"></span>' +
+        '<span class="model__text">' +
+        '<span class="model__title">' + esc(model.title) + '</span>' +
+        '<span class="model__id">' + esc(model.id) + '</span></span>' +
+        (model.custom
+          ? '<button type="button" class="icon-btn" data-model-remove="' + esc(model.id) +
+            '" title="Убрать" aria-label="Убрать модель">' + ICON_DELETE + '</button>'
+          : '') +
+        '</div>';
+    }).join('');
+  }
+
   function openSettings() {
     var key = Store.getApiKey();
+    var prompt = Store.getPromptTemplate() || window.Media.DEFAULT_PROMPT;
+
     openForm({
       title: 'Картинки от ИИ',
       hint: 'Картинки рисует Gemini («Nano Banana») по вашему ключу Google AI. ' +
@@ -1206,12 +1534,88 @@
       }],
       extra: '<div class="btn-row" style="margin-top:2px">' +
         '<button type="button" class="btn btn--quiet btn--wide" data-check-access>Проверить связь</button>' +
+        '</div>' +
+
+        '<div class="setting">' +
+        '<div class="setting__head"><span class="field__label">Модель рисования</span>' +
+        '<button type="button" class="round-btn round-btn--small" data-model-add ' +
+        'title="Добавить свою модель" aria-label="Добавить свою модель">+</button></div>' +
+        '<div class="models" id="models">' + modelsHtml() + '</div>' +
+        '<div class="model-add" id="model-add" hidden>' +
+        '<input class="input" type="text" id="f-model" placeholder="имя модели, например gemini-3-pro-image" ' +
+        'autocomplete="off" autocapitalize="off" spellcheck="false">' +
+        '<button type="button" class="btn btn--quiet" data-model-save>Добавить</button>' +
+        '</div></div>' +
+
+        '<div class="setting">' +
+        '<div class="setting__head"><span class="field__label">Промпт для картинок</span>' +
+        '<button type="button" class="mini-btn" data-prompt-reset>Вернуть стандартный</button></div>' +
+        '<textarea class="textarea textarea--tall" id="f-prompt" spellcheck="false">' +
+        esc(prompt) + '</textarea>' +
+        '<p class="setting__note">Вместо ' + esc(window.Media.SLOT_WORD) + ' подставится слово, ' +
+        'вместо ' + esc(window.Media.SLOT_MEANING) + ' — перевод. Этот же текст уходит ' +
+        'по кнопке «Промпт».</p>' +
         '</div>',
       submitText: 'Сохранить',
       onSubmit: function (values) {
         Store.setApiKey(values.key);
-        toast(values.key.trim() ? 'Ключ сохранён' : 'Ключ удалён');
+        var area = document.getElementById('f-prompt');
+        if (area) {
+          var text = area.value.trim();
+          /* Нетронутый промпт не запоминаем — тогда он будет обновляться
+             вместе с приложением. */
+          Store.setPromptTemplate(text === window.Media.DEFAULT_PROMPT.trim() ? '' : text);
+        }
+        toast('Сохранено');
       }
+    });
+
+    var models = document.getElementById('models');
+    var adder = document.getElementById('model-add');
+
+    models.addEventListener('click', function (event) {
+      var drop = event.target.closest('[data-model-remove]');
+      if (drop) {
+        Store.removeModel(drop.getAttribute('data-model-remove'));
+        models.innerHTML = modelsHtml();
+        return;
+      }
+      var row = event.target.closest('[data-model]');
+      if (!row) return;
+      Store.setModel(row.getAttribute('data-model'));
+      models.innerHTML = modelsHtml();
+    });
+
+    modalRoot.querySelector('[data-model-add]').addEventListener('click', function () {
+      adder.hidden = !adder.hidden;
+      if (!adder.hidden) document.getElementById('f-model').focus();
+    });
+
+    function saveModel() {
+      var field = document.getElementById('f-model');
+      var id = field.value.trim();
+      if (!id) { field.focus(); return; }
+      Store.addModel(id, id);
+      field.value = '';
+      adder.hidden = true;
+      models.innerHTML = modelsHtml();
+      toast('Модель добавлена и выбрана');
+    }
+
+    modalRoot.querySelector('[data-model-save]').addEventListener('click', saveModel);
+
+    /* Enter в имени модели добавляет её, а не сохраняет всё окно. */
+    document.getElementById('f-model').addEventListener('keydown', function (event) {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      saveModel();
+    });
+
+    modalRoot.querySelector('[data-prompt-reset]').addEventListener('click', function () {
+      var area = document.getElementById('f-prompt');
+      if (area) area.value = window.Media.DEFAULT_PROMPT;
+      Store.setPromptTemplate('');
+      toast('Промпт вернулся к стандартному');
     });
 
     modalRoot.querySelector('[data-check-access]').addEventListener('click', function () {
@@ -1288,7 +1692,7 @@
         '</div>' +
         '<div class="btn-row" style="margin-top:9px">' +
         '<button type="button" class="btn btn--quiet btn--wide" data-open-settings>' +
-        (window.Media.hasKey() ? 'Ключ для картинок ИИ · указан' : 'Ключ для картинок ИИ') +
+        'Картинки от ИИ · ключ, модель, промпт' +
         '</button></div>',
       onSubmit: function () { }
     });
@@ -1340,6 +1744,12 @@
 
   document.getElementById('btn-archive').addEventListener('click', openArchive);
 
+  /* Картинка в окне правки открывается так же, как и везде. */
+  modalRoot.addEventListener('click', function (event) {
+    var picture = event.target.closest('.picture[data-image-id], .picture[data-image-pending]');
+    if (picture) openPicture(picture);
+  });
+
   crumbsEl.addEventListener('click', function (event) {
     if (event.target.closest('[data-go-back]')) { session = null; history.back(); }
     else if (event.target.closest('[data-go-blocks]')) go({ name: 'blocks' });
@@ -1350,6 +1760,12 @@
   screenEl.addEventListener('click', function (event) {
     var target = event.target;
     var el;
+
+    /* Любая картинка открывается во весь экран — и в списке, и в проверке. */
+    if ((el = target.closest('.picture[data-image-id], .picture[data-image-pending]'))) {
+      openPicture(el);
+      return;
+    }
 
     if ((el = target.closest('[data-rename-block]'))) {
       var blockId = el.getAttribute('data-rename-block');
@@ -1451,11 +1867,8 @@
     if (target.closest('[data-next]')) { nextWord(); return; }
 
     if (target.closest('[data-drill-size]')) {
-      var order = ['s', 'm', 'l'];
-      var next = order[(order.indexOf(Store.getDrillScale()) + 1) % order.length];
-      Store.setDrillScale(next);
+      sizePanelOpen = !sizePanelOpen;
       render();
-      toast('Размер: ' + ({ s: 'мелкий', m: 'обычный', l: 'крупный' })[next]);
       return;
     }
 
@@ -1595,7 +2008,11 @@
     }
   });
 
+  /* Ползунок размера: карточка меняется прямо под пальцем, без перерисовки. */
   screenEl.addEventListener('input', function (event) {
+    var slider = event.target.closest && event.target.closest('[data-size]');
+    if (slider) { applySize(slider); return; }
+
     if (event.target.id !== 'input-search') return;
     filter = event.target.value;
     var caret = event.target.selectionStart;

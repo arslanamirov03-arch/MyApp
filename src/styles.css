@@ -271,25 +271,31 @@ body::after {
 
 .crumbs__link:hover { color: var(--accent); border-bottom-color: var(--accent); }
 
-/* Возврат на шаг назад — рядом с путём, чтобы не искать системную кнопку. */
-.crumbs__back {
+/* Возврат — крупная стрелка без подписи: в неё легко попасть пальцем. */
+.round-btn {
   display: grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
-  margin-right: 2px;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-  font-size: 14px;
+  font-size: 20px;
   line-height: 1;
   color: var(--ink-soft);
   background: var(--surface-2);
   border: 1px solid var(--glass-edge);
+  box-shadow: inset 0 1px 0 var(--glass-inner);
   cursor: pointer;
-  transition: color .32s ease, transform .34s cubic-bezier(.16, .84, .44, 1);
+  transition: color .32s ease, background .32s ease,
+    transform .34s cubic-bezier(.16, .84, .44, 1);
 }
 
-.crumbs__back:hover { color: var(--accent); }
-.crumbs__back:active { transform: scale(.9); }
+.round-btn:hover { color: var(--accent); }
+.round-btn:active { transform: scale(.9); }
+
+.round-btn--small { width: 30px; height: 30px; font-size: 17px; }
+
+.crumbs__back { margin-right: 4px; }
 
 .crumbs__sep { opacity: .45; }
 .crumbs__current { color: var(--ink); }
@@ -601,6 +607,86 @@ body::after {
   resize: vertical;
 }
 
+/* Промпт длинный — ему нужно поле повыше и построже. */
+.textarea--tall {
+  min-height: 200px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+/* ---------- Настройка внутри окна ---------- */
+
+.setting { margin: 17px 0 3px; }
+
+.setting__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 9px;
+}
+
+.setting__head .field__label { margin: 0 0 0 4px; }
+
+.setting__note {
+  margin: 8px 4px 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--ink-faint);
+}
+
+.models { display: grid; gap: 8px; }
+
+.model {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 13px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--glass-edge);
+  cursor: pointer;
+  transition: border-color .34s ease, background .34s ease;
+}
+
+.model--on {
+  border-color: rgba(192, 95, 60, .45);
+  background: var(--accent-wash);
+}
+
+.model__mark {
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(122, 96, 70, .4);
+  transition: border-color .34s ease, box-shadow .34s ease;
+}
+
+.model--on .model__mark {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 3.5px var(--accent);
+}
+
+.model__text {
+  display: grid;
+  gap: 1px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.model__title { font-size: 14px; color: var(--ink); }
+
+.model__id {
+  font-size: 11px;
+  color: var(--ink-faint);
+  overflow-wrap: anywhere;
+}
+
+.model-add { display: flex; gap: 8px; margin-top: 9px; }
+.model-add[hidden] { display: none; }
+.model-add .input { flex: 1 1 auto; min-width: 0; }
+
 /* ---------- Полоса заполнения ---------- */
 
 .gauge { padding: 15px 18px; margin-bottom: 14px; }
@@ -739,7 +825,12 @@ body::after {
   border-color: rgba(122, 96, 70, .3);
   background-color: transparent;
   box-shadow: none;
+  cursor: default;
 }
+
+/* Любую картинку можно открыть во весь экран — отсюда и курсор. */
+.picture[data-image-id],
+.picture[data-image-pending] { cursor: zoom-in; }
 
 .picture--card {
   width: min(240px, 68vw);
@@ -851,6 +942,7 @@ body::after {
   line-height: 1.25;
   color: var(--ink);
   text-wrap: balance;
+  overflow-wrap: anywhere;
 }
 
 .drill__hint {
@@ -858,6 +950,9 @@ body::after {
   font-size: 13px;
   color: var(--ink-faint);
 }
+
+/* Подпись под полем ответа: поле стоит первым, и подсказка идёт за ним. */
+.drill__hint--under { margin: 9px 0 2px; }
 
 /* Поле ответа: буквы принимает скрытый ввод, показывает — эта строка. */
 .answer {
@@ -926,16 +1021,6 @@ body::after {
   -webkit-text-fill-color: transparent;
 }
 
-.drill--s .answer { min-height: 50px; padding: 10px 14px; }
-.drill--s .answer__text,
-.drill--s .answer__hint { font-size: 17px; }
-.drill--s .answer__caret { height: 20px; }
-
-.drill--l .answer { min-height: 66px; }
-.drill--l .answer__text,
-.drill--l .answer__hint { font-size: 25px; }
-.drill--l .answer__caret { height: 28px; }
-
 .drill__actions {
   display: flex;
   gap: 9px;
@@ -972,19 +1057,97 @@ body::after {
 .mini-btn:hover { color: var(--accent); }
 .mini-btn:active { transform: scale(.94); }
 
-/* Три размера карточки: слишком крупный текст на телефоне мешает,
-   слишком мелкий — тоже, поэтому выбор остаётся за человеком. */
-.drill--s .drill__prompt { font-size: clamp(19px, 5vw, 24px); }
-.drill--s .drill__input { font-size: 17px; padding: 12px 14px; }
-.drill--s .learn__translation { font-size: 15px; margin-bottom: 12px; }
-.drill--s .picture--card { width: min(150px, 42vw); height: min(150px, 42vw); margin-bottom: 12px; }
-.drill--s .verdict__word { font-size: 20px; }
-.drill--s { padding: 20px 18px 18px; }
+/* Размеры тянутся плавно и порознь: текст с полем ответа — своим
+   множителем, картинка — своим. Настройка живёт в самой карточке. */
+.drill {
+  --drill-text: 1;
+  --drill-image: 1;
+}
 
-.drill--l .drill__prompt { font-size: clamp(30px, 8.5vw, 40px); }
-.drill--l .drill__input { font-size: 24px; }
-.drill--l .learn__translation { font-size: 19px; }
-.drill--l .picture--card { width: min(300px, 78vw); height: min(300px, 78vw); }
+.drill .drill__prompt { font-size: calc(clamp(26px, 7vw, 34px) * var(--drill-text)); }
+.drill .learn__translation { font-size: calc(17px * var(--drill-text)); }
+.drill .verdict__word { font-size: calc(24px * var(--drill-text)); }
+.drill .answer { min-height: calc(58px * var(--drill-text)); margin-top: 15px; }
+.drill .answer__text,
+.drill .answer__hint { font-size: calc(21px * var(--drill-text)); }
+.drill .answer__caret { height: calc(24px * var(--drill-text)); }
+
+.drill .picture--card {
+  width: min(calc(240px * var(--drill-image)), 88vw);
+  height: min(calc(240px * var(--drill-image)), 88vw);
+}
+
+/* Ползунки размера: шагов много, значение видно числом. */
+.sizes {
+  display: grid;
+  gap: 14px;
+  padding: 16px 18px;
+  margin-bottom: 14px;
+}
+
+.sizes__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 7px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.sizes__value {
+  font-family: var(--display);
+  font-size: 13px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 22px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.slider::-webkit-slider-runnable-track {
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(122, 96, 70, .18);
+}
+
+.slider::-moz-range-track {
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(122, 96, 70, .18);
+}
+
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  margin-top: -8.5px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 3px solid var(--surface-1);
+  box-shadow: var(--lift);
+}
+
+.slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 3px solid var(--surface-1);
+}
+
+.mini-btn--on {
+  color: var(--accent);
+  border-color: rgba(192, 95, 60, .45);
+  background: var(--accent-wash);
+}
 
 .drill__verdict { margin-top: 18px; }
 
@@ -1125,6 +1288,53 @@ body::after {
 
 .modal__actions { display: flex; gap: 9px; margin-top: 18px; }
 .modal__actions .btn { flex: 1 1 0; }
+
+/* ---------- Картинка во весь экран ---------- */
+
+/* Никаких кнопок: пальцами приближают, вниз — закрывают,
+   долгим нажатием сохраняют. Подпись внизу об этом и напоминает. */
+.viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(22, 16, 11, var(--viewer-veil, 1));
+  opacity: 0;
+  transition: opacity .4s ease;
+  touch-action: none;
+  overscroll-behavior: contain;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.viewer--in { opacity: 1; }
+
+.viewer__img {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: var(--radius-md);
+  will-change: transform;
+  -webkit-user-drag: none;
+}
+
+.viewer__img--eased { transition: transform .36s cubic-bezier(.16, .84, .44, 1); }
+
+.viewer__hint {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(22px + env(safe-area-inset-bottom));
+  margin: 0;
+  font-size: 12px;
+  text-align: center;
+  color: rgba(255, 248, 240, .6);
+  opacity: var(--viewer-veil, 1);
+  pointer-events: none;
+}
 
 /* ---------- Уведомление ---------- */
 

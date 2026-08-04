@@ -40,5 +40,25 @@ await page.click('#btn-archive');
 await page.waitForTimeout(600);
 await page.screenshot({ path: join(outDir, 'modal.png') });
 
+/* Картинки от ИИ: ключ, модели и промпт */
+await page.click('[data-open-settings]');
+await page.waitForTimeout(600);
+await page.screenshot({ path: join(outDir, 'settings.png'), fullPage: true });
+await page.click('[data-close]');
+await page.waitForTimeout(300);
+
+/* Карточка проверки: поле ответа сверху и панель размеров */
+await page.click('[data-start-learn]');
+await page.waitForTimeout(500);
+for (let i = 0; i < 3; i++) {
+  await page.click('[data-learn-next]');
+  await page.waitForTimeout(850);
+}
+await page.screenshot({ path: join(outDir, 'drill.png') });
+
+await page.click('[data-drill-size]');
+await page.waitForTimeout(500);
+await page.screenshot({ path: join(outDir, 'drill-sizes.png') });
+
 await browser.close();
 console.log('снимки готовы:', outDir);

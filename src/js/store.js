@@ -27,11 +27,38 @@ window.Store = (function () {
   var DAY = 24 * 60 * 60 * 1000;
   var DAY_START_HOUR = 6;
 
-  var state = { version: 2, blocks: [], settings: { collapsed: {}, drillScale: 'm' } };
+  /* Размеры в карточке проверки: текст и картинка тянутся независимо. */
+  var DEFAULT_SETTINGS = {
+    collapsed: {},
+    drillTextScale: 1,
+    drillImageScale: 1,
+    imageModel: 'gemini-3.1-flash-lite-image',
+    customModels: [],
+    promptTemplate: ''
+  };
+
+  var state = { version: 2, blocks: [], settings: cloneSettings(DEFAULT_SETTINGS) };
   var listeners = [];
   var memoryOnly = false;
   var lastSavedAt = 0;
   var clockWentBack = false;
+
+  function cloneSettings(source) {
+    return {
+      collapsed: Object.assign({}, source.collapsed),
+      drillTextScale: source.drillTextScale,
+      drillImageScale: source.drillImageScale,
+      imageModel: source.imageModel,
+      customModels: (source.customModels || []).slice(),
+      promptTemplate: source.promptTemplate || ''
+    };
+  }
+
+  function clampScale(value, fallback) {
+    var number = Number(value);
+    if (!isFinite(number)) return fallback;
+    return Math.min(2.4, Math.max(0.6, number));
+  }
 
   function uid() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -113,7 +140,15 @@ window.Store = (function () {
       version: 2,
       settings: {
         collapsed: settings.collapsed || {},
-        drillScale: settings.drillScale || 'm'
+        drillTextScale: clampScale(settings.drillTextScale, 1),
+        drillImageScale: clampScale(settings.drillImageScale, 1),
+        imageModel: settings.imageModel || DEFAULT_SETTINGS.imageModel,
+        customModels: (settings.customModels || []).filter(function (m) {
+          return m && m.id;
+        }).map(function (m) {
+          return { id: String(m.id), title: String(m.title || m.id) };
+        }),
+        promptTemplate: String(settings.promptTemplate || '')
       },
       blocks: (data.blocks || []).filter(Boolean).map(function (b) {
         return {
@@ -316,11 +351,69 @@ window.Store = (function () {
 
   function isCollapsed(setId) { return !!state.settings.collapsed[setId]; }
 
-  /* Размер карточки в проверке: 's', 'm' или 'l'. */
-  function getDrillScale() { return state.settings.drillScale || 'm'; }
+  /* Размеры в карточке проверки. Текст и картинка настраиваются порознь:
+     кому-то нужен крупный перевод при маленькой картинке, кому-то наоборот. */
+  function getTextScale() { return clampScale(state.settings.drillTextScale, 1); }
+  function getImageScale() { return clampScale(state.settings.drillImageScale, 1); }
 
-  function setDrillScale(scale) {
-    state.settings.drillScale = scale;
+  function setTextScale(value) {
+    state.settings.drillTextScale = clampScale(value, 1);
+    save();
+  }
+
+  function setImageScale(value) {
+    state.settings.drillImageScale = clampScale(value, 1);
+    save();
+  }
+
+  /* ---------- Модели рисования ---------- */
+
+  var BUILTIN_MODELS = [
+    { id: 'gemini-3.1-flash-image', title: 'Nano Banana 2' },
+    { id: 'gemini-3.1-flash-lite-image', title: 'Nano Banana 2 Lite' },
+    { id: 'gemini-3-pro-image', title: 'Nano Banana Pro' }
+  ];
+
+  function listModels() {
+    return BUILTIN_MODELS.concat(state.settings.customModels.map(function (m) {
+      return { id: m.id, title: m.title, custom: true };
+    }));
+  }
+
+  function getModel() { return state.settings.imageModel || DEFAULT_SETTINGS.imageModel; }
+
+  function setModel(id) {
+    if (!id) return;
+    state.settings.imageModel = String(id).trim();
+    save();
+  }
+
+  function addModel(id, title) {
+    id = String(id || '').trim();
+    if (!id) return false;
+    var known = listModels().some(function (m) { return m.id === id; });
+    if (!known) {
+      state.settings.customModels.push({ id: id, title: String(title || '').trim() || id });
+    }
+    state.settings.imageModel = id;
+    save();
+    return !known;
+  }
+
+  function removeModel(id) {
+    state.settings.customModels = state.settings.customModels.filter(function (m) {
+      return m.id !== id;
+    });
+    if (state.settings.imageModel === id) state.settings.imageModel = DEFAULT_SETTINGS.imageModel;
+    save();
+  }
+
+  /* ---------- Свой промпт ---------- */
+
+  function getPromptTemplate() { return state.settings.promptTemplate || ''; }
+
+  function setPromptTemplate(text) {
+    state.settings.promptTemplate = String(text || '').trim();
     save();
   }
 
@@ -734,7 +827,12 @@ window.Store = (function () {
     calendarDaysBetween: calendarDaysBetween,
 
     isCollapsed: isCollapsed, toggleCollapsed: toggleCollapsed,
-    getDrillScale: getDrillScale, setDrillScale: setDrillScale, findSameWords: findSameWords,
+    getTextScale: getTextScale, setTextScale: setTextScale,
+    getImageScale: getImageScale, setImageScale: setImageScale,
+    listModels: listModels, getModel: getModel, setModel: setModel,
+    addModel: addModel, removeModel: removeModel,
+    getPromptTemplate: getPromptTemplate, setPromptTemplate: setPromptTemplate,
+    findSameWords: findSameWords,
 
     getBlock: getBlock, getSet: getSet, countWords: countWords,
     addBlock: addBlock, renameBlock: renameBlock, removeBlock: removeBlock,
