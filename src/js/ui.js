@@ -527,9 +527,8 @@
       note: 'ИИ сам разберёт слово и напишет промпт — для действий, ' +
         'качеств, чувств и идиом, где обычный промах' },
     { name: 'photo-prompt', icon: '📋', title: 'Скопировать промпт',
-      note: 'промпт уходит в буфер — нарисовать картинку можно бесплатно где угодно' },
-    { name: 'photo-paste', icon: '📥', title: 'Вставить картинку',
-      note: 'принять нарисованную где-то картинку обратно' },
+      note: 'промпт уходит в буфер: нарисуйте картинку бесплатно где угодно, ' +
+        'сохраните её в галерею и возьмите сюда камерой' },
     { name: 'photo-drop', icon: '🗑', title: 'Убрать картинку',
       note: 'отвязать картинку от слова', needsImage: true }
   ];
@@ -556,63 +555,6 @@
       '<div class="photo-row__actions">' +
       photoButtons('', !!pendingImage, false) +
       '</div></div>';
-  }
-
-  /* Окно вставки: сперва пробуем прочитать буфер сами, а если система
-     этого не позволяет — принимаем обычную вставку в поле. */
-  function openPasteImage(word, onReady) {
-    openForm({
-      title: 'Вставить картинку',
-      hint: 'Скопируйте картинку там, где вы её нарисовали, и вставьте сюда: ' +
-        'нажмите на поле ниже, подержите и выберите «Вставить».',
-      fields: [],
-      extra: '<div class="paste-zone" id="paste-zone" contenteditable="true" ' +
-        'role="textbox" aria-label="Поле для вставки картинки"></div>' +
-        '<div class="btn-row" style="margin-top:9px">' +
-        '<button type="button" class="btn btn--quiet btn--wide" data-paste-file>Взять файлом</button>' +
-        '</div>',
-      cancelText: 'Закрыть',
-      onSubmit: function () { }
-    });
-
-    var zone = document.getElementById('paste-zone');
-
-    function accept(promise) {
-      if (!promise) return;
-      promise.then(function (dataUrl) {
-        closeModal();
-        onReady(dataUrl);
-      }, function (error) { toast(error.message); });
-    }
-
-    /* Сразу пробуем взять картинку из буфера — иногда это разрешено. */
-    window.Media.readClipboardImage().then(function (dataUrl) {
-      closeModal();
-      onReady(dataUrl);
-    }, function () {
-      if (zone) setTimeout(function () { zone.focus(); }, 80);
-    });
-
-    if (zone) {
-      zone.addEventListener('paste', function (event) {
-        var result = window.Media.imageFromPaste(event);
-        if (result) {
-          event.preventDefault();
-          accept(result);
-        } else {
-          setTimeout(function () { zone.innerHTML = ''; }, 0);
-          toast('В буфере нет картинки — скопируйте саму картинку');
-        }
-      });
-    }
-
-    modalRoot.querySelector('[data-paste-file]').addEventListener('click', function () {
-      window.Media.pickFromDevice().then(function (dataUrl) {
-        if (!dataUrl) return;
-        closeModal();
-        onReady(dataUrl);
-      }, function (error) { toast(error.message); });
-    });
   }
 
   function copyPromptFor(word, translation) {
@@ -1557,14 +1499,6 @@
       );
     });
 
-    var pasteButton = modalRoot.querySelector('[data-edit-photo-paste]');
-    if (pasteButton) pasteButton.addEventListener('click', function () {
-      var deField = document.getElementById('f-de');
-      openPasteImage(deField ? deField.value.trim() : word.de, function (dataUrl) {
-        attach(dataUrl, 'ai');
-      });
-    });
-
     var drop = modalRoot.querySelector('[data-edit-photo-drop]');
     if (drop) drop.addEventListener('click', function () {
       Store.setWordImage(wordId, null);
@@ -2071,16 +2005,6 @@
       var promptDe = document.getElementById('input-de');
       var promptRu = document.getElementById('input-ru');
       copyPromptFor(promptDe ? promptDe.value.trim() : '', promptRu ? promptRu.value.trim() : '');
-      return;
-    }
-
-    if (target.closest('[data-photo-paste]')) {
-      var pasteDe = document.getElementById('input-de');
-      openPasteImage(pasteDe ? pasteDe.value.trim() : '', function (dataUrl) {
-        pendingImage = dataUrl;
-        refreshPhotoRow();
-        toast('Картинка вставлена');
-      });
       return;
     }
 

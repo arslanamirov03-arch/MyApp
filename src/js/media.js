@@ -151,54 +151,6 @@ window.Media = (function () {
     });
   }
 
-  function blobToDataUrl(blob) {
-    return new Promise(function (resolve, reject) {
-      var reader = new FileReader();
-      reader.onload = function () { resolve(String(reader.result)); };
-      reader.onerror = function () { reject(new Error('не удалось прочитать картинку')); };
-      reader.readAsDataURL(blob);
-    });
-  }
-
-  /* Картинка из буфера. Прямое чтение доступно не везде, поэтому
-     запасным путём остаётся обычная вставка в поле. */
-  function readClipboardImage() {
-    if (!navigator.clipboard || !navigator.clipboard.read) {
-      return Promise.reject(new Error('Буфер напрямую недоступен'));
-    }
-    return navigator.clipboard.read().then(function (items) {
-      for (var i = 0; i < items.length; i++) {
-        var types = items[i].types || [];
-        for (var t = 0; t < types.length; t++) {
-          if (types[t].indexOf('image/') === 0) {
-            return items[i].getType(types[t]).then(blobToDataUrl).then(shrink);
-          }
-        }
-      }
-      throw new Error('В буфере нет картинки');
-    });
-  }
-
-  /* Картинка из события вставки — работает даже там, где чтение буфера закрыто. */
-  function imageFromPaste(event) {
-    var data = event.clipboardData || window.clipboardData;
-    if (!data) return null;
-
-    var items = data.items || [];
-    for (var i = 0; i < items.length; i++) {
-      if (items[i].kind === 'file' && items[i].type.indexOf('image/') === 0) {
-        var file = items[i].getAsFile();
-        if (file) return blobToDataUrl(file).then(shrink);
-      }
-    }
-
-    var files = data.files || [];
-    if (files.length && files[0].type.indexOf('image/') === 0) {
-      return blobToDataUrl(files[0]).then(shrink);
-    }
-    return null;
-  }
-
   /* Ужимаем картинку: полноразмерная не нужна, а места занимает много. */
   function shrink(dataUrl) {
     return new Promise(function (resolve, reject) {
@@ -406,8 +358,6 @@ window.Media = (function () {
     draw: draw,
     generateSmart: generateSmart,
     copyPrompt: copyPrompt,
-    readClipboardImage: readClipboardImage,
-    imageFromPaste: imageFromPaste,
     pickFromDevice: pickFromDevice,
     shrink: shrink,
     hasKey: hasKey,

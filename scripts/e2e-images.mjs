@@ -115,7 +115,7 @@ const symbols = await page.evaluate(() => [...document.querySelectorAll('#photo-
     title: el.getAttribute('title') || '',
     width: el.getBoundingClientRect().width
   })));
-check(symbols.length === 6, `Значков в полосе картинок: ${symbols.length}, ожидалось 6`);
+check(symbols.length === 5, `Значков в полосе картинок: ${symbols.length}, ожидалось 5`);
 check(symbols.every((s) => [...s.icon].length <= 2 && s.icon.length > 0),
   'На кнопке картинок осталась подпись словами: ' + symbols.map((s) => s.icon).join(' '));
 check(symbols.every((s) => s.title.length > 3), 'У значка нет пояснения при наведении');
@@ -222,32 +222,26 @@ check(/must not show the word "die Geduld"/i.test(copied),
 check(/simplicity is the rule/i.test(copied), 'В скопированном промпте нет требования простоты');
 check(copied.length > 1200, `Промпт подозрительно короткий: ${copied.length}`);
 
-/* 3c. Готовая картинка возвращается обратно вставкой */
-await page.click('[data-photo-paste]');
-await page.waitForTimeout(600);
-check(await page.locator('#paste-zone').count() === 1, 'Нет поля для вставки картинки');
+/* Отдельной кнопки вставки нет: нарисованную по этому промпту картинку
+   сохраняют в галерею и берут сюда тем же снимком. */
+check(await page.locator('[data-photo-paste]').count() === 0, 'Кнопка вставки осталась');
 
-await page.evaluate(async (base64) => {
-  const blob = await (await fetch('data:image/png;base64,' + base64)).blob();
-  const transfer = new DataTransfer();
-  transfer.items.add(new File([blob], 'drawn.png', { type: 'image/png' }));
-  document.getElementById('paste-zone').dispatchEvent(
-    new ClipboardEvent('paste', { clipboardData: transfer, bubbles: true, cancelable: true })
-  );
-}, REDDOT);
-await page.waitForTimeout(900);
-
-check(await page.locator('#paste-zone').count() === 0, 'Окно вставки не закрылось');
+const [drawnChooser] = await Promise.all([
+  page.waitForEvent('filechooser'),
+  page.click('[data-photo-pick]')
+]);
+await drawnChooser.setFiles(photoPath);
+await page.waitForTimeout(500);
 check(await page.locator('#photo-row .picture:not(.picture--empty)').count() === 1,
-  'Вставленная картинка не показана в форме');
+  'Нарисованная где-то картинка не взялась снимком');
 
 await page.click('[data-add-word]');
 await page.waitForTimeout(700);
-const pasted = await page.evaluate(() => {
+const brought = await page.evaluate(() => {
   const words = window.Store.getState().blocks[0].sets[0].words;
-  return !!words[words.length - 1].image;
+  return { count: words.length, hasImage: !!words[words.length - 1].image };
 });
-check(pasted, 'Слово со вставленной картинкой не сохранилось');
+check(brought.count === 3 && brought.hasImage, 'Слово с принесённой картинкой не сохранилось');
 
 /* 4. Картинку видно на карточке знакомства */
 await page.click('[data-start-learn]');
@@ -296,7 +290,6 @@ await page.click('.ledger__row:last-child [data-edit-word]');
 await page.waitForTimeout(400);
 check(await page.locator('.modal .picture--slot').count() === 1, 'В правке слова нет картинки');
 check(await page.locator('[data-edit-photo-prompt]').count() === 1, 'В правке слова нет кнопки промпта');
-check(await page.locator('[data-edit-photo-paste]').count() === 1, 'В правке слова нет кнопки вставки');
 check(await page.locator('[data-edit-photo-smart]').count() === 1, 'В правке слова нет умного промпта');
 
 /* И в окне правки картинка открывается касанием */
@@ -449,7 +442,7 @@ check(!(await page.locator('.legend__row').first().isVisible()),
 await page.click('.fold__head:has-text("Что означают значки")');
 await page.waitForTimeout(300);
 const legend = await page.locator('.legend__row').count();
-check(legend === 6, `В памятке значков: ${legend}, ожидалось 6`);
+check(legend === 5, `В памятке значков: ${legend}, ожидалось 5`);
 check(await page.locator('.legend__row').first().isVisible(), 'Памятка не раскрылась');
 const legendText = await page.locator('.legend').textContent();
 check(/Умный промпт/.test(legendText), 'В памятке нет умного промпта');
@@ -523,5 +516,5 @@ if (problems.length) {
   process.exit(1);
 }
 console.log('Картинки проверены: снимок, рисунок ИИ, умный промпт через текстовую модель, ' +
-  'кнопки-значки, копирование промпта, вставка готовой картинки, показ во весь экран ' +
+  'кнопки-значки, копирование промпта и возврат картинки снимком, показ во весь экран ' +
   'с увеличением и сохранением, выбор обеих моделей, свои промпты, удаление, сохранность.');
