@@ -31,19 +31,53 @@ page.on('pageerror', (e) => problems.push('Ошибка страницы: ' + e.
 const check = (condition, message) => { if (!condition) problems.push(message); };
 
 /* Перехватываем обращение к Gemini и смотрим, что именно уходит. */
+/* Рисующая и текстовая модели отвечают по-разному, поэтому и подмена
+   у них разная: одной — картинка, другой — сочинённый промпт. */
+const THOUGHT = 'A calm scene: one person quietly letting another pass ahead. ' +
+  'Flat vector illustration, warm palette, square 1:1.';
+
 let sentBody = null;
 let sentHeaders = null;
 let sentUrl = '';
+let thinkBody = null;
+let thinkUrl = '';
+let drawCalls = 0;
+
 await page.route('**generativelanguage.googleapis.com/**', async (route) => {
-  sentBody = JSON.parse(route.request().postData() || '{}');
-  sentHeaders = route.request().headers();
-  sentUrl = route.request().url();
+  const request = route.request();
+  const url = request.url();
+  sentHeaders = request.headers();
+
+  if (request.method() !== 'POST') {
+    await route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ models: [{ name: 'models/gemini-3.1-flash-image' }] })
+    });
+    return;
+  }
+
+  const body = JSON.parse(request.postData() || '{}');
+
+  if (/-image[^/]*:generateContent/.test(url)) {
+    sentBody = body;
+    sentUrl = url;
+    drawCalls++;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        candidates: [{ content: { parts: [{ inlineData: { mimeType: 'image/png', data: REDDOT } }] } }]
+      })
+    });
+    return;
+  }
+
+  thinkBody = body;
+  thinkUrl = url;
   await route.fulfill({
     status: 200,
     contentType: 'application/json',
-    body: JSON.stringify({
-      candidates: [{ content: { parts: [{ inlineData: { mimeType: 'image/png', data: REDDOT } }] } }]
-    })
+    body: JSON.stringify({ candidates: [{ content: { parts: [{ text: THOUGHT }] } }] })
   });
 });
 
@@ -73,6 +107,21 @@ await chooser.setFiles(photoPath);
 await page.waitForTimeout(500);
 check(await page.locator('#photo-row .picture:not(.picture--empty)').count() === 1,
   'Выбранный снимок не показан в форме');
+
+/* Кнопки картинок — значки без подписей, но с понятным названием */
+const symbols = await page.evaluate(() => [...document.querySelectorAll('#photo-row .sym-btn')]
+  .map((el) => ({
+    icon: el.textContent.trim(),
+    title: el.getAttribute('title') || '',
+    width: el.getBoundingClientRect().width
+  })));
+check(symbols.length === 6, `Значков в полосе картинок: ${symbols.length}, ожидалось 6`);
+check(symbols.every((s) => [...s.icon].length <= 2 && s.icon.length > 0),
+  'На кнопке картинок осталась подпись словами: ' + symbols.map((s) => s.icon).join(' '));
+check(symbols.every((s) => s.title.length > 3), 'У значка нет пояснения при наведении');
+check(symbols.every((s) => s.width <= 56), 'Значок занимает слишком много места');
+check(await page.locator('#photo-row').evaluate((el) => el.getBoundingClientRect().height) < 130,
+  'Полоса кнопок занимает слишком много места');
 
 /* Ещё не привязанная картинка тоже открывается во весь экран */
 await page.click('#photo-row .picture');
@@ -125,6 +174,29 @@ for (const kind of ['a thing', 'an action', 'a quality', 'a manner', 'an idiom',
 }
 check(sentBody.generationConfig.responseModalities[0] === 'IMAGE', 'Не запрошена картинка');
 check(sentBody.generationConfig.imageConfig.aspectRatio === '1:1', 'Не запрошен квадрат');
+
+/* 3a. Умный режим: сперва текстовая модель пишет промпт, потом по нему
+       рисует Nano Banana. Обычный промпт при этом не участвует. */
+const drawsBefore = drawCalls;
+await page.click('[data-photo-smart]');
+await page.waitForTimeout(1500);
+
+check(thinkUrl.includes('gemini-3.6-flash:generateContent'),
+  'Разбор слова ушёл не к текстовой модели: ' + thinkUrl);
+check(!/responseModalities/.test(JSON.stringify(thinkBody || {})),
+  'У текстовой модели запрошена картинка');
+const asked = thinkBody && thinkBody.contents[0].parts[0].text;
+check(/schlafen/.test(asked) && /спать/.test(asked), 'В разбор не попали слово и перевод');
+check(/Think first/i.test(asked), 'Текстовую модель не просят разобрать слово');
+check(/no explanation, no quotes/i.test(asked), 'Модель не просят ответить одним промптом');
+
+check(drawCalls === drawsBefore + 1, 'Рисующая модель вызвана не один раз');
+const drawnBy = sentBody && sentBody.contents[0].parts[0].text;
+check(drawnBy.indexOf(THOUGHT) === 0, 'Рисуют не по сочинённому промпту: ' + drawnBy.slice(0, 60));
+check(/must not show the word "schlafen"/i.test(drawnBy),
+  'В сочинённый промпт не дописан запрет на надписи');
+check(await page.locator('#photo-row .picture:not(.picture--empty)').count() === 1,
+  'Умный режим не принёс картинку');
 
 await page.click('[data-add-word]');
 await page.waitForTimeout(700);
@@ -216,11 +288,16 @@ await page.waitForTimeout(300);
 /* 5. Картинку можно убрать, и она исчезает из базы */
 await page.goBack();
 await page.waitForTimeout(400);
-await page.click('.ledger__row [data-edit-word]');
+
+/* Список идёт от нового к старому, поэтому самое первое слово — внизу */
+check((await page.locator('.ledger__de').last().textContent()).trim() === 'gehen',
+  'Внизу списка не самое первое слово');
+await page.click('.ledger__row:last-child [data-edit-word]');
 await page.waitForTimeout(400);
 check(await page.locator('.modal .picture--slot').count() === 1, 'В правке слова нет картинки');
 check(await page.locator('[data-edit-photo-prompt]').count() === 1, 'В правке слова нет кнопки промпта');
 check(await page.locator('[data-edit-photo-paste]').count() === 1, 'В правке слова нет кнопки вставки');
+check(await page.locator('[data-edit-photo-smart]').count() === 1, 'В правке слова нет умного промпта');
 
 /* И в окне правки картинка открывается касанием */
 await page.click('.modal .picture--slot');
@@ -311,33 +388,75 @@ await page.waitForTimeout(300);
 await page.click('[data-open-settings]');
 await page.waitForTimeout(300);
 
-const models = await page.locator('.model__title').allTextContents();
+const models = await page.locator('[data-models="image"] .model__title').allTextContents();
 check(models.join(' · ') === 'Nano Banana 2 · Nano Banana 2 Lite · Nano Banana Pro',
   'В настройках не те модели: ' + models.join(' · '));
 
-await page.locator('.model').nth(0).click();
+await page.locator('[data-models="image"] .model').nth(0).click();
 await page.waitForTimeout(200);
 check(await page.evaluate(() => window.Store.getModel()) === 'gemini-3.1-flash-image',
   'Выбранная модель не запомнилась');
-check(await page.locator('.model--on').count() === 1, 'Отмечена не одна модель');
+check(await page.locator('[data-models="image"] .model--on').count() === 1,
+  'В рисующих отмечена не одна модель');
 
 /* Своя модель добавляется кнопкой «+» и так же убирается */
-await page.click('[data-model-add]');
-await page.fill('#f-model', 'gemini-own-image');
-await page.click('[data-model-save]');
+await page.click('[data-model-add="image"]');
+await page.fill('[data-model-field="image"]', 'gemini-own-image');
+await page.click('[data-model-save="image"]');
 await page.waitForTimeout(300);
-check(await page.locator('.model').count() === 4, 'Своя модель не добавилась');
+check(await page.locator('[data-models="image"] .model').count() === 4, 'Своя модель не добавилась');
 check(await page.evaluate(() => window.Store.getModel()) === 'gemini-own-image',
   'Добавленная модель не выбралась');
 
 await page.click('[data-model-remove="gemini-own-image"]');
 await page.waitForTimeout(300);
-check(await page.locator('.model').count() === 3, 'Своя модель не убралась');
+check(await page.locator('[data-models="image"] .model').count() === 3, 'Своя модель не убралась');
 
-await page.locator('.model').nth(2).click();
+await page.locator('[data-models="image"] .model').nth(2).click();
 await page.waitForTimeout(200);
 
+/* 8b. Модель, пишущая промпт, выбирается отдельно */
+const thinkModels = await page.locator('[data-models="think"] .model__title').allTextContents();
+check(thinkModels.join(' · ') === 'Gemini 3.6 Flash · Gemini 3.5 Flash · Gemini 3.5 Flash Lite',
+  'Не те модели для умного промпта: ' + thinkModels.join(' · '));
+check(!thinkModels.some((t) => /pro/i.test(t)), 'В умный режим попала тяжёлая Pro');
+
+await page.locator('[data-models="think"] .model').nth(2).click();
+await page.waitForTimeout(200);
+check(await page.evaluate(() => window.Store.getThinkModel()) === 'gemini-3.5-flash-lite',
+  'Текстовая модель не выбралась');
+const bothModels = await page.evaluate(() => ({
+  image: window.Store.getModel(), think: window.Store.getThinkModel()
+}));
+check(bothModels.image !== bothModels.think, 'Выбор текстовой модели задел рисующую');
+
+await page.click('[data-model-add="think"]');
+await page.fill('[data-model-field="think"]', 'my-text-model');
+await page.click('[data-model-save="think"]');
+await page.waitForTimeout(300);
+check(await page.locator('[data-models="think"] .model').count() === 4,
+  'Своя текстовая модель не добавилась');
+check(await page.locator('[data-models="image"] .model').count() === 3,
+  'Своя текстовая модель попала в список рисующих');
+await page.click('[data-model-remove="my-text-model"]');
+await page.waitForTimeout(300);
+await page.locator('[data-models="think"] .model').nth(0).click();
+await page.waitForTimeout(200);
+
+/* 8c. Памятка по значкам — в свёрнутом разделе */
+check(!(await page.locator('.legend__row').first().isVisible()),
+  'Памятка развёрнута и растягивает окно');
+await page.click('.fold__head:has-text("Что означают значки")');
+await page.waitForTimeout(300);
+const legend = await page.locator('.legend__row').count();
+check(legend === 6, `В памятке значков: ${legend}, ожидалось 6`);
+check(await page.locator('.legend__row').first().isVisible(), 'Памятка не раскрылась');
+const legendText = await page.locator('.legend').textContent();
+check(/Умный промпт/.test(legendText), 'В памятке нет умного промпта');
+
 /* 9. Промпт правится прямо в настройках */
+await page.click('.fold__head:has-text("Промпт для картинок")');
+await page.waitForTimeout(300);
 const shownPrompt = await page.inputValue('#f-prompt');
 check(/SIMPLICITY IS THE RULE/.test(shownPrompt), 'В настройках не показан промпт');
 check(shownPrompt.includes('{слово}') && shownPrompt.includes('{перевод}'),
@@ -369,10 +488,15 @@ await page.click('#btn-archive');
 await page.waitForTimeout(300);
 await page.click('[data-open-settings]');
 await page.waitForTimeout(300);
+await page.click('.fold__head:has-text("Промпт для картинок")');
+await page.click('.fold__head:has-text("Промпт для умного режима")');
+await page.waitForTimeout(300);
 await page.click('[data-prompt-reset]');
 await page.waitForTimeout(200);
 check(/SIMPLICITY IS THE RULE/.test(await page.inputValue('#f-prompt')),
   'Стандартный промпт не вернулся в поле');
+check(/Think first/.test(await page.inputValue('#f-think-prompt')),
+  'Промпта умного режима нет в настройках');
 await page.click('#modal-form button[type="submit"]');
 await page.waitForTimeout(300);
 check(await page.evaluate(() => window.Store.getPromptTemplate()) === '',
@@ -398,5 +522,6 @@ if (problems.length) {
   problems.forEach((p) => console.error(' · ' + p));
   process.exit(1);
 }
-console.log('Картинки проверены: снимок, рисунок ИИ, копирование промпта, вставка готовой картинки, ' +
-  'показ во весь экран с увеличением и сохранением, выбор модели, свой промпт, удаление, сохранность.');
+console.log('Картинки проверены: снимок, рисунок ИИ, умный промпт через текстовую модель, ' +
+  'кнопки-значки, копирование промпта, вставка готовой картинки, показ во весь экран ' +
+  'с увеличением и сохранением, выбор обеих моделей, свои промпты, удаление, сохранность.');

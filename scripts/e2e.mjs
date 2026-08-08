@@ -70,10 +70,66 @@ check(crumbBack && crumbBack.text === '' && crumbBack.arrows === 1 && crumbBack.
   `Стрелка возврата в пути не та: ${JSON.stringify(crumbBack)}`);
 
 check((await page.locator('.gauge__value').textContent()).includes('6 / 500'), 'Счётчик заполнения неверен');
-check((await page.locator('.ledger__de').last().textContent()).trim() === 'der Beschluss',
-  'Нумерация из вставленной строки не отброшена');
+/* Последнее добавленное слово стоит первым, но номер у него настоящий —
+   шестой, тот же, что в выгруженном файле. Нумерация «6.» из вставленной
+   строки при этом отброшена. */
+const topRow = await page.evaluate(() => {
+  const row = document.querySelector('.ledger__row');
+  return {
+    de: row.querySelector('.ledger__de').textContent.trim(),
+    no: row.querySelector('.ledger__no').textContent.trim()
+  };
+});
+check(topRow.de === 'der Beschluss', `Сверху списка не последнее слово: «${topRow.de}»`);
+check(topRow.no === '6', `Номер у верхней строки не настоящий: ${topRow.no}`);
+check((await page.locator('.ledger__de').last().textContent()).trim() === 'die Ordnung',
+  'Внизу списка не самое первое добавленное слово');
 
 await page.screenshot({ path: join(outDir, '03-words.png'), fullPage: true });
+
+/* 2b. Блоки независимы: учат внутри блока, а общий экран только считает.
+       Заводим второй блок со своими словами и смотрим, что счёт у каждого свой. */
+await page.click('[data-go-blocks]');
+await page.waitForTimeout(400);
+await page.click('#fab');
+await page.fill('#f-title', 'Французские слова');
+await page.click('#modal-form button[type="submit"]');
+await page.waitForTimeout(300);
+await page.click('#fab');
+await page.fill('#f-title', 'Список 1');
+await page.click('#modal-form button[type="submit"]');
+await page.waitForTimeout(300);
+for (const [de, ru] of [['la porte', 'дверь'], ['la table', 'стол']]) {
+  await page.fill('#input-de', de);
+  await page.fill('#input-ru', ru);
+  await page.press('#input-ru', 'Enter');
+  await page.waitForTimeout(150);
+}
+
+await page.click('[data-go-blocks]');
+await page.waitForTimeout(400);
+check(await page.locator('[data-start-learn]').count() === 0,
+  'На общем экране предлагают учить слова всех блоков сразу');
+check(await page.locator('[data-start-drill]').count() === 0,
+  'На общем экране предлагают общий разбор');
+
+const chips = await page.evaluate(() => [...document.querySelectorAll('.card')].map((card) => ({
+  title: card.querySelector('.card__title').textContent.trim(),
+  chips: (card.querySelector('.card__chips') || {}).textContent || ''
+})));
+const german = chips.find((c) => c.title === 'German Words B1');
+const french = chips.find((c) => c.title === 'Французские слова');
+check(/6 новых/.test(german.chips), `У немецкого блока не свой счёт: «${german.chips}»`);
+check(/2 новых/.test(french.chips), `У французского блока не свой счёт: «${french.chips}»`);
+
+/* Внутри блока учить можно, и берутся только его слова */
+await page.click('.card');
+await page.waitForTimeout(400);
+check(await page.locator('[data-start-learn]').count() === 1, 'Внутри блока нельзя начать учить');
+check(/6 новых/.test(await page.locator('.call__title').textContent()),
+  'В блоке считаются слова других блоков');
+await page.click('.card');
+await page.waitForTimeout(400);
 
 /* 3. Выгрузки */
 for (const [selector, name] of [['[data-export="pdf"]', 'spisok.pdf'], ['[data-export="docx"]', 'spisok.docx']]) {
@@ -190,11 +246,12 @@ await page.screenshot({ path: join(outDir, '08-wrong.png'), fullPage: false });
 await page.click('[data-drill-size]');
 await page.waitForTimeout(400);
 check(await page.locator('#size-panel').count() === 1, 'Панель размеров не открылась');
-check(await page.locator('[data-size="text"]').count() === 1, 'Нет ползунка размера текста');
-check(await page.locator('[data-size="image"]').count() === 1, 'Нет ползунка размера картинки');
+for (const kind of ['image', 'input', 'word', 'translation']) {
+  check(await page.locator(`[data-size="${kind}"]`).count() === 1, `Нет ползунка «${kind}»`);
+}
 
 const steps = await page.evaluate(() => {
-  const slider = document.querySelector('[data-size="text"]');
+  const slider = document.querySelector('[data-size="word"]');
   return (Number(slider.max) - Number(slider.min)) / Number(slider.step);
 });
 check(steps >= 20, `Размеров всего ${steps + 1} — должно быть много`);
@@ -214,30 +271,41 @@ const fontOf = (selector) => page.evaluate((sel) => {
   return el ? parseFloat(getComputedStyle(el).fontSize) : 0;
 }, selector);
 
+/* Перевод и само слово тянутся врозь: на карточке разбора виден
+   и перевод (.drill__prompt), и правильное слово (.verdict__word) */
 const promptSmall = await fontOf('.drill__prompt');
 const wordSmall = await fontOf('.verdict__word');
-await setSize('text', 200);
-const promptBig = await fontOf('.drill__prompt');
-const wordBig = await fontOf('.verdict__word');
-check(promptBig > promptSmall * 1.5, `Перевод не вырос: ${promptSmall} → ${promptBig}`);
-check(wordBig > wordSmall * 1.5, `Ответ на карточке не вырос: ${wordSmall} → ${wordBig}`);
 
-/* Текст и картинка настраиваются независимо друг от друга */
+await setSize('translation', 200);
+check(await fontOf('.drill__prompt') > promptSmall * 1.5,
+  `Перевод не вырос: ${promptSmall} → ${await fontOf('.drill__prompt')}`);
+check(Math.abs(await fontOf('.verdict__word') - wordSmall) < 0.5,
+  'Слово выросло вместе с переводом, хотя ползунок был не его');
+
+await setSize('word', 200);
+check(await fontOf('.verdict__word') > wordSmall * 1.5,
+  `Слово не выросло: ${wordSmall} → ${await fontOf('.verdict__word')}`);
+
+/* Все четыре размера запоминаются порознь */
 await setSize('image', 140);
-const scales = await page.evaluate(() => ({
-  text: window.Store.getTextScale(),
-  image: window.Store.getImageScale()
-}));
-check(Math.abs(scales.text - 2) < 0.01 && Math.abs(scales.image - 1.4) < 0.01,
+const scales = await page.evaluate(() =>
+  window.Store.SCALE_KINDS.reduce((all, kind) => {
+    all[kind] = window.Store.getScale(kind);
+    return all;
+  }, {}));
+check(Math.abs(scales.translation - 2) < 0.01 && Math.abs(scales.word - 2) < 0.01 &&
+  Math.abs(scales.image - 1.4) < 0.01 && Math.abs(scales.input - 1) < 0.01,
   `Размеры сохранились неверно: ${JSON.stringify(scales)}`);
 
 /* На самом крупном размере карточка всё равно не едет вбок */
-await setSize('text', 240);
+await setSize('translation', 240);
+await setSize('word', 240);
 const wideText = await page.evaluate(() => [...document.querySelectorAll('.drill *')]
   .filter((el) => el.getBoundingClientRect().right > window.innerWidth + 1)
   .map((el) => el.className).slice(0, 4));
 check(wideText.length === 0, `На крупном тексте вылезают: ${wideText.join(', ')}`);
-await setSize('text', 200);
+await setSize('translation', 100);
+await setSize('word', 100);
 
 /* «Забыл» возвращает слово в начало лестницы и в конец очереди */
 const queueBefore = await page.evaluate(() => document.querySelector('.drill__eyebrow').textContent);
@@ -252,12 +320,16 @@ const forgotten = await page.evaluate((ru) => {
 check(forgotten.level === 0, `После «забыл» уровень должен быть 0, получено ${forgotten.level}`);
 check(forgotten.lapses === 1, 'Не засчитан срыв');
 
-/* Поле ответа растёт вместе с текстом — и стоит выше перевода,
+/* Поле ответа тянется своим ползунком — и стоит выше перевода,
    чтобы клавиатура не подбрасывала карточку. */
-const answerBig = await fontOf('.answer__text');
-await setSize('text', 100);
 const answerSmall = await fontOf('.answer__text');
-check(answerBig > answerSmall * 1.5, `Поле ответа не тянется за текстом: ${answerSmall} → ${answerBig}`);
+const promptBefore = await fontOf('.drill__prompt');
+await setSize('input', 200);
+const answerBig = await fontOf('.answer__text');
+check(answerBig > answerSmall * 1.5, `Поле ответа не тянется своим ползунком: ${answerSmall} → ${answerBig}`);
+check(Math.abs(await fontOf('.drill__prompt') - promptBefore) < 0.5,
+  'Перевод вырос вместе с полем ввода, хотя ползунок был не его');
+await setSize('input', 100);
 
 const order = await page.evaluate(() => {
   const card = document.querySelector('.drill');

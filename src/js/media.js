@@ -6,6 +6,7 @@ window.Media = (function () {
 
   var ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/';
   var DEFAULT_MODEL = 'gemini-3.1-flash-lite-image';
+  var DEFAULT_THINK_MODEL = 'gemini-3.6-flash';
   var MAX_SIDE = 640;
   var QUALITY = 0.82;
 
@@ -53,6 +54,34 @@ window.Media = (function () {
     ', or any form of either, anywhere. Other incidental text is acceptable, ' +
     'but keep it to a minimum.';
 
+  /* Умный режим. Обычный промпт хорошо справляется с предметом, но на
+     действии, качестве, чувстве или идиоме часто промахивается. Тогда за
+     дело берётся текстовая модель: она разбирает слово и сама сочиняет
+     описание сцены, которую нельзя понять неправильно, — а рисует по нему
+     всё та же Nano Banana. Стиль и запрет на надписи остаются прежними. */
+  var DEFAULT_THINK_PROMPT =
+    'You write prompts for an image model that draws one picture for a vocabulary card.\n\n' +
+    'WORD: "' + SLOT_WORD + '"\n' +
+    'MEANING: ' + SLOT_MEANING + '\n\n' +
+    'Think first. What kind of word is this — a thing, an action, a quality, a manner, ' +
+    'a feeling, an abstract idea, an idiom? Is it concrete or abstract? What single ' +
+    'everyday scene would make its meaning obvious in one second to someone who does not ' +
+    'know the word and cannot read a caption? A plain prompt copes with things, but fails ' +
+    'on actions, qualities, feelings and idioms — your work is to find the one scene that ' +
+    'cannot be misread.\n\n' +
+    'Then write a single image prompt in English describing that scene concretely: who is ' +
+    'in the frame, what they are doing, what surrounds them, and what exactly makes the ' +
+    'meaning unmistakable. Prefer people in ordinary situations over symbols.\n\n' +
+    'Your prompt must keep these rules word for word:\n' +
+    '- SIMPLICITY: as few elements as possible. No arrows, no motion lines, no split ' +
+    'screens, no before-and-after pairs, no decorative extras.\n' +
+    '- STYLE: flat vector illustration, clean simple shapes, warm palette of terracotta, ' +
+    'sage green, sand and cream, plain light background, one clear subject, plenty of ' +
+    'empty space. Square, 1:1.\n' +
+    '- NO TEXT: the picture must not show the word "' + SLOT_WORD + '" or its translation "' +
+    SLOT_MEANING + '", or any form of either, anywhere.\n\n' +
+    'Answer with the prompt itself and nothing else — no explanation, no quotes, no headings.';
+
   function escapeSlot(slot) {
     return slot.replace(/[{}]/g, function (ch) { return '\\' + ch; });
   }
@@ -81,6 +110,15 @@ window.Media = (function () {
 
   function buildPrompt(word, translation) {
     return fillPrompt(template(), word, translation);
+  }
+
+  function thinkTemplate() {
+    var own = window.Store.getThinkTemplate && window.Store.getThinkTemplate();
+    return own || DEFAULT_THINK_PROMPT;
+  }
+
+  function buildThinkPrompt(word, translation) {
+    return fillPrompt(thinkTemplate(), word, translation);
   }
 
   /* ---------- Обмен через буфер ---------- */
@@ -216,21 +254,13 @@ window.Media = (function () {
 
   function hasKey() { return !!window.Store.getApiKey(); }
 
-  /* Рисунок от Gemini. Ключ хранится на устройстве и в копию не попадает. */
-  function generate(word, translation, model) {
+  /* Один разговор с Gemini: тело запроса уходит, ответ разбирается,
+     невнятные ошибки переводятся на человеческий. */
+  function ask(model, body) {
     var key = window.Store.getApiKey();
     if (!key) return Promise.reject(new Error('Сначала укажите ключ Google AI в настройках'));
 
-    var url = ENDPOINT + (model || window.Store.getModel() || DEFAULT_MODEL) + ':generateContent';
-    var body = {
-      contents: [{ parts: [{ text: buildPrompt(word, translation) }] }],
-      generationConfig: {
-        responseModalities: ['IMAGE'],
-        imageConfig: { aspectRatio: '1:1' }
-      }
-    };
-
-    return fetch(url, {
+    return fetch(ENDPOINT + model + ':generateContent', {
       method: 'POST',
       headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
@@ -244,23 +274,13 @@ window.Media = (function () {
           if (response.status === 429) {
             throw new Error('Слишком часто — подождите немного и попробуйте снова');
           }
+          if (response.status === 404) {
+            throw new Error('Модель «' + model + '» недоступна — выберите другую в настройках');
+          }
           throw new Error(message);
         }
         return data;
       });
-    }).then(function (data) {
-      var parts = (data.candidates && data.candidates[0] &&
-        data.candidates[0].content && data.candidates[0].content.parts) || [];
-      var picture = null;
-      for (var i = 0; i < parts.length; i++) {
-        var inline = parts[i].inlineData || parts[i].inline_data;
-        if (inline && inline.data) {
-          picture = 'data:' + (inline.mimeType || inline.mime_type || 'image/png') + ';base64,' + inline.data;
-          break;
-        }
-      }
-      if (!picture) throw new Error('Модель не вернула картинку — попробуйте ещё раз');
-      return shrink(picture);
     }, function (error) {
       /* Страница без доступа в сеть (например, опубликованная копия
          с ограничениями) сообщает об этом невнятно — переводим. */
@@ -268,6 +288,82 @@ window.Media = (function () {
         throw new Error('Нет доступа к серверу Google с этой страницы');
       }
       throw error;
+    });
+  }
+
+  function partsOf(data) {
+    return (data.candidates && data.candidates[0] &&
+      data.candidates[0].content && data.candidates[0].content.parts) || [];
+  }
+
+  /* Рисунок по готовому промпту. Ключ хранится на устройстве и в копию не попадает. */
+  function draw(promptText, model) {
+    return ask(model || window.Store.getModel() || DEFAULT_MODEL, {
+      contents: [{ parts: [{ text: promptText }] }],
+      generationConfig: {
+        responseModalities: ['IMAGE'],
+        imageConfig: { aspectRatio: '1:1' }
+      }
+    }).then(function (data) {
+      var parts = partsOf(data);
+      var picture = null;
+      for (var i = 0; i < parts.length; i++) {
+        var inline = parts[i].inlineData || parts[i].inline_data;
+        if (inline && inline.data) {
+          picture = 'data:' + (inline.mimeType || inline.mime_type || 'image/png') +
+            ';base64,' + inline.data;
+          break;
+        }
+      }
+      if (!picture) throw new Error('Модель не вернула картинку — попробуйте ещё раз');
+      return shrink(picture);
+    });
+  }
+
+  function generate(word, translation, model) {
+    return draw(buildPrompt(word, translation), model);
+  }
+
+  /* Модель отвечает текстом — иногда обрамляя его кавычками или разметкой. */
+  function plainText(data) {
+    var parts = partsOf(data);
+    var text = '';
+    for (var i = 0; i < parts.length; i++) {
+      if (typeof parts[i].text === 'string') text += parts[i].text;
+    }
+    text = text.trim()
+      .replace(/^```[a-z]*\s*/i, '')
+      .replace(/```$/, '')
+      .trim();
+    if (text.length > 1 && /^["«'][\s\S]*["»']$/.test(text)) text = text.slice(1, -1).trim();
+    return text;
+  }
+
+  /* Умный промпт: текстовая модель разбирает слово и пишет описание сама. */
+  function think(word, translation, model) {
+    return ask(model || window.Store.getThinkModel() || DEFAULT_THINK_MODEL, {
+      contents: [{ parts: [{ text: buildThinkPrompt(word, translation) }] }]
+    }).then(function (data) {
+      var text = plainText(data);
+      if (!text) throw new Error('Модель не написала промпт — попробуйте ещё раз');
+      return guardText(text, word, translation);
+    });
+  }
+
+  /* Подстраховка: если сочинённый промпт забыл запретить надписи,
+     дописываем запрет сами — слово на картинке сводит проверку на нет. */
+  function guardText(promptText, word, translation) {
+    if (/must not show|no text|without any text/i.test(promptText)) return promptText;
+    return promptText + '\n\nNO TEXT: the picture must not show the word "' + word + '"' +
+      (translation ? ' or its translation "' + translation + '"' : '') +
+      ', or any form of either, anywhere.';
+  }
+
+  /* Весь умный путь целиком: разбор слова, свой промпт, рисунок по нему. */
+  function generateSmart(word, translation, onPrompt) {
+    return think(word, translation).then(function (promptText) {
+      if (onPrompt) onPrompt(promptText);
+      return draw(promptText);
     });
   }
 
@@ -303,6 +399,12 @@ window.Media = (function () {
     SLOT_MEANING: SLOT_MEANING,
     fillPrompt: fillPrompt,
     buildPrompt: buildPrompt,
+    DEFAULT_THINK_PROMPT: DEFAULT_THINK_PROMPT,
+    DEFAULT_THINK_MODEL: DEFAULT_THINK_MODEL,
+    buildThinkPrompt: buildThinkPrompt,
+    think: think,
+    draw: draw,
+    generateSmart: generateSmart,
     copyPrompt: copyPrompt,
     readClipboardImage: readClipboardImage,
     imageFromPaste: imageFromPaste,

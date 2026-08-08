@@ -343,6 +343,16 @@ body::after {
   gap: 12px;
 }
 
+/* Значки блока: сколько ждёт разбора и сколько новых — счёт у каждого
+   раздела свой, поэтому и стоят они на самой карточке. */
+.card__chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 5px;
+  flex: 0 1 auto;
+}
+
 .card__title {
   margin: 0;
   font-family: var(--display);
@@ -618,6 +628,44 @@ body::after {
 
 .setting { margin: 17px 0 3px; }
 
+/* Длинные разделы — промпты и памятка — свёрнуты: открываются, когда нужны,
+   и не растягивают окно на три экрана. */
+.fold {
+  margin: 12px 0 3px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--glass-edge);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.fold__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-soft);
+  cursor: pointer;
+  list-style: none;
+  transition: color .3s ease;
+}
+
+.fold__head::-webkit-details-marker { display: none; }
+.fold__head:hover { color: var(--accent); }
+
+.fold__head::after {
+  content: "＋";
+  margin-left: auto;
+  font-size: 15px;
+  color: var(--ink-faint);
+}
+
+.fold[open] .fold__head::after { content: "－"; }
+
+.fold__body { padding: 0 14px 14px; }
+.fold__body .setting { margin: 0; }
+
 .setting__head {
   display: flex;
   align-items: center;
@@ -842,17 +890,61 @@ body::after {
 .photo-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   margin-bottom: 11px;
 }
 
 .photo-row__actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 7px;
 }
 
 .modal .photo-row { margin: 4px 0 6px; }
+
+/* Кнопка-значок: подпись съедала бы всю строку, а рисунок понятен сразу.
+   Расшифровка значков лежит в настройках. */
+.sym-btn {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: var(--radius-sm);
+  font-size: 20px;
+  line-height: 1;
+  background: var(--surface-2);
+  border: 1px solid var(--glass-edge);
+  box-shadow: inset 0 1px 0 var(--glass-inner);
+  cursor: pointer;
+  transition: transform .34s cubic-bezier(.16, .84, .44, 1), background .32s ease;
+}
+
+.sym-btn:hover { transform: translateY(-1px); background: var(--surface-1); }
+.sym-btn:active { transform: scale(.92); }
+
+/* Памятка: значок и что он делает. */
+.legend { display: grid; gap: 9px; }
+
+.legend__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--glass-edge);
+}
+
+.legend__icon { font-size: 19px; line-height: 1.3; flex: 0 0 auto; }
+
+.legend__text {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+.legend__text b { color: var(--ink); font-weight: 600; }
 
 /* Поле для вставки картинки: сюда её кладут долгим нажатием. */
 .paste-zone {
@@ -1060,17 +1152,23 @@ body::after {
 /* Размеры тянутся плавно и порознь: текст с полем ответа — своим
    множителем, картинка — своим. Настройка живёт в самой карточке. */
 .drill {
-  --drill-text: 1;
   --drill-image: 1;
+  --drill-input: 1;
+  --drill-word: 1;
+  --drill-translation: 1;
 }
 
-.drill .drill__prompt { font-size: calc(clamp(26px, 7vw, 34px) * var(--drill-text)); }
-.drill .learn__translation { font-size: calc(17px * var(--drill-text)); }
-.drill .verdict__word { font-size: calc(24px * var(--drill-text)); }
-.drill .answer { min-height: calc(58px * var(--drill-text)); margin-top: 15px; }
+.drill .answer { min-height: calc(58px * var(--drill-input)); margin-top: 15px; }
 .drill .answer__text,
-.drill .answer__hint { font-size: calc(21px * var(--drill-text)); }
-.drill .answer__caret { height: calc(24px * var(--drill-text)); }
+.drill .answer__hint { font-size: calc(21px * var(--drill-input)); }
+.drill .answer__caret { height: calc(24px * var(--drill-input)); }
+
+/* Слово и перевод меняются каждый сам по себе — правила идут после
+   размеров по умолчанию, поэтому и берут верх. */
+.drill .drill__word { font-size: calc(clamp(26px, 7vw, 34px) * var(--drill-word)); }
+.drill .verdict__word { font-size: calc(24px * var(--drill-word)); }
+.drill .drill__prompt.drill__translation { font-size: calc(clamp(26px, 7vw, 34px) * var(--drill-translation)); }
+.drill .learn__translation { font-size: calc(17px * var(--drill-translation)); }
 
 .drill .picture--card {
   width: min(calc(240px * var(--drill-image)), 88vw);

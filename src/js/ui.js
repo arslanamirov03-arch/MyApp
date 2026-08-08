@@ -213,6 +213,14 @@
     return '<span class="chip chip--due"><span class="chip__dot"></span>' + count + ' к разбору</span>';
   }
 
+  /* Новые слова разбираются внутри своего раздела, поэтому снаружи о них
+     говорит значок: сколько ждёт и где именно. */
+  function freshChip(count) {
+    if (!count) return '';
+    return '<span class="chip chip--calm">' + count + ' ' +
+      plural(count, 'новое', 'новых', 'новых') + '</span>';
+  }
+
   /* ---------- Картинки ---------- */
 
   /* Картинки лежат в базе, поэтому в разметку идёт только их номер,
@@ -256,8 +264,7 @@
     var value = screenEl.querySelector('[data-size-value="' + kind + '"]');
     if (value) value.textContent = Math.round(scale * 100) + '%';
 
-    if (kind === 'image') Store.setImageScale(scale);
-    else Store.setTextScale(scale);
+    Store.setScale(kind, scale);
   }
 
   /* ---------- Картинка во весь экран ---------- */
@@ -509,6 +516,35 @@
     toast('Картинка сохранена');
   }
 
+  /* Значки вместо подписей: слова занимали всю строку, а рисунок понятен
+     и с одного взгляда. Что означает каждый — написано в настройках. */
+  var PHOTO_ACTIONS = [
+    { name: 'photo-pick', icon: '📷', title: 'Снимок с устройства',
+      note: 'взять готовый снимок из галереи или камеры' },
+    { name: 'photo-ai', icon: '🎨', title: 'Нарисовать ИИ',
+      note: 'обычный промпт: хорошо справляется с предметами' },
+    { name: 'photo-smart', icon: '🧠', title: 'Умный промпт',
+      note: 'ИИ сам разберёт слово и напишет промпт — для действий, ' +
+        'качеств, чувств и идиом, где обычный промах' },
+    { name: 'photo-prompt', icon: '📋', title: 'Скопировать промпт',
+      note: 'промпт уходит в буфер — нарисовать картинку можно бесплатно где угодно' },
+    { name: 'photo-paste', icon: '📥', title: 'Вставить картинку',
+      note: 'принять нарисованную где-то картинку обратно' },
+    { name: 'photo-drop', icon: '🗑', title: 'Убрать картинку',
+      note: 'отвязать картинку от слова', needsImage: true }
+  ];
+
+  function photoButtons(prefix, hasImage, inForm) {
+    return PHOTO_ACTIONS.filter(function (action) {
+      return hasImage || !action.needsImage;
+    }).map(function (action) {
+      return '<button' + (inForm ? ' type="button"' : '') + ' class="sym-btn" data-' +
+        prefix + action.name +
+        ' title="' + esc(action.title) + '" aria-label="' + esc(action.title) + '">' +
+        action.icon + '</button>';
+    }).join('');
+  }
+
   /* Полоса под формой ввода. Кроме готовой генерации есть путь без затрат:
      скопировать промпт, нарисовать картинку где угодно и вставить обратно. */
   function photoRow() {
@@ -518,11 +554,7 @@
           'title="Открыть во весь экран" style="background-image:url(' + pendingImage + ')"></span>'
         : '<span class="picture picture--slot picture--empty" aria-hidden="true"></span>') +
       '<div class="photo-row__actions">' +
-      '<button class="btn btn--quiet" data-photo-pick>Фото</button>' +
-      '<button class="btn btn--quiet" data-photo-ai>Создать ИИ</button>' +
-      '<button class="btn btn--quiet" data-photo-prompt>Промпт</button>' +
-      '<button class="btn btn--quiet" data-photo-paste>Вставить</button>' +
-      (pendingImage ? '<button class="btn btn--quiet" data-photo-drop>Убрать</button>' : '') +
+      photoButtons('', !!pendingImage, false) +
       '</div></div>';
   }
 
@@ -670,17 +702,20 @@
       return;
     }
 
+    /* Блоки живут порознь: учат и разбирают внутри блока, а на общем
+       экране блок только сообщает, сколько его слов ждёт. Иначе немецкий
+       и французский перемешались бы в одном разборе. */
     html += summaryBlock({});
-    html += learnBlock({});
-    html += callBlock({});
     html += '<h2 class="section-title">Блоки<span class="section-title__note">' +
       blocks.length + '</span></h2>';
 
     blocks.forEach(function (block) {
       var words = Store.countWords(block);
-      var due = Store.dueCount({ blockId: block.id });
+      var scope = { blockId: block.id };
+      var due = Store.dueCount(scope);
       html += '<article class="glass card" data-id="' + block.id + '" data-open-block="' + block.id + '">' +
-        '<div class="card__head"><h3 class="card__title">' + esc(block.title) + '</h3>' + dueChip(due) + '</div>' +
+        '<div class="card__head"><h3 class="card__title">' + esc(block.title) + '</h3>' +
+        '<span class="card__chips">' + dueChip(due) + freshChip(Store.freshCount(scope)) + '</span></div>' +
         '<div class="card__meta">' +
         '<span>' + block.sets.length + ' ' + plural(block.sets.length, 'список', 'списка', 'списков') + '</span>' +
         '<span>' + words + ' ' + plural(words, 'слово', 'слова', 'слов') + '</span>' +
@@ -718,10 +753,12 @@
 
     block.sets.forEach(function (set) {
       var count = set.words.length;
-      var due = Store.dueCount({ blockId: block.id, setId: set.id });
+      var setScope = { blockId: block.id, setId: set.id };
+      var due = Store.dueCount(setScope);
       var full = count >= MAX;
       html += '<article class="glass card" data-id="' + set.id + '" data-open-set="' + set.id + '">' +
-        '<div class="card__head"><h3 class="card__title">' + esc(set.title) + '</h3>' + dueChip(due) + '</div>' +
+        '<div class="card__head"><h3 class="card__title">' + esc(set.title) + '</h3>' +
+        '<span class="card__chips">' + dueChip(due) + freshChip(Store.freshCount(setScope)) + '</span></div>' +
         '<div class="card__meta">' +
         '<span>' + count + ' / ' + MAX + '</span>' +
         '<span>' + (full ? 'список заполнен' : 'свободно ' + (MAX - count)) + '</span>' +
@@ -821,7 +858,15 @@
         repeats.set(key, (repeats.get(key) || 0) + 1);
       });
 
-      set.words.forEach(function (word, index) {
+      /* Свежая запись стоит первой: только что добавленное слово видно
+         сразу, без прокрутки в конец. Номер при этом остаётся настоящим —
+         тем же, что в выгруженном файле. */
+      var listed = set.words.map(function (word, index) {
+        return { word: word, no: index + 1 };
+      }).reverse();
+
+      listed.forEach(function (item) {
+        var word = item.word;
         if (needle &&
           word.de.toLowerCase().indexOf(needle) < 0 &&
           word.ru.toLowerCase().indexOf(needle) < 0) return;
@@ -833,7 +878,7 @@
         var note = word.ru ? esc(word.ru) : '<span style="opacity:.65">нет перевода — в разбор не попадёт</span>';
 
         rows += '<div class="ledger__row" data-id="' + word.id + '" data-row="' + word.id + '">' +
-          '<div class="ledger__no">' + (index + 1) + '</div>' +
+          '<div class="ledger__no">' + item.no + '</div>' +
           '<div class="ledger__de">' + esc(word.de) + '</div>' +
           '<div class="ledger__meta">' +
           '<span class="ledger__ru">' + note + '</span>' +
@@ -879,30 +924,38 @@
       (sizePanelOpen ? sizePanel() : '');
   }
 
-  /* Размеры тянутся плавно и порознь: перевод с полем ответа — одним
-     ползунком, картинка — другим. Карточка меняется прямо под рукой. */
+  /* Каждая часть карточки тянется своим ползунком: картинка, поле ввода,
+     само слово и перевод. Удобный размер у каждой из них свой. */
+  var SIZE_ROWS = [
+    { kind: 'image', label: 'Картинка' },
+    { kind: 'input', label: 'Поле ввода' },
+    { kind: 'word', label: 'Слово' },
+    { kind: 'translation', label: 'Перевод' }
+  ];
+
   function sizePanel() {
     return '<section class="glass sizes" id="size-panel">' +
-      sizeRow('text', 'Текст и поле ответа', Store.getTextScale()) +
-      sizeRow('image', 'Картинка', Store.getImageScale()) +
+      SIZE_ROWS.map(function (row) { return sizeRow(row.kind, row.label); }).join('') +
       '</section>';
   }
 
-  function sizeRow(kind, label, value) {
-    var percent = Math.round(value * 100);
+  function sizeRow(kind, label) {
+    var percent = Math.round(Store.getScale(kind) * 100);
     return '<div class="sizes__row">' +
       '<div class="sizes__head"><span>' + label + '</span>' +
       '<span class="sizes__value" data-size-value="' + kind + '">' + percent + '%</span></div>' +
       '<input class="slider" type="range" min="60" max="240" step="4" value="' + percent + '" ' +
-      'data-size="' + kind + '" aria-label="' + esc(label) + '">' +
+      'data-size="' + kind + '" aria-label="Размер: ' + esc(label) + '">' +
       '</div>';
   }
 
   /* Размеры живут в самой карточке: так их можно менять на ходу,
      не перерисовывая экран под пальцем. */
   function drillAttrs(dataId) {
-    return 'class="glass drill" style="--drill-text:' + Store.getTextScale().toFixed(2) +
-      ';--drill-image:' + Store.getImageScale().toFixed(2) + '"' +
+    var style = Store.SCALE_KINDS.map(function (kind) {
+      return '--drill-' + kind + ':' + Store.getScale(kind).toFixed(2);
+    }).join(';');
+    return 'class="glass drill" style="' + style + '"' +
       (dataId ? ' data-id="' + dataId + '"' : '');
   }
 
@@ -918,8 +971,8 @@
       '<section ' + drillAttrs('learn-' + word.id) + '>' +
       '<div class="drill__progress"><div class="drill__progress-fill" style="width:' + percent.toFixed(1) + '%"></div></div>' +
       '<div class="drill__eyebrow">Знакомство · ' + (session.index + 1) + ' из ' + total + '</div>' +
-      '<h2 class="drill__prompt">' + esc(word.de) + '</h2>' +
-      '<p class="learn__translation">' + esc(word.ru) + '</p>' +
+      '<h2 class="drill__prompt drill__word">' + esc(word.de) + '</h2>' +
+      '<p class="learn__translation drill__translation">' + esc(word.ru) + '</p>' +
       (word.image ? imageBox(word.image.id, 'picture--card') : '') +
       '<div class="drill__actions">' +
       '<button class="btn btn--accent btn--wide" data-learn-next>' +
@@ -977,19 +1030,19 @@
         'inputmode="text" name="answer" aria-label="Ответ">' +
         '</div>' +
         '<p class="drill__hint drill__hint--under">Напишите это слово по-немецки</p>' +
-        '<h2 class="drill__prompt">' + esc(word.ru) + '</h2>' +
+        '<h2 class="drill__prompt drill__translation">' + esc(word.ru) + '</h2>' +
         (word.image ? imageBox(word.image.id, 'picture--card') : '') +
         '<div class="drill__actions">' +
         '<button class="btn" data-reveal>Забыл</button>' +
         '<button class="btn btn--accent" data-check>Проверить</button>' +
         '</div>';
     } else {
-      html += '<h2 class="drill__prompt">' + esc(word.ru) + '</h2>' +
+      html += '<h2 class="drill__prompt drill__translation">' + esc(word.ru) + '</h2>' +
         '<div class="drill__verdict">' +
         '<div class="verdict verdict--wrong">' +
         '<div class="verdict__label">' +
         (session.state === 'revealed' ? 'Правильный ответ' : 'Не совпало') + '</div>' +
-        '<p class="verdict__word">' + esc(word.de) + '</p>' +
+        '<p class="verdict__word drill__word">' + esc(word.de) + '</p>' +
         (session.state === 'wrong'
           ? '<p class="verdict__yours">Вы написали: <s>' + esc(session.answer) + '</s></p>'
           : '') +
@@ -1302,6 +1355,25 @@
     });
   }
 
+  /* Умный путь: сперва текстовая модель разбирает слово и пишет промпт,
+     и только потом по этому промпту рисуется картинка. */
+  function smartPicture(word, translation, onReady) {
+    if (!window.Media.hasKey()) {
+      toast('Укажите ключ Google AI в настройках');
+      openSettings();
+      return;
+    }
+    toast('ИИ разбирает слово…');
+    window.Media.generateSmart(word, translation, function () {
+      toast('Промпт готов — рисую…');
+    }).then(function (dataUrl) {
+      onReady(dataUrl);
+      toast('Картинка готова');
+    }, function (error) {
+      toast(error.message);
+    });
+  }
+
   function startLearnInPlace(scope) {
     var batch = Store.buildLearnBatch(scope, LEARN_BATCH);
     if (!batch.length) { history.back(); return; }
@@ -1423,12 +1495,7 @@
           ? imageBox(word.image.id, 'picture--slot')
           : '<span class="picture picture--slot picture--empty" aria-hidden="true"></span>') +
         '<div class="photo-row__actions">' +
-        '<button type="button" class="btn btn--quiet" data-edit-photo-pick>Фото</button>' +
-        '<button type="button" class="btn btn--quiet" data-edit-photo-ai>' +
-        (word.image && word.image.kind === 'ai' ? 'Пересоздать' : 'Создать ИИ') + '</button>' +
-        '<button type="button" class="btn btn--quiet" data-edit-photo-prompt>Промпт</button>' +
-        '<button type="button" class="btn btn--quiet" data-edit-photo-paste>Вставить</button>' +
-        (word.image ? '<button type="button" class="btn btn--quiet" data-edit-photo-drop>Убрать</button>' : '') +
+        photoButtons('edit-', !!word.image, true) +
         '</div></div>',
       submitText: 'Сохранить',
       onSubmit: function (values) {
@@ -1469,6 +1536,17 @@
       });
     });
 
+    var smart = modalRoot.querySelector('[data-edit-photo-smart]');
+    if (smart) smart.addEventListener('click', function () {
+      var deField = document.getElementById('f-de');
+      var ruField = document.getElementById('f-ru');
+      var germanWord = deField ? deField.value.trim() : word.de;
+      if (!germanWord) { toast('Сначала впишите слово'); return; }
+      smartPicture(germanWord, ruField ? ruField.value.trim() : word.ru, function (dataUrl) {
+        attach(dataUrl, 'ai');
+      });
+    });
+
     var promptButton = modalRoot.querySelector('[data-edit-photo-prompt]');
     if (promptButton) promptButton.addEventListener('click', function () {
       var deField = document.getElementById('f-de');
@@ -1498,10 +1576,29 @@
 
   /* ---------- Настройки ---------- */
 
-  /* Список моделей: выбранная отмечена, свою можно добавить и убрать. */
-  function modelsHtml() {
-    var current = Store.getModel();
-    return Store.listModels().map(function (model) {
+  /* Список моделей: выбранная отмечена, свою можно добавить и убрать.
+     Устроены одинаково и та, что рисует, и та, что пишет промпт. */
+  var MODEL_KINDS = {
+    image: {
+      list: function () { return Store.listModels(); },
+      current: function () { return Store.getModel(); },
+      choose: function (id) { Store.setModel(id); },
+      add: function (id) { Store.addModel(id, id); },
+      drop: function (id) { Store.removeModel(id); }
+    },
+    think: {
+      list: function () { return Store.listThinkModels(); },
+      current: function () { return Store.getThinkModel(); },
+      choose: function (id) { Store.setThinkModel(id); },
+      add: function (id) { Store.addThinkModel(id, id); },
+      drop: function (id) { Store.removeThinkModel(id); }
+    }
+  };
+
+  function modelsHtml(kind) {
+    var family = MODEL_KINDS[kind];
+    var current = family.current();
+    return family.list().map(function (model) {
       return '<div class="model' + (model.id === current ? ' model--on' : '') +
         '" data-model="' + esc(model.id) + '" role="button" tabindex="0">' +
         '<span class="model__mark" aria-hidden="true"></span>' +
@@ -1516,18 +1613,64 @@
     }).join('');
   }
 
+  /* Раздел настроек с выбором модели: список, «+» и поле для своей. */
+  function modelSection(kind, title, note) {
+    return '<div class="setting">' +
+      '<div class="setting__head"><span class="field__label">' + esc(title) + '</span>' +
+      '<button type="button" class="round-btn round-btn--small" data-model-add="' + kind + '" ' +
+      'title="Добавить свою модель" aria-label="Добавить свою модель">+</button></div>' +
+      '<div class="models" data-models="' + kind + '">' + modelsHtml(kind) + '</div>' +
+      '<div class="model-add" data-model-adder="' + kind + '" hidden>' +
+      '<input class="input" type="text" data-model-field="' + kind + '" ' +
+      'placeholder="имя модели" autocomplete="off" autocapitalize="off" spellcheck="false">' +
+      '<button type="button" class="btn btn--quiet" data-model-save="' + kind + '">Добавить</button>' +
+      '</div>' +
+      (note ? '<p class="setting__note">' + note + '</p>' : '') +
+      '</div>';
+  }
+
+  /* Длинные разделы свёрнуты: окно настроек иначе растягивается
+     на несколько экранов, а нужны они не каждый раз. */
+  function fold(title, body) {
+    return '<details class="fold"><summary class="fold__head">' + esc(title) + '</summary>' +
+      '<div class="fold__body">' + body + '</div></details>';
+  }
+
+  function promptSection(id, title, resetAttr, value) {
+    return fold(title,
+      '<div class="btn-row" style="margin-bottom:9px">' +
+      '<button type="button" class="btn btn--quiet btn--wide" ' + resetAttr +
+      '>Вернуть стандартный</button></div>' +
+      '<textarea class="textarea textarea--tall" id="' + id + '" spellcheck="false">' +
+      esc(value) + '</textarea>');
+  }
+
+  /* Памятка по значкам: сами кнопки подписей не носят, чтобы не занимать
+     место, — расшифровка живёт здесь. */
+  function symbolsHtml() {
+    return fold('Что означают значки',
+      '<div class="legend">' +
+      PHOTO_ACTIONS.map(function (action) {
+        return '<div class="legend__row">' +
+          '<span class="legend__icon" aria-hidden="true">' + action.icon + '</span>' +
+          '<span class="legend__text"><b>' + esc(action.title) + '</b><br>' +
+          esc(action.note) + '</span></div>';
+      }).join('') +
+      '</div>');
+  }
+
   function openSettings() {
     var key = Store.getApiKey();
     var prompt = Store.getPromptTemplate() || window.Media.DEFAULT_PROMPT;
+    var thinkPrompt = Store.getThinkTemplate() || window.Media.DEFAULT_THINK_PROMPT;
 
     openForm({
       title: 'Картинки от ИИ',
-      hint: 'Картинки рисует Gemini («Nano Banana») по вашему ключу Google AI. ' +
-        'Ключ хранится только на этом устройстве и в резервную копию не попадает. ' +
-        'Взять ключ: aistudio.google.com/apikey<br><br>' +
-        'На опубликованной пробной странице запросы наружу закрыты, поэтому ' +
-        'рисование там не работает — оно доступно в приложении и в файле, ' +
-        'открытом с устройства.',
+      hint: 'Картинки рисует Gemini по вашему ключу Google AI. Ключ лежит только ' +
+        'на этом устройстве и в резервную копию не попадает — взять его можно ' +
+        'на aistudio.google.com/apikey.<br><br>' +
+        'На опубликованной пробной странице запросы наружу закрыты: рисование ' +
+        'работает в приложении и в файле, открытом с устройства.',
       fields: [{
         name: 'key', label: 'Ключ Google AI',
         value: key, placeholder: 'вставьте ключ'
@@ -1536,86 +1679,36 @@
         '<button type="button" class="btn btn--quiet btn--wide" data-check-access>Проверить связь</button>' +
         '</div>' +
 
-        '<div class="setting">' +
-        '<div class="setting__head"><span class="field__label">Модель рисования</span>' +
-        '<button type="button" class="round-btn round-btn--small" data-model-add ' +
-        'title="Добавить свою модель" aria-label="Добавить свою модель">+</button></div>' +
-        '<div class="models" id="models">' + modelsHtml() + '</div>' +
-        '<div class="model-add" id="model-add" hidden>' +
-        '<input class="input" type="text" id="f-model" placeholder="имя модели, например gemini-3-pro-image" ' +
-        'autocomplete="off" autocapitalize="off" spellcheck="false">' +
-        '<button type="button" class="btn btn--quiet" data-model-save>Добавить</button>' +
-        '</div></div>' +
+        modelSection('image', 'Модель рисования 🎨') +
+        modelSection('think', 'Модель для умного промпта 🧠',
+          'Обычная текстовая модель: она разбирает слово и пишет промпт, ' +
+          'а рисует по нему всё равно выбранная выше.') +
 
-        '<div class="setting">' +
-        '<div class="setting__head"><span class="field__label">Промпт для картинок</span>' +
-        '<button type="button" class="mini-btn" data-prompt-reset>Вернуть стандартный</button></div>' +
-        '<textarea class="textarea textarea--tall" id="f-prompt" spellcheck="false">' +
-        esc(prompt) + '</textarea>' +
-        '<p class="setting__note">Вместо ' + esc(window.Media.SLOT_WORD) + ' подставится слово, ' +
-        'вместо ' + esc(window.Media.SLOT_MEANING) + ' — перевод. Этот же текст уходит ' +
-        'по кнопке «Промпт».</p>' +
-        '</div>',
+        promptSection('f-prompt', 'Промпт для картинок 🎨', 'data-prompt-reset', prompt) +
+        promptSection('f-think-prompt', 'Промпт для умного режима 🧠',
+          'data-think-reset', thinkPrompt) +
+        symbolsHtml() +
+        '<p class="setting__note">В обоих промптах вместо ' + esc(window.Media.SLOT_WORD) +
+        ' подставится слово, вместо ' + esc(window.Media.SLOT_MEANING) + ' — перевод. ' +
+        'Первый уходит прямо в рисующую модель, второй — в ту, что сочиняет промпт.</p>',
       submitText: 'Сохранить',
       onSubmit: function (values) {
         Store.setApiKey(values.key);
-        var area = document.getElementById('f-prompt');
-        if (area) {
-          var text = area.value.trim();
-          /* Нетронутый промпт не запоминаем — тогда он будет обновляться
-             вместе с приложением. */
-          Store.setPromptTemplate(text === window.Media.DEFAULT_PROMPT.trim() ? '' : text);
-        }
+        savePrompt('f-prompt', window.Media.DEFAULT_PROMPT, Store.setPromptTemplate);
+        savePrompt('f-think-prompt', window.Media.DEFAULT_THINK_PROMPT, Store.setThinkTemplate);
         toast('Сохранено');
       }
     });
 
-    var models = document.getElementById('models');
-    var adder = document.getElementById('model-add');
-
-    models.addEventListener('click', function (event) {
-      var drop = event.target.closest('[data-model-remove]');
-      if (drop) {
-        Store.removeModel(drop.getAttribute('data-model-remove'));
-        models.innerHTML = modelsHtml();
-        return;
-      }
-      var row = event.target.closest('[data-model]');
-      if (!row) return;
-      Store.setModel(row.getAttribute('data-model'));
-      models.innerHTML = modelsHtml();
-    });
-
-    modalRoot.querySelector('[data-model-add]').addEventListener('click', function () {
-      adder.hidden = !adder.hidden;
-      if (!adder.hidden) document.getElementById('f-model').focus();
-    });
-
-    function saveModel() {
-      var field = document.getElementById('f-model');
-      var id = field.value.trim();
-      if (!id) { field.focus(); return; }
-      Store.addModel(id, id);
-      field.value = '';
-      adder.hidden = true;
-      models.innerHTML = modelsHtml();
-      toast('Модель добавлена и выбрана');
-    }
-
-    modalRoot.querySelector('[data-model-save]').addEventListener('click', saveModel);
-
-    /* Enter в имени модели добавляет её, а не сохраняет всё окно. */
-    document.getElementById('f-model').addEventListener('keydown', function (event) {
-      if (event.key !== 'Enter') return;
-      event.preventDefault();
-      saveModel();
-    });
+    wireModels('image');
+    wireModels('think');
 
     modalRoot.querySelector('[data-prompt-reset]').addEventListener('click', function () {
-      var area = document.getElementById('f-prompt');
-      if (area) area.value = window.Media.DEFAULT_PROMPT;
-      Store.setPromptTemplate('');
-      toast('Промпт вернулся к стандартному');
+      resetPrompt('f-prompt', window.Media.DEFAULT_PROMPT, Store.setPromptTemplate);
+    });
+
+    modalRoot.querySelector('[data-think-reset]').addEventListener('click', function () {
+      resetPrompt('f-think-prompt', window.Media.DEFAULT_THINK_PROMPT, Store.setThinkTemplate);
     });
 
     modalRoot.querySelector('[data-check-access]').addEventListener('click', function () {
@@ -1627,6 +1720,70 @@
       }, function (error) {
         toast(error.message);
       });
+    });
+  }
+
+  /* Нетронутый промпт не запоминаем — тогда он будет обновляться
+     вместе с приложением. */
+  function savePrompt(id, standard, store) {
+    var area = document.getElementById(id);
+    if (!area) return;
+    var text = area.value.trim();
+    store(text === standard.trim() ? '' : text);
+  }
+
+  function resetPrompt(id, standard, store) {
+    var area = document.getElementById(id);
+    if (area) area.value = standard;
+    store('');
+    toast('Промпт вернулся к стандартному');
+  }
+
+  function wireModels(kind) {
+    var family = MODEL_KINDS[kind];
+    var box = modalRoot.querySelector('[data-models="' + kind + '"]');
+    var adder = modalRoot.querySelector('[data-model-adder="' + kind + '"]');
+    var field = modalRoot.querySelector('[data-model-field="' + kind + '"]');
+
+    function repaint() { box.innerHTML = modelsHtml(kind); }
+
+    box.addEventListener('click', function (event) {
+      var drop = event.target.closest('[data-model-remove]');
+      if (drop) {
+        family.drop(drop.getAttribute('data-model-remove'));
+        repaint();
+        return;
+      }
+      var row = event.target.closest('[data-model]');
+      if (!row) return;
+      family.choose(row.getAttribute('data-model'));
+      repaint();
+    });
+
+    modalRoot.querySelector('[data-model-add="' + kind + '"]')
+      .addEventListener('click', function () {
+        adder.hidden = !adder.hidden;
+        if (!adder.hidden) field.focus();
+      });
+
+    function saveModel() {
+      var id = field.value.trim();
+      if (!id) { field.focus(); return; }
+      family.add(id);
+      field.value = '';
+      adder.hidden = true;
+      repaint();
+      toast('Модель добавлена и выбрана');
+    }
+
+    modalRoot.querySelector('[data-model-save="' + kind + '"]')
+      .addEventListener('click', saveModel);
+
+    /* Enter в имени модели добавляет её, а не сохраняет всё окно. */
+    field.addEventListener('keydown', function (event) {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      saveModel();
     });
   }
 
@@ -1893,6 +2050,17 @@
       var ruField = document.getElementById('input-ru');
       if (!deField || !deField.value.trim()) { toast('Сначала впишите слово'); return; }
       generatePicture(deField.value.trim(), ruField ? ruField.value.trim() : '', function (dataUrl) {
+        pendingImage = dataUrl;
+        refreshPhotoRow();
+      });
+      return;
+    }
+
+    if (target.closest('[data-photo-smart]')) {
+      var smartDe = document.getElementById('input-de');
+      var smartRu = document.getElementById('input-ru');
+      if (!smartDe || !smartDe.value.trim()) { toast('Сначала впишите слово'); return; }
+      smartPicture(smartDe.value.trim(), smartRu ? smartRu.value.trim() : '', function (dataUrl) {
         pendingImage = dataUrl;
         refreshPhotoRow();
       });

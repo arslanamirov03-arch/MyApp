@@ -27,14 +27,20 @@ window.Store = (function () {
   var DAY = 24 * 60 * 60 * 1000;
   var DAY_START_HOUR = 6;
 
-  /* Размеры в карточке проверки: текст и картинка тянутся независимо. */
+  /* Размеры в карточке проверки. Каждая часть тянется сама по себе:
+     картинка, поле ввода, само слово и перевод — четыре независимых
+     множителя, потому что удобный размер у каждого свой. */
+  var SCALE_KINDS = ['image', 'input', 'word', 'translation'];
+
   var DEFAULT_SETTINGS = {
     collapsed: {},
-    drillTextScale: 1,
-    drillImageScale: 1,
+    scales: { image: 1, input: 1, word: 1, translation: 1 },
     imageModel: 'gemini-3.1-flash-lite-image',
     customModels: [],
-    promptTemplate: ''
+    promptTemplate: '',
+    thinkModel: 'gemini-3.6-flash',
+    customThinkModels: [],
+    thinkTemplate: ''
   };
 
   var state = { version: 2, blocks: [], settings: cloneSettings(DEFAULT_SETTINGS) };
@@ -46,11 +52,13 @@ window.Store = (function () {
   function cloneSettings(source) {
     return {
       collapsed: Object.assign({}, source.collapsed),
-      drillTextScale: source.drillTextScale,
-      drillImageScale: source.drillImageScale,
+      scales: Object.assign({}, source.scales),
       imageModel: source.imageModel,
       customModels: (source.customModels || []).slice(),
-      promptTemplate: source.promptTemplate || ''
+      promptTemplate: source.promptTemplate || '',
+      thinkModel: source.thinkModel,
+      customThinkModels: (source.customThinkModels || []).slice(),
+      thinkTemplate: source.thinkTemplate || ''
     };
   }
 
@@ -140,15 +148,13 @@ window.Store = (function () {
       version: 2,
       settings: {
         collapsed: settings.collapsed || {},
-        drillTextScale: clampScale(settings.drillTextScale, 1),
-        drillImageScale: clampScale(settings.drillImageScale, 1),
+        scales: normalizeScales(settings),
         imageModel: settings.imageModel || DEFAULT_SETTINGS.imageModel,
-        customModels: (settings.customModels || []).filter(function (m) {
-          return m && m.id;
-        }).map(function (m) {
-          return { id: String(m.id), title: String(m.title || m.id) };
-        }),
-        promptTemplate: String(settings.promptTemplate || '')
+        customModels: normalizeModels(settings.customModels),
+        promptTemplate: String(settings.promptTemplate || ''),
+        thinkModel: settings.thinkModel || DEFAULT_SETTINGS.thinkModel,
+        customThinkModels: normalizeModels(settings.customThinkModels),
+        thinkTemplate: String(settings.thinkTemplate || '')
       },
       blocks: (data.blocks || []).filter(Boolean).map(function (b) {
         return {
@@ -166,6 +172,27 @@ window.Store = (function () {
         };
       })
     };
+  }
+
+  /* Раньше размер был общий на весь текст — переносим его на все три
+     текстовые части, чтобы карточка выглядела как прежде. */
+  function normalizeScales(settings) {
+    var saved = settings.scales || {};
+    var oldText = settings.drillTextScale;
+    var oldImage = settings.drillImageScale;
+    var result = {};
+    SCALE_KINDS.forEach(function (kind) {
+      var fallback = kind === 'image' ? oldImage : oldText;
+      var value = saved[kind] != null ? saved[kind] : fallback;
+      result[kind] = clampScale(value, 1);
+    });
+    return result;
+  }
+
+  function normalizeModels(list) {
+    return (list || []).filter(function (m) { return m && m.id; }).map(function (m) {
+      return { id: String(m.id), title: String(m.title || m.id) };
+    });
   }
 
   function normalizeWord(w) {
@@ -351,62 +378,73 @@ window.Store = (function () {
 
   function isCollapsed(setId) { return !!state.settings.collapsed[setId]; }
 
-  /* Размеры в карточке проверки. Текст и картинка настраиваются порознь:
-     кому-то нужен крупный перевод при маленькой картинке, кому-то наоборот. */
-  function getTextScale() { return clampScale(state.settings.drillTextScale, 1); }
-  function getImageScale() { return clampScale(state.settings.drillImageScale, 1); }
+  /* Размеры в карточке проверки. Каждая часть настраивается отдельно:
+     кому-то нужен крупный перевод при маленькой картинке, кому-то наоборот,
+     а поле ввода вообще живёт своей жизнью. */
+  function getScale(kind) { return clampScale(state.settings.scales[kind], 1); }
 
-  function setTextScale(value) {
-    state.settings.drillTextScale = clampScale(value, 1);
+  function setScale(kind, value) {
+    if (SCALE_KINDS.indexOf(kind) < 0) return;
+    state.settings.scales[kind] = clampScale(value, 1);
     save();
   }
 
-  function setImageScale(value) {
-    state.settings.drillImageScale = clampScale(value, 1);
-    save();
-  }
+  /* ---------- Модели ---------- */
 
-  /* ---------- Модели рисования ---------- */
-
+  /* Рисующие модели и модель, пишущая промпт, устроены одинаково:
+     список готовых, свои сверх них и одна выбранная. */
   var BUILTIN_MODELS = [
     { id: 'gemini-3.1-flash-image', title: 'Nano Banana 2' },
     { id: 'gemini-3.1-flash-lite-image', title: 'Nano Banana 2 Lite' },
     { id: 'gemini-3-pro-image', title: 'Nano Banana Pro' }
   ];
 
-  function listModels() {
-    return BUILTIN_MODELS.concat(state.settings.customModels.map(function (m) {
-      return { id: m.id, title: m.title, custom: true };
-    }));
-  }
+  /* Промпт пишет обычная текстовая модель — она разбирает слово
+     и сочиняет описание картинки. Тяжёлая Pro для этого не нужна. */
+  var BUILTIN_THINK_MODELS = [
+    { id: 'gemini-3.6-flash', title: 'Gemini 3.6 Flash' },
+    { id: 'gemini-3.5-flash', title: 'Gemini 3.5 Flash' },
+    { id: 'gemini-3.5-flash-lite', title: 'Gemini 3.5 Flash Lite' }
+  ];
 
-  function getModel() { return state.settings.imageModel || DEFAULT_SETTINGS.imageModel; }
-
-  function setModel(id) {
-    if (!id) return;
-    state.settings.imageModel = String(id).trim();
-    save();
-  }
-
-  function addModel(id, title) {
-    id = String(id || '').trim();
-    if (!id) return false;
-    var known = listModels().some(function (m) { return m.id === id; });
-    if (!known) {
-      state.settings.customModels.push({ id: id, title: String(title || '').trim() || id });
+  function modelFamily(builtin, chosenKey, customKey) {
+    function list() {
+      return builtin.concat(state.settings[customKey].map(function (m) {
+        return { id: m.id, title: m.title, custom: true };
+      }));
     }
-    state.settings.imageModel = id;
-    save();
-    return !known;
+
+    return {
+      list: list,
+      get: function () { return state.settings[chosenKey] || DEFAULT_SETTINGS[chosenKey]; },
+      set: function (id) {
+        if (!id) return;
+        state.settings[chosenKey] = String(id).trim();
+        save();
+      },
+      add: function (id, title) {
+        id = String(id || '').trim();
+        if (!id) return false;
+        var known = list().some(function (m) { return m.id === id; });
+        if (!known) {
+          state.settings[customKey].push({ id: id, title: String(title || '').trim() || id });
+        }
+        state.settings[chosenKey] = id;
+        save();
+        return !known;
+      },
+      remove: function (id) {
+        state.settings[customKey] = state.settings[customKey].filter(function (m) {
+          return m.id !== id;
+        });
+        if (state.settings[chosenKey] === id) state.settings[chosenKey] = DEFAULT_SETTINGS[chosenKey];
+        save();
+      }
+    };
   }
 
-  function removeModel(id) {
-    state.settings.customModels = state.settings.customModels.filter(function (m) {
-      return m.id !== id;
-    });
-    if (state.settings.imageModel === id) state.settings.imageModel = DEFAULT_SETTINGS.imageModel;
-    save();
-  }
+  var imageModels = modelFamily(BUILTIN_MODELS, 'imageModel', 'customModels');
+  var thinkModels = modelFamily(BUILTIN_THINK_MODELS, 'thinkModel', 'customThinkModels');
 
   /* ---------- Свой промпт ---------- */
 
@@ -414,6 +452,13 @@ window.Store = (function () {
 
   function setPromptTemplate(text) {
     state.settings.promptTemplate = String(text || '').trim();
+    save();
+  }
+
+  function getThinkTemplate() { return state.settings.thinkTemplate || ''; }
+
+  function setThinkTemplate(text) {
+    state.settings.thinkTemplate = String(text || '').trim();
     save();
   }
 
@@ -827,11 +872,14 @@ window.Store = (function () {
     calendarDaysBetween: calendarDaysBetween,
 
     isCollapsed: isCollapsed, toggleCollapsed: toggleCollapsed,
-    getTextScale: getTextScale, setTextScale: setTextScale,
-    getImageScale: getImageScale, setImageScale: setImageScale,
-    listModels: listModels, getModel: getModel, setModel: setModel,
-    addModel: addModel, removeModel: removeModel,
+    SCALE_KINDS: SCALE_KINDS, getScale: getScale, setScale: setScale,
+    listModels: imageModels.list, getModel: imageModels.get, setModel: imageModels.set,
+    addModel: imageModels.add, removeModel: imageModels.remove,
+    listThinkModels: thinkModels.list, getThinkModel: thinkModels.get,
+    setThinkModel: thinkModels.set, addThinkModel: thinkModels.add,
+    removeThinkModel: thinkModels.remove,
     getPromptTemplate: getPromptTemplate, setPromptTemplate: setPromptTemplate,
+    getThinkTemplate: getThinkTemplate, setThinkTemplate: setThinkTemplate,
     findSameWords: findSameWords,
 
     getBlock: getBlock, getSet: getSet, countWords: countWords,
