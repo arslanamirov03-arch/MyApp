@@ -1446,17 +1446,6 @@ body::after {
 
 .toast--visible { opacity: 1; transform: translate(-50%, 0); }
 
-/* ---------- Подвал ---------- */
-
-.footer {
-  margin-top: 26px;
-  padding: 0 4px;
-  font-size: 12px;
-  text-align: center;
-  color: var(--ink-faint);
-  font-variant-numeric: tabular-nums;
-}
-
 /* ---------- Движение ---------- */
 
 @keyframes rise {
@@ -1528,8 +1517,6 @@ body::after {
   <nav class="crumbs" id="crumbs" aria-label="Навигация"></nav>
 
   <main class="screen" id="screen"></main>
-
-  <footer class="footer" id="footer-stats"></footer>
 
   <button class="fab" id="fab" type="button" aria-label="Добавить">
     <span class="fab__plus" aria-hidden="true">+</span>
@@ -3976,7 +3963,6 @@ window.Store = (function () {
 
   var screenEl = document.getElementById('screen');
   var crumbsEl = document.getElementById('crumbs');
-  var footerEl = document.getElementById('footer-stats');
   var subEl = document.getElementById('masthead-sub');
   var modalRoot = document.getElementById('modal-root');
   var toastEl = document.getElementById('toast');
@@ -5155,7 +5141,6 @@ window.Store = (function () {
     }
 
     subEl.textContent = clockText(moment) + ' · ' + note;
-    footerEl.textContent = total ? 'Блоков: ' + blocks.length + ' · слов: ' + total : '';
   }
 
   function refreshCountdowns(moment) {

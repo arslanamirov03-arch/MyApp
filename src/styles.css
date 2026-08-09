@@ -1437,17 +1437,6 @@ body::after {
 
 .toast--visible { opacity: 1; transform: translate(-50%, 0); }
 
-/* ---------- Подвал ---------- */
-
-.footer {
-  margin-top: 26px;
-  padding: 0 4px;
-  font-size: 12px;
-  text-align: center;
-  color: var(--ink-faint);
-  font-variant-numeric: tabular-nums;
-}
-
 /* ---------- Движение ---------- */
 
 @keyframes rise {

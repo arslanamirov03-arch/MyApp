@@ -8,7 +8,6 @@
 
   var screenEl = document.getElementById('screen');
   var crumbsEl = document.getElementById('crumbs');
-  var footerEl = document.getElementById('footer-stats');
   var subEl = document.getElementById('masthead-sub');
   var modalRoot = document.getElementById('modal-root');
   var toastEl = document.getElementById('toast');
@@ -1187,7 +1186,6 @@
     }
 
     subEl.textContent = clockText(moment) + ' · ' + note;
-    footerEl.textContent = total ? 'Блоков: ' + blocks.length + ' · слов: ' + total : '';
   }
 
   function refreshCountdowns(moment) {
