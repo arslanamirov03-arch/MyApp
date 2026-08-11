@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Grammatik-Kompass</title>
+<style>
+  :root {
+    --bg: #F0EEE6;
+    --surface: #FAF9F5;
+    --surface-2: #F5F3EC;
+    --ink: #141413;
+    --ink-soft: #3D3D3A;
+    --muted: #7A776D;
+    --faint: #A8A49A;
+    --border: #E3E0D5;
+    --border-strong: #D6D2C4;
+    --accent: #D97757;
+    --accent-deep: #C05F3F;
+    --accent-soft: #F4E5DE;
+    --amber: #BC8C4E;
+    --sage: #7D8A6E;
+    --shadow: 0 1px 2px rgba(20,20,19,.04), 0 4px 16px rgba(20,20,19,.06);
+    --shadow-lift: 0 2px 4px rgba(20,20,19,.06), 0 12px 32px rgba(20,20,19,.10);
+    --serif: "Tiempos Text", Georgia, "Times New Roman", serif;
+    --sans: "Styrene B", -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    --ease: cubic-bezier(.32,.72,.24,1);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---------- screens & transitions ---------- */
+  .screen {
+    position: absolute; inset: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    background: var(--bg);
+    transition: transform .42s var(--ease), opacity .42s var(--ease);
+    padding-bottom: max(28px, env(safe-area-inset-bottom));
+  }
+  #screen-home { transform: translateX(0); opacity: 1; z-index: 1; }
+  #screen-list { transform: translateX(100%); opacity: 1; z-index: 2; box-shadow: -24px 0 48px rgba(20,20,19,.08); }
+  body.show-list #screen-home { transform: translateX(-22%) scale(.98); opacity: .55; }
+  body.show-list #screen-list { transform: translateX(0); }
+
+  .wrap { max-width: 560px; margin: 0 auto; padding: 0 20px; }
+
+  /* ---------- home header ---------- */
+  .home-head { padding-top: max(34px, env(safe-area-inset-top)); text-align: center; }
+  .kicker {
+    font-size: 11px; letter-spacing: .18em; text-transform: uppercase;
+    color: var(--accent); font-weight: 600;
+  }
+  h1.title {
+    font-family: var(--serif); font-weight: 500;
+    font-size: 34px; line-height: 1.12; margin-top: 10px;
+    letter-spacing: -.01em;
+  }
+  .subtitle { color: var(--muted); margin-top: 8px; font-size: 14px; }
+
+  /* ---------- hero progress card ---------- */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 22px;
+    box-shadow: var(--shadow);
+  }
+  .hero { margin-top: 26px; padding: 26px 22px 22px; }
+  .hero-top { display: flex; align-items: center; gap: 22px; }
+  .donut-wrap { position: relative; width: 132px; height: 132px; flex: none; }
+  .donut-wrap svg { transform: rotate(-90deg); display: block; }
+  .donut-track { stroke: var(--border); }
+  .donut-value {
+    stroke: var(--accent);
+    transition: stroke-dashoffset 1s var(--ease);
+    stroke-linecap: round;
+  }
+  .donut-center {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .donut-pct { font-family: var(--serif); font-size: 30px; font-weight: 500; letter-spacing: -.02em; }
+  .donut-pct span { font-size: 16px; color: var(--muted); }
+  .donut-sub { font-size: 10.5px; color: var(--muted); letter-spacing: .1em; text-transform: uppercase; margin-top: 2px; }
+
+  .hero-stats { flex: 1; display: flex; flex-direction: column; gap: 14px; }
+  .stat .stat-num { font-family: var(--serif); font-size: 24px; font-weight: 500; line-height: 1.1; }
+  .stat .stat-label { font-size: 12px; color: var(--muted); margin-top: 1px; }
+  .stat-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 7px; }
+
+  /* bar chart */
+  .chart { margin-top: 24px; }
+  .chart-title { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; font-weight: 600; }
+  .chart-row { display: flex; align-items: center; gap: 12px; margin-top: 9px; }
+  .chart-label { width: 26px; font-size: 12.5px; font-weight: 600; color: var(--ink-soft); }
+  .chart-bar {
+    flex: 1; height: 12px; border-radius: 6px;
+    background: var(--border); overflow: hidden; position: relative;
+  }
+  .chart-fill {
+    position: absolute; inset: 0 auto 0 0; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-deep));
+    border-radius: 6px;
+    transition: width 1s var(--ease);
+  }
+  .chart-count { width: 52px; text-align: right; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  /* ---------- level cards ---------- */
+  .section-label {
+    margin: 30px 0 12px; font-size: 11px; letter-spacing: .16em;
+    text-transform: uppercase; color: var(--muted); font-weight: 600;
+  }
+  .level-card {
+    display: flex; align-items: center; gap: 16px;
+    padding: 18px 18px; margin-bottom: 12px;
+    cursor: pointer;
+    transition: transform .25s var(--ease), box-shadow .25s var(--ease), border-color .25s var(--ease);
+  }
+  .level-card:active { transform: scale(.975); box-shadow: var(--shadow-lift); border-color: var(--border-strong); }
+  .level-badge {
+    width: 54px; height: 54px; border-radius: 16px; flex: none;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--serif); font-size: 19px; font-weight: 600;
+  }
+  .level-b1 .level-badge { background: #EDE4D3; color: #8A6D3B; }
+  .level-b2 .level-badge { background: var(--accent-soft); color: var(--accent-deep); }
+  .level-c1 .level-badge { background: #E4E7DC; color: #5C6B4C; }
+  .level-info { flex: 1; min-width: 0; }
+  .level-name { font-family: var(--serif); font-size: 18px; font-weight: 500; }
+  .level-desc { font-size: 12.5px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
+  .mini-donut { position: relative; width: 52px; height: 52px; flex: none; }
+  .mini-donut svg { transform: rotate(-90deg); display: block; }
+  .mini-track { stroke: var(--border); }
+  .mini-value { stroke: var(--accent); stroke-linecap: round; transition: stroke-dashoffset 1s var(--ease); }
+  .mini-pct {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink-soft);
+  }
+  .chev { color: var(--faint); flex: none; margin-left: -4px; }
+
+  /* ---------- data buttons ---------- */
+  .data-row { display: flex; gap: 10px; margin-top: 26px; }
+  .btn {
+    flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 13px 10px; border-radius: 14px;
+    background: var(--surface); border: 1px solid var(--border);
+    font-family: var(--sans); font-size: 13.5px; font-weight: 600; color: var(--ink-soft);
+    cursor: pointer; box-shadow: var(--shadow);
+    transition: transform .2s var(--ease), background .2s;
+  }
+  .btn:active { transform: scale(.96); background: var(--surface-2); }
+  .btn svg { flex: none; }
+  .footnote { text-align: center; color: var(--faint); font-size: 11.5px; margin-top: 18px; padding-bottom: 10px; }
+
+  /* ---------- list screen ---------- */
+  .list-head {
+    position: sticky; top: 0; z-index: 10;
+    background: rgba(240,238,230,.92);
+    -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--border);
+    padding-top: max(14px, env(safe-area-inset-top));
+  }
+  .list-head-inner { display: flex; align-items: center; gap: 8px; padding: 8px 12px 12px; max-width: 560px; margin: 0 auto; }
+  .back-btn {
+    display: flex; align-items: center; justify-content: center;
+    width: 40px; height: 40px; border-radius: 12px; flex: none;
+    background: transparent; border: none; color: var(--ink-soft); cursor: pointer;
+    transition: background .2s;
+  }
+  .back-btn:active { background: rgba(20,20,19,.06); }
+  .list-title-box { flex: 1; min-width: 0; }
+  .list-title { font-family: var(--serif); font-size: 19px; font-weight: 500; line-height: 1.15; }
+  .list-sub { font-size: 12px; color: var(--muted); margin-top: 1px; font-variant-numeric: tabular-nums; }
+  .head-donut { width: 42px; height: 42px; position: relative; flex: none; margin-right: 4px; }
+  .head-donut svg { transform: rotate(-90deg); display: block; }
+  .head-pct { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 10.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .list-progressbar { height: 3px; background: transparent; position: relative; }
+  .list-progressfill {
+    position: absolute; inset: 0 auto 0 0; width: 0%;
+    background: var(--accent);
+    transition: width .6s var(--ease);
+  }
+
+  .level-intro { padding: 20px 0 4px; color: var(--muted); font-size: 13.5px; line-height: 1.55; }
+
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center;
+    padding: 12px 0 4px; font-size: 11.5px; color: var(--muted);
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+
+  .topic {
+    display: flex; gap: 14px; align-items: flex-start;
+    padding: 16px 16px; margin-top: 12px;
+    border-radius: 18px;
+    cursor: pointer;
+    opacity: 0; transform: translateY(14px);
+    transition: transform .3s var(--ease), box-shadow .3s var(--ease), border-color .3s, background .35s, opacity .3s;
+  }
+  .topic.revealed { opacity: 1; transform: translateY(0); }
+  .topic:active { transform: scale(.98); }
+  .topic.done { background: var(--surface-2); border-color: var(--border); }
+  .topic-check {
+    width: 26px; height: 26px; border-radius: 9px; flex: none;
+    border: 2px solid var(--border-strong);
+    background: var(--surface);
+    display: flex; align-items: center; justify-content: center;
+    margin-top: 2px;
+    transition: background .25s var(--ease), border-color .25s var(--ease), transform .25s var(--ease);
+  }
+  .topic-check svg { opacity: 0; transform: scale(.4); transition: opacity .22s var(--ease), transform .3s var(--ease); }
+  .topic.done .topic-check { background: var(--accent); border-color: var(--accent); transform: scale(1.05); }
+  .topic.done .topic-check svg { opacity: 1; transform: scale(1); }
+  .topic-body { flex: 1; min-width: 0; }
+  .topic-top { display: flex; align-items: baseline; gap: 8px; }
+  .topic-num { font-size: 11px; color: var(--faint); font-weight: 600; font-variant-numeric: tabular-nums; flex: none; }
+  .topic-name { font-size: 15px; font-weight: 600; line-height: 1.3; transition: color .3s; }
+  .topic.done .topic-name { color: var(--muted); }
+  .topic-ru { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+  .topic-ex {
+    font-family: var(--serif); font-style: italic;
+    font-size: 13px; color: var(--ink-soft);
+    margin-top: 7px; padding: 7px 11px;
+    background: var(--surface-2); border-left: 2px solid var(--border-strong);
+    border-radius: 0 10px 10px 0;
+    transition: opacity .3s;
+  }
+  .topic.done .topic-ex { opacity: .55; }
+  .dots { display: flex; gap: 4px; margin-top: 9px; align-items: center; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--border-strong); background: transparent; }
+  .dot.on-3 { background: var(--accent); border-color: var(--accent); }
+  .dot.on-2 { background: var(--amber); border-color: var(--amber); }
+  .dot.on-1 { background: var(--faint); border-color: var(--faint); }
+  .dots-label { font-size: 10.5px; color: var(--faint); margin-left: 5px; letter-spacing: .04em; }
+
+  .list-done-note {
+    text-align: center; padding: 26px 20px 10px;
+    font-family: var(--serif); font-style: italic; color: var(--sage); font-size: 15px;
+    opacity: 0; transition: opacity .5s;
+  }
+  .list-done-note.show { opacity: 1; }
+
+  /* toast */
+  #toast {
+    position: fixed; left: 50%; bottom: 34px; z-index: 99;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--ink); color: var(--surface);
+    padding: 11px 20px; border-radius: 999px;
+    font-size: 13px; font-weight: 500;
+    box-shadow: var(--shadow-lift);
+    transition: transform .4s var(--ease);
+    max-width: 86vw; text-align: center;
+    pointer-events: none;
+  }
+  #toast.show { transform: translateX(-50%) translateY(0); }
+
+  #importInput { display: none; }
+</style>
+</head>
+<body>
+
+<div class="screen" id="screen-home">
+  <div class="wrap">
+    <header class="home-head">
+      <div class="kicker">Deutsch &middot; B1&ndash;C1</div>
+      <h1 class="title">Grammatik-Kompass</h1>
+      <p class="subtitle">71 тема — от самого важного к второстепенному</p>
+    </header>
+
+    <section class="card hero">
+      <div class="hero-top">
+        <div class="donut-wrap">
+          <svg width="132" height="132" viewBox="0 0 132 132">
+            <circle class="donut-track" cx="66" cy="66" r="58" fill="none" stroke-width="11"/>
+            <circle class="donut-value" id="mainDonut" cx="66" cy="66" r="58" fill="none" stroke-width="11"
+                    stroke-dasharray="364.4" stroke-dashoffset="364.4"/>
+          </svg>
+          <div class="donut-center">
+            <div class="donut-pct"><b id="mainPct">0</b><span>%</span></div>
+            <div class="donut-sub">выучено</div>
+          </div>
+        </div>
+        <div class="hero-stats">
+          <div class="stat">
+            <div class="stat-num" id="statDone">0</div>
+            <div class="stat-label"><span class="stat-dot" style="background:var(--accent)"></span>выучено</div>
+          </div>
+          <div class="stat">
+            <div class="stat-num" id="statLeft">71</div>
+            <div class="stat-label"><span class="stat-dot" style="background:var(--border-strong)"></span>осталось</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="chart">
+        <div class="chart-title">Прогресс по уровням</div>
+        <div class="chart-row">
+          <div class="chart-label">B1</div>
+          <div class="chart-bar"><div class="chart-fill" id="barB1"></div></div>
+          <div class="chart-count" id="cntB1">0 / 17</div>
+        </div>
+        <div class="chart-row">
+          <div class="chart-label">B2</div>
+          <div class="chart-bar"><div class="chart-fill" id="barB2"></div></div>
+          <div class="chart-count" id="cntB2">0 / 26</div>
+        </div>
+        <div class="chart-row">
+          <div class="chart-label">C1</div>
+          <div class="chart-bar"><div class="chart-fill" id="barC1"></div></div>
+          <div class="chart-count" id="cntC1">0 / 28</div>
+        </div>
+      </div>
+    </section>
+
+    <div class="section-label">Уровни</div>
+    <div id="levelCards"></div>
+
+    <div class="data-row">
+      <button class="btn" onclick="exportProgress()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Сохранить файл
+      </button>
+      <button class="btn" onclick="importProgress()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Загрузить файл
+      </button>
+    </div>
+    <p class="footnote">Прогресс сохраняется на телефоне автоматически.<br>Файл нужен только для переноса на другое устройство.</p>
+  </div>
+</div>
+
+<div class="screen" id="screen-list">
+  <div class="list-head">
+    <div class="list-head-inner">
+      <button class="back-btn" onclick="goHome()" aria-label="Назад">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <div class="list-title-box">
+        <div class="list-title" id="listTitle">B1</div>
+        <div class="list-sub" id="listSub"></div>
+      </div>
+      <div class="head-donut">
+        <svg width="42" height="42" viewBox="0 0 42 42">
+          <circle class="mini-track" cx="21" cy="21" r="17" fill="none" stroke-width="4.5"/>
+          <circle class="mini-value" id="headDonut" cx="21" cy="21" r="17" fill="none" stroke-width="4.5"
+                  stroke-dasharray="106.8" stroke-dashoffset="106.8"/>
+        </svg>
+        <div class="head-pct" id="headPct">0%</div>
+      </div>
+    </div>
+    <div class="list-progressbar"><div class="list-progressfill" id="listBar"></div></div>
+  </div>
+  <div class="wrap">
+    <p class="level-intro" id="levelIntro"></p>
+    <div class="legend">
+      <div class="legend-item"><span class="dot on-3" style="width:9px;height:9px"></span><span class="dot on-3" style="width:9px;height:9px"></span><span class="dot on-3" style="width:9px;height:9px"></span> критично</div>
+      <div class="legend-item"><span class="dot on-2" style="width:9px;height:9px"></span><span class="dot on-2" style="width:9px;height:9px"></span><span class="dot" style="width:9px;height:9px"></span> важно</div>
+      <div class="legend-item"><span class="dot on-1" style="width:9px;height:9px"></span><span class="dot" style="width:9px;height:9px"></span><span class="dot" style="width:9px;height:9px"></span> желательно</div>
+    </div>
+    <div id="topicList"></div>
+    <div class="list-done-note" id="doneNote">Уровень полностью закрыт. Ausgezeichnet!</div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<input type="file" id="importInput" accept=".json,application/json">
+
+<script>
+/* ============ DATA — из Grammatik-Kompass B1–C1 (71 тема) ============ */
+/* w: 3 = критично важно, 2 = важно, 1 = желательно знать */
+var DATA = {
+  B1: {
+    desc: "Фундамент, без которого невозможен переход к сложным конструкциям: предпрошедшее время, будущее, придаточные времени и инфинитивные обороты.",
+    topics: [
+      { n:"Plusquamperfekt", ru:"предпрошедшее время", ex:"Nachdem ich gegessen hatte, ging ich raus.", w:3 },
+      { n:"Futur I", ru:"будущее время", ex:"Ich werde morgen anrufen.", w:3 },
+      { n:"Passiv mit Modalverben", ru:"пассив с модальным глаголом", ex:"Das muss heute gemacht werden.", w:3 },
+      { n:"Nebensätze: während, seit(dem), bis, solange", ru:"придаточные времени", ex:"Während ich koche, hört sie Musik.", w:3 },
+      { n:"Nebensätze: indem, ohne dass, sodass", ru:"придаточные образа действия и следствия", ex:"Ich lerne Deutsch, indem ich viel lese.", w:3 },
+      { n:"um zu / statt zu / ohne zu", ru:"инфинитивные обороты с предлогом", ex:"Ich lerne Deutsch, um in Deutschland zu arbeiten.", w:3 },
+      { n:"Adjektiv als Nomen", ru:"субстантивированное прилагательное", ex:"der Deutsche, das Gute, ein Bekannter", w:2 },
+      { n:"Partizip I als Adjektiv", ru:"причастие I как определение", ex:"die lachenden Kinder, das schlafende Baby", w:2 },
+      { n:"Partizip II als Adjektiv", ru:"причастие II как определение", ex:"das gekochte Ei, die geöffnete Tür", w:2 },
+      { n:"je … desto / umso", ru:"двойная сравнительная конструкция", ex:"Je mehr ich lerne, desto besser verstehe ich.", w:2 },
+      { n:"nicht / nur brauchen + zu Infinitiv", ru:"замена модального глагола", ex:"Du brauchst nicht zu kommen.", w:2 },
+      { n:"Relativsätze mit Präpositionen", ru:"относительное придаточное с предлогом", ex:"Der Mann, mit dem ich spreche, ist mein Chef.", w:2 },
+      { n:"als ob / als wenn", ru:"нереальное сравнение", ex:"Er tut, als ob er nichts wüsste.", w:1 },
+      { n:"Relativsätze mit was, wo", ru:"относительное придаточное без существительного", ex:"Das ist alles, was ich weiß.", w:1 },
+      { n:"Ausdrücke mit es + zu Infinitiv", ru:"безличная конструкция", ex:"Es ist wichtig, pünktlich zu sein.", w:1 },
+      { n:"Modalpartikeln: denn, doch, eigentlich, ja", ru:"модальные частицы", ex:"Was machst du denn da?", w:1 },
+      { n:"Gradpartikeln", ru:"усилительные наречия степени", ex:"Das ist ziemlich schwer. Es war äußerst wichtig.", w:1 }
+    ]
+  },
+  B2: {
+    desc: "Переход от «правильно» к «естественно»: сослагательное наклонение в прошедшем, косвенная речь, полная система придаточных и словообразование.",
+    topics: [
+      { n:"Konjunktiv II Vergangenheit", ru:"сослагательное наклонение в прошедшем", ex:"Ich hätte das gemacht, wenn ich Zeit gehabt hätte.", w:3 },
+      { n:"Indirekte Rede (Konjunktiv I и II)", ru:"косвенная речь", ex:"Er sagte, er sei müde. / Sie meinte, sie hätte keine Zeit.", w:3 },
+      { n:"dass-Sätze и их замены", ru:"придаточное изъяснительное vs инфинитив", ex:"Ich hoffe, dass es klappt. → Ich hoffe, es zu schaffen.", w:3 },
+      { n:"Temporale: sobald, vor / nach + Nomen", ru:"придаточные и предложные обороты времени", ex:"Sobald ich ankomme, rufe ich dich an.", w:3 },
+      { n:"Konditionale: falls, sofern, verkürzte wenn-Sätze", ru:"придаточные условия", ex:"Wäre ich reich, würde ich viel reisen.", w:3 },
+      { n:"Das Verb lassen", ru:"глагол lassen во всех значениях", ex:"Ich lasse mein Auto reparieren.", w:2 },
+      { n:"Subjektive Bedeutung der Modalverben", ru:"модальные глаголы для предположения", ex:"Er muss krank sein. Das kann nicht stimmen.", w:2 },
+      { n:"Futur II", ru:"предположение о завершённом действии", ex:"Er wird es vergessen haben.", w:2 },
+      { n:"Nomen mit festen Präpositionen", ru:"существительные с управлением", ex:"die Angst vor, die Freude über, das Interesse an", w:2 },
+      { n:"Adjektive mit festen Präpositionen", ru:"прилагательные с управлением", ex:"stolz auf, zufrieden mit, abhängig von", w:2 },
+      { n:"Nachsilben und Vorsilben", ru:"система суффиксов и приставок", ex:"die Freiheit, die Möglichkeit, verkaufen, missverstehen", w:2 },
+      { n:"Nominalisierung von Verben", ru:"субстантивация глагола", ex:"laufen → das Laufen / der Lauf", w:2 },
+      { n:"Konzessive: selbst/auch wenn, dennoch", ru:"уступка (кроме obwohl)", ex:"Selbst wenn es regnet, gehen wir raus.", w:2 },
+      { n:"Konsekutive: folglich, infolgedessen", ru:"следствие", ex:"Er kam zu spät, folglich verpasste er den Zug.", w:2 },
+      { n:"Modale: dadurch dass, (an)statt dass", ru:"образ действия и замещение", ex:"Statt dass er hilft, schaut er nur zu.", w:2 },
+      { n:"Generalisierende Relativsätze", ru:"обобщающее относительное предложение", ex:"Wer zu spät kommt, den bestraft das Leben.", w:2 },
+      { n:"Originalformen Konjunktiv II (ohne würde)", ru:"чистые формы сослагательного наклонения", ex:"käme, gäbe, führe, wüsste, bräuchte", w:1 },
+      { n:"Alternativen zum Passiv", ru:"замены пассивного залога", ex:"Das Problem lässt sich lösen. Die Aufgabe ist zu lösen.", w:1 },
+      { n:"Feste Verbindung von Nomen mit Verben", ru:"устойчивые глагольно-именные сочетания", ex:"Rücksicht nehmen, in Anspruch nehmen", w:1 },
+      { n:"Erweitertes Partizip I und II", ru:"распространённое причастное определение", ex:"der schnell laufende Hund", w:1 },
+      { n:"Negation durch Vor- und Nachsilben", ru:"отрицательные приставки и суффиксы", ex:"unglücklich, hoffnungslos, irregulär", w:1 },
+      { n:"Fugenelement -s- bei Nomen", ru:"соединительный элемент в композитах", ex:"die Arbeitszeit, das Geburtstagsgeschenk", w:1 },
+      { n:"Wortfolge im Mittelfeld / Verweiswörter", ru:"порядок слов в середине предложения", ex:"Ich habe es ihm gestern trotzdem gesagt.", w:1 },
+      { n:"Das Wort es — все функции", ru:"функции слова es", ex:"Es regnet. Ich finde es schön. Es gibt viele Leute.", w:1 },
+      { n:"Adversativsätze", ru:"противопоставление", ex:"Er ist reich, während sie arm ist.", w:1 },
+      { n:"Subjektlose Passivsätze", ru:"безличный пассив", ex:"Es wird getanzt. Hier wird nicht geraucht.", w:1 }
+    ]
+  },
+  C1: {
+    desc: "Тонкости, отличающие уверенного носителя: формальный стиль, номинализация, причастные обороты и редкие конструкции.",
+    topics: [
+      { n:"Modalverben und ihre Alternativen", ru:"полная система замен модальных глаголов", ex:"Das ist zu schaffen. = Das kann man schaffen.", w:3 },
+      { n:"Indirekte Rede: Fragen und Imperativ", ru:"косвенный вопрос и косвенный приказ", ex:"Er fragte, ob ich käme. Sie bat mich, ich solle warten.", w:3 },
+      { n:"Aspektverschiebung mit Modalverben", ru:"смена перспективы актив / пассив", ex:"Er will es getan haben. → Es soll getan worden sein.", w:2 },
+      { n:"Funktionen des Pronomens es", ru:"углублённые функции es", ex:"Ich habe es eilig. Er bringt es zu etwas.", w:2 },
+      { n:"Adjektivendungen nach alle, sämtliche, solche", ru:"склонение после сложных артиклевых слов", ex:"sämtliche wichtigen Fragen, alle guten Ideen", w:2 },
+      { n:"Erweiterte Partizipien I/II als Attribut", ru:"сложное причастное определение", ex:"die von der Regierung geplanten Reformen", w:2 },
+      { n:"Verbalstil – Nominalstil", ru:"переключение между стилями", ex:"weil er krank war → wegen seiner Krankheit", w:2 },
+      { n:"Zweiteilige konzessive Konnektoren", ru:"двойные уступительные союзы", ex:"Wie schwer es auch sei, ich schaffe es.", w:2 },
+      { n:"Zweiteilige restriktive Konnektoren", ru:"ограничительные союзы", ex:"Ich komme, es sei denn, es regnet.", w:2 },
+      { n:"Irreale Folgesätze", ru:"нереальное следствие", ex:"Er ist zu jung, als dass er das verstehen könnte.", w:2 },
+      { n:"Kausale: zumal, mangels", ru:"формальные союзы причины", ex:"Ich bleibe, zumal es schon spät ist.", w:2 },
+      { n:"Konditionale: im Falle dass, vorausgesetzt dass", ru:"официальные условные обороты", ex:"Vorausgesetzt, dass alle zustimmen, beginnen wir.", w:2 },
+      { n:"Konzessive: obgleich, obschon, ungeachtet", ru:"официальные уступительные обороты", ex:"Ungeachtet der Tatsache, dass es regnete, kam er.", w:2 },
+      { n:"Passiversatz mit bekommen + Partizip II", ru:"получательный пассив", ex:"Ich bekomme das Buch geschenkt.", w:1 },
+      { n:"Passiversatzformen — систематизация", ru:"все способы замены пассива", ex:"sich lassen, sein + zu, -bar, Gerundiv", w:1 },
+      { n:"Präpositionen mit Genitiv (редкие)", ru:"формальные предлоги родительного падежа", ex:"angesichts, mithilfe, ungeachtet, hinsichtlich", w:1 },
+      { n:"Präpositionen mit Dativ (редкие)", ru:"формальные предлоги дательного падежа", ex:"entsprechend, samt, zuliebe, fern", w:1 },
+      { n:"Gerundiv als Passiversatz", ru:"герундив вместо пассива", ex:"die zu lösende Aufgabe", w:1 },
+      { n:"Partizipialkonstruktionen", ru:"причастный оборот вместо придаточного", ex:"In Berlin angekommen, rief er sofort an.", w:1 },
+      { n:"Книжные суффиксы", ru:"суффиксы академического стиля", ex:"der Mechanismus, die Organisation, die Qualität", w:1 },
+      { n:"Modalpartikeln: halt, eben, ohnehin", ru:"тонкие модальные частицы", ex:"Das ist halt so. Er kommt eben nicht.", w:1 },
+      { n:"Redewiedergabe mit nach, laut, zufolge", ru:"передача чужой речи предлогами", ex:"Laut Expertenmeinung steigen die Preise.", w:1 },
+      { n:"Finale: wozu, wofür, zwecks", ru:"формальные обороты цели", ex:"Zwecks der Klärung wurde ein Treffen angesetzt.", w:1 },
+      { n:"Variationen der Satzstellung", ru:"вынос за рамку предложения", ex:"Er hat das Buch gelesen, das ihm empfohlen wurde.", w:1 },
+      { n:"Impliziter Vergleich, relativer Superlativ", ru:"скрытое сравнение", ex:"Das ist die interessanteste Lösung von allen.", w:1 },
+      { n:"Partizipialsätze und Aufforderungssätze", ru:"причастные и побудительные предложения", ex:"Die Tür geöffnet, betrat er den Raum.", w:1 },
+      { n:"Nominalisierung ganzer Sätze", ru:"превращение предложения в существительное", ex:"dass er kam → sein Kommen", w:1 },
+      { n:"Doppelte Verneinung", ru:"двойное отрицание", ex:"Es ist nicht unmöglich, dass er kommt.", w:1 }
+    ]
+  }
+};
+var LEVELS = ["B1","B2","C1"];
+var TOTAL = 71;
+
+/* ============ persistence ============ */
+var state = { done: {} };   /* done["B1:0"] = true */
+var hasBridge = typeof AndroidBridge !== "undefined";
+
+function loadState() {
+  var raw = null;
+  try {
+    if (hasBridge) raw = AndroidBridge.loadProgress();
+    else raw = localStorage.getItem("gk-progress");
+  } catch(e) {}
+  if (raw) {
+    try {
+      var p = JSON.parse(raw);
+      if (p && p.done) state.done = p.done;
+    } catch(e) {}
+  }
+}
+function saveState() {
+  var raw = JSON.stringify({ app: "grammatik-kompass", version: 1, saved: new Date().toISOString(), done: state.done });
+  try {
+    if (hasBridge) AndroidBridge.saveProgress(raw);
+    else localStorage.setItem("gk-progress", raw);
+  } catch(e) {}
+  return raw;
+}
+
+/* ============ helpers ============ */
+function countDone(level) {
+  var c = 0;
+  for (var i = 0; i < DATA[level].topics.length; i++) if (state.done[level + ":" + i]) c++;
+  return c;
+}
+function totalDone() {
+  var c = 0;
+  for (var l = 0; l < LEVELS.length; l++) c += countDone(LEVELS[l]);
+  return c;
+}
+function pct(a, b) { return b === 0 ? 0 : Math.round(a / b * 100); }
+
+/* ============ home rendering ============ */
+function buildLevelCards() {
+  var host = document.getElementById("levelCards");
+  var html = "";
+  for (var i = 0; i < LEVELS.length; i++) {
+    var lv = LEVELS[i];
+    var n = DATA[lv].topics.length;
+    html +=
+      '<div class="card level-card level-' + lv.toLowerCase() + '" onclick="openLevel(\'' + lv + '\')">' +
+        '<div class="level-badge">' + lv + '</div>' +
+        '<div class="level-info">' +
+          '<div class="level-name">Niveau ' + lv + '</div>' +
+          '<div class="level-desc" id="desc-' + lv + '">' + n + ' тем</div>' +
+        '</div>' +
+        '<div class="mini-donut">' +
+          '<svg width="52" height="52" viewBox="0 0 52 52">' +
+            '<circle class="mini-track" cx="26" cy="26" r="21" fill="none" stroke-width="5"/>' +
+            '<circle class="mini-value" id="ring-' + lv + '" cx="26" cy="26" r="21" fill="none" stroke-width="5" stroke-dasharray="131.9" stroke-dashoffset="131.9"/>' +
+          '</svg>' +
+          '<div class="mini-pct" id="ringPct-' + lv + '">0%</div>' +
+        '</div>' +
+        '<svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>' +
+      '</div>';
+  }
+  host.innerHTML = html;
+}
+
+function renderHome() {
+  var done = totalDone();
+  var percent = pct(done, TOTAL);
+  document.getElementById("mainPct").textContent = percent;
+  document.getElementById("statDone").textContent = done;
+  document.getElementById("statLeft").textContent = TOTAL - done;
+  var C = 364.4;
+  document.getElementById("mainDonut").style.strokeDashoffset = (C - C * percent / 100).toFixed(1);
+
+  for (var i = 0; i < LEVELS.length; i++) {
+    var lv = LEVELS[i];
+    var n = DATA[lv].topics.length;
+    var d = countDone(lv);
+    var p = pct(d, n);
+    document.getElementById("bar" + lv).style.width = p + "%";
+    document.getElementById("cnt" + lv).textContent = d + " / " + n;
+    var MC = 131.9;
+    document.getElementById("ring-" + lv).style.strokeDashoffset = (MC - MC * p / 100).toFixed(1);
+    document.getElementById("ringPct-" + lv).textContent = p + "%";
+    document.getElementById("desc-" + lv).textContent =
+      d === n ? "Все " + n + " тем закрыты 🎉" : d + " из " + n + " тем выучено, осталось " + (n - d);
+  }
+}
+
+/* ============ list rendering ============ */
+var currentLevel = null;
+
+function dotsHtml(w) {
+  var cls = "on-" + w, s = "";
+  for (var i = 1; i <= 3; i++) s += '<span class="dot ' + (i <= w ? cls : "") + '"></span>';
+  var label = w === 3 ? "критично" : (w === 2 ? "важно" : "желательно");
+  return '<div class="dots">' + s + '<span class="dots-label">' + label + '</span></div>';
+}
+
+function openLevel(lv) {
+  currentLevel = lv;
+  document.getElementById("listTitle").textContent = "Niveau " + lv;
+  document.getElementById("levelIntro").textContent = DATA[lv].desc;
+
+  var host = document.getElementById("topicList");
+  var html = "";
+  for (var i = 0; i < DATA[lv].topics.length; i++) {
+    var t = DATA[lv].topics[i];
+    var isDone = !!state.done[lv + ":" + i];
+    html +=
+      '<div class="card topic' + (isDone ? " done" : "") + '" id="topic-' + i + '" onclick="toggleTopic(' + i + ')">' +
+        '<div class="topic-check">' +
+          '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#FAF9F5" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' +
+        '</div>' +
+        '<div class="topic-body">' +
+          '<div class="topic-top"><span class="topic-num">' + (i + 1) + '</span><span class="topic-name">' + t.n + '</span></div>' +
+          '<div class="topic-ru">' + t.ru + '</div>' +
+          '<div class="topic-ex">' + t.ex + '</div>' +
+          dotsHtml(t.w) +
+        '</div>' +
+      '</div>';
+  }
+  host.innerHTML = html;
+
+  renderListHeader(false);
+  document.getElementById("screen-list").scrollTop = 0;
+  document.body.classList.add("show-list");
+
+  /* staggered reveal */
+  var items = host.children;
+  for (var j = 0; j < items.length; j++) {
+    (function(el, delay) {
+      setTimeout(function(){ el.classList.add("revealed"); }, delay);
+    })(items[j], 120 + Math.min(j, 14) * 45);
+  }
+}
+
+function renderListHeader(animate) {
+  if (!currentLevel) return;
+  var lv = currentLevel;
+  var n = DATA[lv].topics.length;
+  var d = countDone(lv);
+  var p = pct(d, n);
+  document.getElementById("listSub").textContent = d + " из " + n + " выучено";
+  document.getElementById("listBar").style.width = p + "%";
+  var C = 106.8;
+  document.getElementById("headDonut").style.strokeDashoffset = (C - C * p / 100).toFixed(1);
+  document.getElementById("headPct").textContent = p + "%";
+  document.getElementById("doneNote").classList.toggle("show", d === n);
+}
+
+function toggleTopic(i) {
+  var key = currentLevel + ":" + i;
+  var el = document.getElementById("topic-" + i);
+  if (state.done[key]) { delete state.done[key]; el.classList.remove("done"); }
+  else {
+    state.done[key] = true;
+    el.classList.add("done");
+    if (countDone(currentLevel) === DATA[currentLevel].topics.length)
+      showToast("Niveau " + currentLevel + " полностью закрыт! 🎉");
+  }
+  saveState();
+  renderListHeader(true);
+  renderHome();
+}
+
+function goHome() {
+  document.body.classList.remove("show-list");
+}
+
+/* Android back button: return "true" if handled */
+function handleBack() {
+  if (document.body.classList.contains("show-list")) { goHome(); return true; }
+  return false;
+}
+
+/* ============ export / import ============ */
+function exportProgress() {
+  var raw = saveState();
+  if (hasBridge && AndroidBridge.exportProgress) {
+    AndroidBridge.exportProgress(raw);
+  } else {
+    var blob = new Blob([raw], { type: "application/json" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "grammatik-kompass-progress.json";
+    a.click();
+    showToast("Файл прогресса сохранён");
+  }
+}
+function importProgress() {
+  if (hasBridge && AndroidBridge.importProgress) {
+    AndroidBridge.importProgress();
+  } else {
+    document.getElementById("importInput").click();
+  }
+}
+document.getElementById("importInput").addEventListener("change", function(e) {
+  var f = e.target.files[0];
+  if (!f) return;
+  var r = new FileReader();
+  r.onload = function() { window.onProgressImported(r.result); };
+  r.readAsText(f);
+  e.target.value = "";
+});
+
+/* called from Android after file pick / export */
+window.onProgressImported = function(raw) {
+  try {
+    var p = JSON.parse(raw);
+    if (!p || typeof p.done !== "object") throw 0;
+    state.done = p.done || {};
+    saveState();
+    renderHome();
+    if (document.body.classList.contains("show-list") && currentLevel) openLevel(currentLevel);
+    showToast("Прогресс загружен: " + totalDone() + " из " + TOTAL + " тем");
+  } catch(e) {
+    showToast("Не удалось прочитать файл — это не файл прогресса");
+  }
+};
+window.onProgressExported = function(ok) {
+  showToast(ok ? "Файл прогресса сохранён" : "Сохранение отменено");
+};
+
+/* ============ toast ============ */
+var toastTimer = null;
+function showToast(msg) {
+  var t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ t.classList.remove("show"); }, 2600);
+}
+
+/* ============ init ============ */
+loadState();
+buildLevelCards();
+requestAnimationFrame(function(){ requestAnimationFrame(renderHome); });
+</script>
+</body>
+</html>
