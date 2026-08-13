@@ -74,25 +74,28 @@ android {
     }
 }
 
-// The Whisper speech model is too large for git; fetch it on demand before packaging.
-val modelFile = file("src/main/assets/models/ggml-small-q8_0.bin")
-val downloadModel = tasks.register("downloadWhisperModel") {
-    doLast {
-        if (!modelFile.exists() || modelFile.length() < 100_000_000L) {
-            modelFile.parentFile.mkdirs()
-            val url = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small-q8_0.bin"
-            logger.lifecycle("Downloading Whisper model (~264 MB) from $url ...")
-            URL(url).openStream().use { input ->
-                FileOutputStream(modelFile).use { output -> input.copyTo(output) }
+// By default the APK ships without the Whisper model (~264 MB) and the app
+// downloads it once on first use. Build with -PbundleModel to embed it.
+if (project.hasProperty("bundleModel")) {
+    val modelFile = file("src/main/assets/models/ggml-small-q8_0.bin")
+    val downloadModel = tasks.register("downloadWhisperModel") {
+        doLast {
+            if (!modelFile.exists() || modelFile.length() < 100_000_000L) {
+                modelFile.parentFile.mkdirs()
+                val url = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small-q8_0.bin"
+                logger.lifecycle("Downloading Whisper model (~264 MB) from $url ...")
+                URL(url).openStream().use { input ->
+                    FileOutputStream(modelFile).use { output -> input.copyTo(output) }
+                }
             }
         }
     }
-}
-tasks.matching {
-    (it.name.startsWith("merge") && it.name.endsWith("Assets")) ||
-        it.name.startsWith("lint") || it.name.startsWith("generate")
-}.configureEach {
-    dependsOn(downloadModel)
+    tasks.matching {
+        (it.name.startsWith("merge") && it.name.endsWith("Assets")) ||
+            it.name.startsWith("lint") || it.name.startsWith("generate")
+    }.configureEach {
+        dependsOn(downloadModel)
+    }
 }
 
 dependencies {

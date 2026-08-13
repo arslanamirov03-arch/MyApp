@@ -48,8 +48,8 @@ class TranscribeService : Service() {
         val repo = Repository.get(this)
         while (true) {
             val next = repo.library.value.items.firstOrNull {
-                it.status == ItemStatus.PENDING || it.status == ItemStatus.DECODING ||
-                    it.status == ItemStatus.TRANSCRIBING
+                it.status == ItemStatus.PENDING || it.status == ItemStatus.MODEL_DOWNLOAD ||
+                    it.status == ItemStatus.DECODING || it.status == ItemStatus.TRANSCRIBING
             } ?: break
             processItem(next.id)
         }
@@ -60,6 +60,15 @@ class TranscribeService : Service() {
         val repo = Repository.get(this)
         val item = repo.item(id) ?: return
         try {
+            if (!WhisperBridge.modelReady(this)) {
+                repo.updateItem(id) { it.copy(status = ItemStatus.MODEL_DOWNLOAD, progress = 0, errorMessage = null) }
+                updateNotification("Загрузка модели распознавания…", 0)
+                WhisperBridge.ensureModel(this) { p ->
+                    runBlocking { repo.updateItem(id) { it.copy(progress = p) } }
+                    updateNotification("Загрузка модели распознавания…", p)
+                }
+            }
+
             repo.updateItem(id) { it.copy(status = ItemStatus.DECODING, progress = 0, errorMessage = null) }
             updateNotification("Чтение аудио: ${item.title}", 0)
 

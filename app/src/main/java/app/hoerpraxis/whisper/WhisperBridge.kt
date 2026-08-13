@@ -29,7 +29,7 @@ class WhisperBridge {
 
     /** Runs full transcription; returns null when cancelled. */
     fun transcribe(context: Context, pcm: FloatArray): List<Word>? {
-        val modelPath = ensureModel(context)
+        val modelPath = ensureModel(context) {}
         val ctx = nativeInit(modelPath)
         check(ctx != 0L) { "Не удалось загрузить модель распознавания" }
         try {
@@ -44,23 +44,63 @@ class WhisperBridge {
     companion object {
         private const val MODEL_ASSET = "models/ggml-small-q8_0.bin"
         private const val MODEL_FILE = "ggml-small-q8_0.bin"
+        private const val MODEL_SIZE = 264_464_607L
+        private const val MODEL_URL =
+            "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small-q8_0.bin"
 
         init {
             System.loadLibrary("hoerpraxis")
         }
 
+        fun modelReady(context: Context): Boolean =
+            File(File(context.filesDir, "models"), MODEL_FILE).length() == MODEL_SIZE
+
+        /**
+         * Makes sure the Whisper model is on disk: copies it from APK assets
+         * when bundled, otherwise downloads it once. After that the app is
+         * fully offline.
+         */
         @Synchronized
-        fun ensureModel(context: Context): String {
+        fun ensureModel(context: Context, onProgress: (Int) -> Unit): String {
             val dir = File(context.filesDir, "models").apply { mkdirs() }
             val target = File(dir, MODEL_FILE)
-            val expected = context.assets.openFd(MODEL_ASSET).use { it.length }
-            if (!target.exists() || target.length() != expected) {
-                val tmp = File(dir, "$MODEL_FILE.tmp")
+            if (target.length() == MODEL_SIZE) return target.absolutePath
+
+            val tmp = File(dir, "$MODEL_FILE.tmp")
+            val fromAssets = runCatching {
                 context.assets.open(MODEL_ASSET).use { input ->
                     tmp.outputStream().use { output -> input.copyTo(output, 1 shl 20) }
                 }
-                tmp.renameTo(target)
+                true
+            }.getOrDefault(false)
+
+            if (!fromAssets) {
+                try {
+                    val connection = java.net.URL(MODEL_URL).openConnection()
+                    connection.connectTimeout = 20_000
+                    connection.readTimeout = 60_000
+                    connection.getInputStream().use { input ->
+                        tmp.outputStream().use { output ->
+                            val buffer = ByteArray(1 shl 20)
+                            var done = 0L
+                            while (true) {
+                                val read = input.read(buffer)
+                                if (read < 0) break
+                                output.write(buffer, 0, read)
+                                done += read
+                                onProgress(((done * 100) / MODEL_SIZE).toInt().coerceIn(0, 100))
+                            }
+                        }
+                    }
+                } catch (t: Throwable) {
+                    tmp.delete()
+                    throw IllegalStateException(
+                        "Для первой загрузки модели распознавания нужен интернет (~264 МБ, один раз)", t
+                    )
+                }
             }
+            check(tmp.length() == MODEL_SIZE) { "Модель загрузилась не полностью — попробуйте ещё раз" }
+            tmp.renameTo(target)
             return target.absolutePath
         }
     }

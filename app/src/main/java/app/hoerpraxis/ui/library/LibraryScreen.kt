@@ -225,6 +225,7 @@ private fun LibraryCard(item: AudioItem, onClick: () -> Unit, onLongClick: () ->
                 Spacer(Modifier.height(4.dp))
                 when (item.status) {
                     ItemStatus.PENDING -> StatusText("В очереди…")
+                    ItemStatus.MODEL_DOWNLOAD -> StatusText("Загрузка модели (один раз) · ${item.progress}%")
                     ItemStatus.DECODING -> StatusText("Чтение аудио · ${item.progress}%")
                     ItemStatus.TRANSCRIBING -> StatusText("Распознавание · ${item.progress}%")
                     ItemStatus.READY -> StatusText(formatDuration(item.durationMs))
@@ -234,7 +235,9 @@ private fun LibraryCard(item: AudioItem, onClick: () -> Unit, onLongClick: () ->
                         color = MaterialTheme.colorScheme.error,
                     )
                 }
-                if (item.status == ItemStatus.DECODING || item.status == ItemStatus.TRANSCRIBING) {
+                if (item.status == ItemStatus.MODEL_DOWNLOAD || item.status == ItemStatus.DECODING ||
+                    item.status == ItemStatus.TRANSCRIBING
+                ) {
                     Spacer(Modifier.height(10.dp))
                     LinearProgressIndicator(
                         progress = { progress },

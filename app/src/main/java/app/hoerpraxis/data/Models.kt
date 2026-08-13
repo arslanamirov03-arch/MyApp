@@ -2,7 +2,7 @@ package app.hoerpraxis.data
 
 import kotlinx.serialization.Serializable
 
-enum class ItemStatus { PENDING, DECODING, TRANSCRIBING, READY, ERROR }
+enum class ItemStatus { PENDING, MODEL_DOWNLOAD, DECODING, TRANSCRIBING, READY, ERROR }
 
 @Serializable
 data class AudioItem(
