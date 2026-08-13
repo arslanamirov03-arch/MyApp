@@ -15,6 +15,7 @@ import app.hoerpraxis.audio.AudioDecoder
 import app.hoerpraxis.data.ItemStatus
 import app.hoerpraxis.data.Repository
 import app.hoerpraxis.data.Transcript
+import app.hoerpraxis.data.TranscriptAligner
 import app.hoerpraxis.whisper.WhisperBridge
 import app.hoerpraxis.whisper.WhisperModel
 import kotlinx.coroutines.CoroutineScope
@@ -89,6 +90,13 @@ class TranscribeService : Service() {
         val repo = Repository.get(this)
         val item = repo.item(id) ?: return
         val model = WhisperModel.byId(repo.selectedModel.value)
+        // When the user pasted their own text, recognition is only used to
+        // measure timings — the pasted wording stays authoritative.
+        val pastedText = if (item.approximateTimings) {
+            repo.loadTranscript(id).words.joinToString(" ") { it.w }
+        } else {
+            null
+        }
         try {
             if (!model.isDownloaded(this)) {
                 repo.updateItem(id) {
@@ -123,8 +131,15 @@ class TranscribeService : Service() {
             if (words == null) {
                 repo.updateItem(id) { it.copy(status = ItemStatus.ERROR, errorMessage = "Отменено") }
             } else {
-                repo.saveTranscript(id, Transcript(words))
-                repo.updateItem(id) { it.copy(status = ItemStatus.READY, progress = 100) }
+                val finalWords = if (pastedText != null && pastedText.isNotBlank()) {
+                    TranscriptAligner.align(pastedText, words, item.durationMs)
+                } else {
+                    words
+                }
+                repo.saveTranscript(id, Transcript(finalWords))
+                repo.updateItem(id) {
+                    it.copy(status = ItemStatus.READY, progress = 100, approximateTimings = false)
+                }
             }
         } catch (t: Throwable) {
             repo.setModelProgress(null)

@@ -38,3 +38,5 @@
 9336	9345	1786606946774115635	ggml_build/src/libggml.a	a382b9173dd18862
 3	20070	1786606957448962091	CMakeFiles/hoerpraxis.dir/whisper/src/whisper.cpp.o	e8b837ac2ada2e2
 20070	20186	1786606957604962088	/home/user/MyApp/app/build/intermediates/cxx/Release/6a6f3z2d/obj/arm64-v8a/libhoerpraxis.so	93e82e516cfd7525
+103	17133	1786611533332258976	CMakeFiles/hoerpraxis.dir/jni.cpp.o	e87de784ee7c8705
+17133	24545	1786611540748258806	/home/user/MyApp/app/build/intermediates/cxx/Release/6a6f3z2d/obj/arm64-v8a/libhoerpraxis.so	93e82e516cfd7525

@@ -7,6 +7,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.SeekParameters
 import app.hoerpraxis.data.AudioItem
 import app.hoerpraxis.data.Repository
 import app.hoerpraxis.data.Transcript
@@ -17,7 +18,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
 /** Interaction modes of the transcript area. */
-enum class TranscriptMode { LISTEN, LOOP, EDIT }
+enum class TranscriptMode { LISTEN, LOOP_WORD, LOOP_RANGE, EDIT }
 
 data class LoopRange(val startIndex: Int, val endIndex: Int)
 
@@ -65,6 +66,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
         player.setMediaItem(MediaItem.fromUri(repo.audioFile(item).toURI().toString()))
         player.playbackParameters = PlaybackParameters(item.speed)
+        // Land exactly on the requested millisecond instead of the nearest
+        // keyframe, so tapping a word starts on that word.
+        player.setSeekParameters(SeekParameters.EXACT)
         player.prepare()
         player.seekTo(item.lastPositionMs)
         player.addListener(object : Player.Listener {
@@ -83,8 +87,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     if (words.isNotEmpty()) {
                         val end = words[loop.endIndex.coerceIn(words.indices)].e
                         val start = words[loop.startIndex.coerceIn(words.indices)].s
-                        if (player.currentPosition > end + 60) {
-                            player.seekTo(start)
+                        if (player.currentPosition > end + LOOP_TAIL_MS) {
+                            player.seekTo((start - LEAD_IN_MS).coerceAtLeast(0))
                         }
                     }
                 }
@@ -112,6 +116,17 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         _positionMs.value = player.currentPosition
     }
 
+    /**
+     * Seeks to a word with a short lead-in: starting exactly on the measured
+     * onset clips the first consonant, which is precisely what listeners are
+     * trying to hear.
+     */
+    private fun seekToWord(index: Int) {
+        val words = _words.value
+        if (index !in words.indices) return
+        seekTo(words[index].s - LEAD_IN_MS)
+    }
+
     fun seekBy(deltaMs: Long) = seekTo(player.currentPosition + deltaMs)
 
     fun setSpeed(value: Float) {
@@ -123,8 +138,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun setMode(newMode: TranscriptMode) {
         _mode.value = if (_mode.value == newMode) TranscriptMode.LISTEN else newMode
-        if (_mode.value != TranscriptMode.LOOP) {
+        if (_mode.value == TranscriptMode.LISTEN || _mode.value == TranscriptMode.EDIT) {
             _loopRange.value = null
+            _loopAnchor.value = null
+        } else {
+            // Switching between the two loop modes starts a fresh selection.
             _loopAnchor.value = null
         }
     }
@@ -132,7 +150,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     /**
      * A word tap means different things per mode:
      * listening → continue playback from that word;
-     * loop → first tap anchors the range, second tap completes it;
+     * loop by word → repeat exactly that word;
+     * loop by range → first tap sets the start, further taps extend the end;
      * edit → handled by the UI (opens the edit dialog).
      */
     fun onWordTap(index: Int) {
@@ -140,19 +159,26 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         if (index !in words.indices) return
         when (_mode.value) {
             TranscriptMode.LISTEN -> {
-                seekTo(words[index].s)
+                seekToWord(index)
                 player.play()
             }
-            TranscriptMode.LOOP -> {
+            TranscriptMode.LOOP_WORD -> {
+                _loopRange.value = LoopRange(index, index)
+                _loopAnchor.value = null
+                seekToWord(index)
+                player.play()
+            }
+            TranscriptMode.LOOP_RANGE -> {
                 val anchor = _loopAnchor.value
-                if (anchor == null || _loopRange.value != null) {
+                if (anchor == null) {
+                    // Start a new selection; nothing loops until the end is picked.
                     _loopAnchor.value = index
                     _loopRange.value = null
+                    seekToWord(index)
                 } else {
                     val range = LoopRange(minOf(anchor, index), maxOf(anchor, index))
                     _loopRange.value = range
-                    _loopAnchor.value = null
-                    seekTo(words[range.startIndex].s)
+                    seekToWord(range.startIndex)
                     player.play()
                 }
             }
@@ -160,14 +186,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    /** Loop a single word right away (long press in loop mode). */
-    fun loopSingleWord(index: Int) {
-        val words = _words.value
-        if (index !in words.indices) return
-        _loopRange.value = LoopRange(index, index)
+    /** Drops the current selection so a new fragment can be chosen. */
+    fun restartSelection() {
+        _loopRange.value = null
         _loopAnchor.value = null
-        seekTo(words[index].s)
-        player.play()
     }
 
     fun clearLoop() {
@@ -235,5 +257,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
         super.onCleared()
+    }
+
+    private companion object {
+        /** Start slightly before a word so its first sound isn't clipped. */
+        const val LEAD_IN_MS = 70L
+
+        /** Let a looped fragment finish ringing out before repeating. */
+        const val LOOP_TAIL_MS = 120L
     }
 }

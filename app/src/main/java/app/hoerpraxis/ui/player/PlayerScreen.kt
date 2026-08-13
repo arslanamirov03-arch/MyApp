@@ -9,8 +9,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -118,6 +116,7 @@ fun PlayerScreen(itemId: String, onBack: () -> Unit) {
 
     var editingWordIndex by remember { mutableStateOf<Int?>(null) }
     var editingFullText by remember { mutableStateOf(false) }
+    var loopMenuOpen by remember { mutableStateOf(false) }
 
     val paragraphs = remember(words) { buildParagraphs(words) }
     val currentWordIndex by remember(words) {
@@ -129,11 +128,7 @@ fun PlayerScreen(itemId: String, onBack: () -> Unit) {
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        item?.title ?: "",
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    Text(item?.title ?: "", maxLines = 1, overflow = TextOverflow.Ellipsis)
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -144,13 +139,53 @@ fun PlayerScreen(itemId: String, onBack: () -> Unit) {
                     containerColor = MaterialTheme.colorScheme.background,
                 ),
                 actions = {
-                    ModeIconButton(
-                        icon = Icons.Filled.RepeatOne,
-                        contentDescription = "Разбор",
-                        active = mode == TranscriptMode.LOOP,
-                        activeColor = GoogleAmber,
-                        onClick = { vm.setMode(TranscriptMode.LOOP) },
-                    )
+                    Box {
+                        ModeIconButton(
+                            icon = Icons.Filled.RepeatOne,
+                            contentDescription = "Разбор",
+                            active = mode == TranscriptMode.LOOP_WORD || mode == TranscriptMode.LOOP_RANGE,
+                            activeColor = GoogleAmber,
+                            onClick = { loopMenuOpen = true },
+                        )
+                        DropdownMenu(
+                            expanded = loopMenuOpen,
+                            onDismissRequest = { loopMenuOpen = false },
+                            shape = MaterialTheme.shapes.medium,
+                        ) {
+                            DropdownMenuItem(
+                                text = {
+                                    Column {
+                                        Text("Слово", fontWeight = FontWeight.SemiBold)
+                                        Text(
+                                            "Нажмите слово — оно повторяется бесконечно",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                },
+                                onClick = {
+                                    vm.setMode(TranscriptMode.LOOP_WORD)
+                                    loopMenuOpen = false
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = {
+                                    Column {
+                                        Text("Предложение", fontWeight = FontWeight.SemiBold)
+                                        Text(
+                                            "Отметьте начало и конец — повторяется весь кусок",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                },
+                                onClick = {
+                                    vm.setMode(TranscriptMode.LOOP_RANGE)
+                                    loopMenuOpen = false
+                                },
+                            )
+                        }
+                    }
                     ModeIconButton(
                         icon = Icons.Filled.Edit,
                         contentDescription = "Редактировать",
@@ -168,7 +203,7 @@ fun PlayerScreen(itemId: String, onBack: () -> Unit) {
                 mode = mode,
                 hasLoop = loopRange != null,
                 hasAnchor = loopAnchor != null,
-                onStopLoop = { vm.clearLoop() },
+                onRestartSelection = { vm.restartSelection() },
                 onEditFullText = { editingFullText = true },
                 onClose = { vm.setMode(TranscriptMode.LISTEN) },
             )
@@ -184,9 +219,6 @@ fun PlayerScreen(itemId: String, onBack: () -> Unit) {
                 onWordTap = { index ->
                     if (mode == TranscriptMode.EDIT) editingWordIndex = index
                     else vm.onWordTap(index)
-                },
-                onWordLongPress = { index ->
-                    if (mode == TranscriptMode.LOOP) vm.loopSingleWord(index)
                 },
             )
 
@@ -255,7 +287,7 @@ private fun ModeBanner(
     mode: TranscriptMode,
     hasLoop: Boolean,
     hasAnchor: Boolean,
-    onStopLoop: () -> Unit,
+    onRestartSelection: () -> Unit,
     onEditFullText: () -> Unit,
     onClose: () -> Unit,
 ) {
@@ -264,9 +296,10 @@ private fun ModeBanner(
         enter = expandVertically(tween(300)) + fadeIn(tween(300)),
         exit = shrinkVertically(tween(300)) + fadeOut(tween(300)),
     ) {
+        val loopMode = mode == TranscriptMode.LOOP_WORD || mode == TranscriptMode.LOOP_RANGE
         Surface(
             shape = MaterialTheme.shapes.large,
-            color = if (mode == TranscriptMode.LOOP) AmberTint else BlueTint,
+            color = if (loopMode) AmberTint else BlueTint,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp, 4.dp, 16.dp, 8.dp),
@@ -277,29 +310,40 @@ private fun ModeBanner(
             ) {
                 Text(
                     text = when {
-                        mode == TranscriptMode.LOOP && hasLoop -> "Повтор фрагмента — слушайте сколько нужно"
-                        mode == TranscriptMode.LOOP && hasAnchor -> "Теперь нажмите последнее слово фрагмента"
-                        mode == TranscriptMode.LOOP -> "Нажмите первое слово фрагмента (долгое нажатие — одно слово)"
+                        mode == TranscriptMode.LOOP_WORD && hasLoop ->
+                            "Слово повторяется — нажмите другое, чтобы переключиться"
+                        mode == TranscriptMode.LOOP_WORD ->
+                            "Разбор по слову: нажмите любое слово"
+                        mode == TranscriptMode.LOOP_RANGE && hasLoop ->
+                            "Кусок повторяется — нажимайте слова, чтобы менять конец"
+                        mode == TranscriptMode.LOOP_RANGE && hasAnchor ->
+                            "Теперь нажмите последнее слово куска"
+                        mode == TranscriptMode.LOOP_RANGE ->
+                            "Разбор по предложению: нажмите первое слово"
                         else -> "Нажмите слово, чтобы исправить его"
                     },
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.weight(1f),
                 )
-                if (mode == TranscriptMode.LOOP && hasLoop) {
-                    TextButton(onClick = onStopLoop) { Text("Сбросить") }
+                if (loopMode && (hasLoop || hasAnchor)) {
+                    TextButton(onClick = onRestartSelection) { Text("Заново") }
                 }
                 if (mode == TranscriptMode.EDIT) {
                     TextButton(onClick = onEditFullText) { Text("Весь текст") }
                 }
                 IconButton(onClick = onClose) {
-                    Icon(Icons.Filled.Close, contentDescription = "Закрыть режим", modifier = Modifier.size(18.dp))
+                    Icon(
+                        Icons.Filled.Close,
+                        contentDescription = "Закрыть режим",
+                        modifier = Modifier.size(18.dp),
+                    )
                 }
             }
         }
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun TranscriptView(
     modifier: Modifier,
@@ -310,7 +354,6 @@ private fun TranscriptView(
     loopAnchor: Int?,
     editMode: Boolean,
     onWordTap: (Int) -> Unit,
-    onWordLongPress: (Int) -> Unit,
 ) {
     val listState = rememberLazyListState()
 
@@ -347,7 +390,6 @@ private fun TranscriptView(
                         isAnchor = global == loopAnchor,
                         editMode = editMode,
                         onTap = { onWordTap(global) },
-                        onLongPress = { onWordLongPress(global) },
                     )
                 }
             }
@@ -355,7 +397,6 @@ private fun TranscriptView(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun WordChip(
     word: String,
@@ -364,7 +405,6 @@ private fun WordChip(
     isAnchor: Boolean,
     editMode: Boolean,
     onTap: () -> Unit,
-    onLongPress: () -> Unit,
 ) {
     val background by animateColorAsState(
         targetValue = when {
@@ -374,12 +414,12 @@ private fun WordChip(
             editMode -> BlueTint.copy(alpha = 0.55f)
             else -> Color.Transparent
         },
-        animationSpec = tween(200),
+        animationSpec = tween(160),
         label = "wordBg",
     )
     val textColor by animateColorAsState(
         targetValue = if (isCurrent || isAnchor) Color.White else MaterialTheme.colorScheme.onBackground,
-        animationSpec = tween(200),
+        animationSpec = tween(160),
         label = "wordFg",
     )
     Text(
@@ -390,7 +430,7 @@ private fun WordChip(
         modifier = Modifier
             .clip(RoundedCornerShape(10.dp))
             .background(background)
-            .combinedClickable(onClick = onTap, onLongClick = onLongPress)
+            .clickable(onClick = onTap)
             .padding(horizontal = 4.dp, vertical = 2.dp),
     )
 }
@@ -436,14 +476,15 @@ private fun PlayerControls(
                 )
             }
             Spacer(Modifier.height(6.dp))
-            Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 SpeedButton(speed = speed, onSpeed = onSpeed)
                 Spacer(Modifier.weight(1f))
                 IconButton(onClick = { onSeekBy(-5000) }) {
-                    Icon(Icons.Filled.Replay5, contentDescription = "Назад 5 секунд", modifier = Modifier.size(30.dp))
+                    Icon(
+                        Icons.Filled.Replay5,
+                        contentDescription = "Назад 5 секунд",
+                        modifier = Modifier.size(30.dp),
+                    )
                 }
                 Spacer(Modifier.width(10.dp))
                 FilledIconButton(
@@ -463,7 +504,11 @@ private fun PlayerControls(
                 }
                 Spacer(Modifier.width(10.dp))
                 IconButton(onClick = { onSeekBy(5000) }) {
-                    Icon(Icons.Filled.Forward5, contentDescription = "Вперёд 5 секунд", modifier = Modifier.size(30.dp))
+                    Icon(
+                        Icons.Filled.Forward5,
+                        contentDescription = "Вперёд 5 секунд",
+                        modifier = Modifier.size(30.dp),
+                    )
                 }
                 Spacer(Modifier.weight(1f))
                 Spacer(Modifier.width(56.dp))
@@ -532,12 +577,8 @@ private fun WordEditDialog(initial: String, onDismiss: () -> Unit, onSave: (Stri
                 supportingText = { Text("Пустое поле удалит слово") },
             )
         },
-        confirmButton = {
-            TextButton(onClick = { onSave(text) }) { Text("Сохранить") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Отмена") }
-        },
+        confirmButton = { TextButton(onClick = { onSave(text) }) { Text("Сохранить") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
     )
 }
 
@@ -556,11 +597,7 @@ private fun FullTextEditDialog(initial: String, onDismiss: () -> Unit, onSave: (
                 modifier = Modifier.fillMaxWidth().height(320.dp),
             )
         },
-        confirmButton = {
-            TextButton(onClick = { onSave(text) }) { Text("Сохранить") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Отмена") }
-        },
+        confirmButton = { TextButton(onClick = { onSave(text) }) { Text("Сохранить") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
     )
 }

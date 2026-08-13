@@ -2,7 +2,16 @@ package app.hoerpraxis.data
 
 import kotlinx.serialization.Serializable
 
-enum class ItemStatus { PENDING, MODEL_DOWNLOAD, DECODING, TRANSCRIBING, READY, ERROR }
+enum class ItemStatus {
+    /** Added, waiting for the user to pick recognition or pasted text. */
+    NEW,
+    PENDING,
+    MODEL_DOWNLOAD,
+    DECODING,
+    TRANSCRIBING,
+    READY,
+    ERROR,
+}
 
 @Serializable
 data class AudioItem(
@@ -11,11 +20,13 @@ data class AudioItem(
     val fileName: String,
     val durationMs: Long,
     val addedAt: Long,
-    val status: ItemStatus = ItemStatus.PENDING,
+    val status: ItemStatus = ItemStatus.NEW,
     val progress: Int = 0,
     val lastPositionMs: Long = 0L,
     val speed: Float = 1.0f,
     val errorMessage: String? = null,
+    /** True when timings came from pasted text rather than from the audio. */
+    val approximateTimings: Boolean = false,
 )
 
 @Serializable

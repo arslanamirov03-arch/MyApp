@@ -14,7 +14,7 @@ class WhisperBridge {
 
     @Volatile var progressListener: ((Int) -> Unit)? = null
 
-    private external fun nativeInit(modelPath: String): Long
+    private external fun nativeInit(modelPath: String, modelId: String): Long
     private external fun nativeFree(ctxPtr: Long)
     private external fun nativeCancel()
     private external fun nativeTranscribe(ctxPtr: Long, pcm: FloatArray): String
@@ -30,7 +30,7 @@ class WhisperBridge {
     /** Runs full transcription; returns null when cancelled. */
     fun transcribe(context: Context, model: WhisperModel, pcm: FloatArray): List<Word>? {
         val modelPath = model.file(context).absolutePath
-        val ctx = nativeInit(modelPath)
+        val ctx = nativeInit(modelPath, model.id)
         check(ctx != 0L) { "Не удалось загрузить модель распознавания — скачайте её заново в настройках" }
         try {
             val result = nativeTranscribe(ctx, pcm)
