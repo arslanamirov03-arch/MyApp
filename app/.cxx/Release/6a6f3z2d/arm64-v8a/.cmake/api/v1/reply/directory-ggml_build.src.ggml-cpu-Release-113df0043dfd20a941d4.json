@@ -1,0 +1,14 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : [],
+		"files" : [],
+		"nodes" : []
+	},
+	"installers" : [],
+	"paths" : 
+	{
+		"build" : "ggml_build/src/ggml-cpu",
+		"source" : "whisper/ggml/src/ggml-cpu"
+	}
+}

@@ -1,0 +1,63 @@
+{
+  "buildFiles": [
+    "/home/user/MyApp/app/src/main/cpp/CMakeLists.txt",
+    "/home/user/MyApp/app/src/main/cpp/whisper/ggml/CMakeLists.txt",
+    "/home/user/MyApp/app/src/main/cpp/whisper/ggml/cmake/common.cmake",
+    "/home/user/MyApp/app/src/main/cpp/whisper/ggml/cmake/ggml-config.cmake.in",
+    "/home/user/MyApp/app/src/main/cpp/whisper/ggml/src/CMakeLists.txt",
+    "/home/user/MyApp/app/src/main/cpp/whisper/ggml/src/ggml-cpu/CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "/tmp/claude-0/-home-user-MyApp/f45a90a0-5b78-581d-8464-0210cfbfc467/scratchpad/android-sdk/cmake/3.22.1/bin/ninja",
+      "-C",
+      "/home/user/MyApp/app/.cxx/Release/6a6f3z2d/arm64-v8a",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "/tmp/claude-0/-home-user-MyApp/f45a90a0-5b78-581d-8464-0210cfbfc467/scratchpad/android-sdk/cmake/3.22.1/bin/ninja",
+    "-C",
+    "/home/user/MyApp/app/.cxx/Release/6a6f3z2d/arm64-v8a",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {
+    "ggml::@a96a941bb47d1cb6e1ee": {
+      "toolchain": "toolchain",
+      "abi": "arm64-v8a",
+      "artifactName": "ggml",
+      "output": "/home/user/MyApp/app/.cxx/Release/6a6f3z2d/arm64-v8a/ggml_build/src/libggml.a"
+    },
+    "ggml-base::@a96a941bb47d1cb6e1ee": {
+      "toolchain": "toolchain",
+      "abi": "arm64-v8a",
+      "artifactName": "ggml-base",
+      "output": "/home/user/MyApp/app/.cxx/Release/6a6f3z2d/arm64-v8a/ggml_build/src/libggml-base.a"
+    },
+    "ggml-cpu::@a96a941bb47d1cb6e1ee": {
+      "toolchain": "toolchain",
+      "abi": "arm64-v8a",
+      "artifactName": "ggml-cpu",
+      "output": "/home/user/MyApp/app/.cxx/Release/6a6f3z2d/arm64-v8a/ggml_build/src/libggml-cpu.a"
+    },
+    "hoerpraxis::@6890427a1f51a3e7e1df": {
+      "toolchain": "toolchain",
+      "abi": "arm64-v8a",
+      "artifactName": "hoerpraxis",
+      "output": "/home/user/MyApp/app/build/intermediates/cxx/Release/6a6f3z2d/obj/arm64-v8a/libhoerpraxis.so",
+      "runtimeFiles": []
+    }
+  },
+  "toolchains": {
+    "toolchain": {
+      "cCompilerExecutable": "/tmp/claude-0/-home-user-MyApp/f45a90a0-5b78-581d-8464-0210cfbfc467/scratchpad/android-sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/clang.lld",
+      "cppCompilerExecutable": "/tmp/claude-0/-home-user-MyApp/f45a90a0-5b78-581d-8464-0210cfbfc467/scratchpad/android-sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++.lld"
+    }
+  },
+  "cFileExtensions": [
+    "c"
+  ],
+  "cppFileExtensions": [
+    "cpp"
+  ]
+}

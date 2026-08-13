@@ -1,0 +1,155 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"childIndexes" : 
+					[
+						1
+					],
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-.-Release-f5ebdc15457944623624.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.6.0"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						3
+					]
+				},
+				{
+					"build" : "ggml_build",
+					"childIndexes" : 
+					[
+						2
+					],
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-ggml_build-Release-e0cdb370d970e9597735.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.14"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 1,
+					"source" : "whisper/ggml"
+				},
+				{
+					"build" : "ggml_build/src",
+					"childIndexes" : 
+					[
+						3
+					],
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-ggml_build.src-Release-06aa073de8bfa57ce25c.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.14"
+					},
+					"parentIndex" : 1,
+					"projectIndex" : 1,
+					"source" : "whisper/ggml/src",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2
+					]
+				},
+				{
+					"build" : "ggml_build/src/ggml-cpu",
+					"jsonFile" : "directory-ggml_build.src.ggml-cpu-Release-113df0043dfd20a941d4.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.14"
+					},
+					"parentIndex" : 2,
+					"projectIndex" : 1,
+					"source" : "whisper/ggml/src/ggml-cpu"
+				}
+			],
+			"name" : "Release",
+			"projects" : 
+			[
+				{
+					"childIndexes" : 
+					[
+						1
+					],
+					"directoryIndexes" : 
+					[
+						0
+					],
+					"name" : "hoerpraxis",
+					"targetIndexes" : 
+					[
+						3
+					]
+				},
+				{
+					"directoryIndexes" : 
+					[
+						1,
+						2,
+						3
+					],
+					"name" : "ggml",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 2,
+					"id" : "ggml::@a96a941bb47d1cb6e1ee",
+					"jsonFile" : "target-ggml-Release-63fcea6c47c1580abb89.json",
+					"name" : "ggml",
+					"projectIndex" : 1
+				},
+				{
+					"directoryIndex" : 2,
+					"id" : "ggml-base::@a96a941bb47d1cb6e1ee",
+					"jsonFile" : "target-ggml-base-Release-5e342bb2d2b14b6b5a21.json",
+					"name" : "ggml-base",
+					"projectIndex" : 1
+				},
+				{
+					"directoryIndex" : 2,
+					"id" : "ggml-cpu::@a96a941bb47d1cb6e1ee",
+					"jsonFile" : "target-ggml-cpu-Release-8e958e0ae6bfd81bd2aa.json",
+					"name" : "ggml-cpu",
+					"projectIndex" : 1
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "hoerpraxis::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-hoerpraxis-Release-f2282b4f173a58c1ff17.json",
+					"name" : "hoerpraxis",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "/home/user/MyApp/app/.cxx/Release/6a6f3z2d/arm64-v8a",
+		"source" : "/home/user/MyApp/app/src/main/cpp"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 3
+	}
+}

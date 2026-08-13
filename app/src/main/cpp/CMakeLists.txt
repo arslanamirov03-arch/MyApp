@@ -23,6 +23,7 @@ target_include_directories(hoerpraxis PRIVATE
 )
 
 target_compile_definitions(hoerpraxis PUBLIC GGML_USE_CPU)
+target_compile_definitions(hoerpraxis PRIVATE WHISPER_VERSION="1.8.2")
 
 if (${ANDROID_ABI} STREQUAL "arm64-v8a")
     target_compile_options(hoerpraxis PRIVATE -march=armv8.2-a+fp16)

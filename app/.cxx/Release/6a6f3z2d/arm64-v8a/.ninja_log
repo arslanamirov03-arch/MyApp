@@ -1,0 +1,26 @@
+# ninja log v5
+10	1207	1786606825168965117	ggml_build/src/CMakeFiles/ggml-base.dir/ggml-alloc.c.o	7bc5a5476e795723
+4	2031	1786606825980965098	CMakeFiles/hoerpraxis.dir/jni.cpp.o	f5c0a183e91a721c
+5	2497	1786606826452965087	ggml_build/src/CMakeFiles/ggml-base.dir/ggml.cpp.o	5095915dbd2ec133
+2497	3410	1786606827372965066	ggml_build/src/CMakeFiles/ggml-base.dir/ggml-threading.cpp.o	ff2fe18b9204e592
+4	4112	1786606828052965051	ggml_build/src/CMakeFiles/ggml-base.dir/ggml.c.o	20abab27fef6c0a4
+10	4623	1786606828572965039	ggml_build/src/CMakeFiles/ggml-base.dir/ggml-opt.cpp.o	3f3816207a8dfcb8
+1207	5264	1786606829212965024	ggml_build/src/CMakeFiles/ggml-base.dir/ggml-backend.cpp.o	da0b492ec7b621be
+5264	7080	1786606831036964983	ggml_build/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/ggml-cpu.c.o	7c9e1cd4df1fcaf0
+4112	8589	1786606832536964948	ggml_build/src/CMakeFiles/ggml.dir/ggml-backend-reg.cpp.o	6e22089cd771e1b2
+7080	8825	1786606832776964943	ggml_build/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/ggml-cpu.cpp.o	454c515fed5f54d2
+4623	9449	1786606833400964929	ggml_build/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/unary-ops.cpp.o	c3226757f36e6a26
+2033	10440	1786606834384964906	ggml_build/src/CMakeFiles/ggml-base.dir/gguf.cpp.o	6d5b99ea0146119
+3410	12369	1786606836312964862	ggml_build/src/CMakeFiles/ggml-base.dir/ggml-quants.c.o	405c76364542e300
+23	190	1786606891428963601	ggml_build/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/hbm.cpp.o	983e2c7bfabf7a2f
+20	233	1786606891464963600	ggml_build/src/libggml-base.a	4c021369a54f207
+234	1711	1786606892936963567	ggml_build/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/amx/mmq.cpp.o	963bb96849d015e6
+29	2446	1786606893676963550	ggml_build/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/traits.cpp.o	639a0c363f16f7fc
+190	2606	1786606893840963546	ggml_build/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/amx/amx.cpp.o	39d506ffb620327e
+28	3134	1786606894356963534	ggml_build/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/quants.c.o	1f5a2d04ba0bdb9d
+2446	4139	1786606895360963511	ggml_build/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/vec.cpp.o	9b3330fd1d95c3d6
+3134	4910	1786606896140963494	ggml_build/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/arch/arm/quants.c.o	5b09a7574d262f72
+1711	4915	1786606896140963494	ggml_build/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/binary-ops.cpp.o	f28116369a289f1e
+4139	5374	1786606896604963483	ggml_build/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/arch/arm/repack.cpp.o	62b350897ac39f6
+20	5990	1786606897220963469	ggml_build/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/repack.cpp.o	dcaf77b64a439786
+2606	11400	1786606902624963345	ggml_build/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/ops.cpp.o	f70fe70f53b85854
