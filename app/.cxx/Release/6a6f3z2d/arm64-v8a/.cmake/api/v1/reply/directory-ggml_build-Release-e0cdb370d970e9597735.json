@@ -1,0 +1,104 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : 
+		[
+			"install"
+		],
+		"files" : 
+		[
+			"whisper/ggml/CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 324,
+				"parent" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 325,
+				"parent" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 393,
+				"parent" : 0
+			}
+		]
+	},
+	"installers" : 
+	[
+		{
+			"backtrace" : 1,
+			"component" : "Unspecified",
+			"destination" : "lib",
+			"paths" : 
+			[
+				"ggml_build/src/libggml.a"
+			],
+			"targetId" : "ggml::@a96a941bb47d1cb6e1ee",
+			"targetIndex" : 0,
+			"type" : "target"
+		},
+		{
+			"backtrace" : 1,
+			"component" : "Unspecified",
+			"destination" : "include",
+			"paths" : 
+			[
+				"whisper/ggml/include/ggml.h",
+				"whisper/ggml/include/ggml-cpu.h",
+				"whisper/ggml/include/ggml-alloc.h",
+				"whisper/ggml/include/ggml-backend.h",
+				"whisper/ggml/include/ggml-blas.h",
+				"whisper/ggml/include/ggml-cann.h",
+				"whisper/ggml/include/ggml-cpp.h",
+				"whisper/ggml/include/ggml-cuda.h",
+				"whisper/ggml/include/ggml-opt.h",
+				"whisper/ggml/include/ggml-metal.h",
+				"whisper/ggml/include/ggml-rpc.h",
+				"whisper/ggml/include/ggml-sycl.h",
+				"whisper/ggml/include/ggml-vulkan.h",
+				"whisper/ggml/include/ggml-webgpu.h",
+				"whisper/ggml/include/gguf.h"
+			],
+			"type" : "file"
+		},
+		{
+			"backtrace" : 2,
+			"component" : "Unspecified",
+			"destination" : "lib",
+			"paths" : 
+			[
+				"ggml_build/src/libggml-base.a"
+			],
+			"targetId" : "ggml-base::@a96a941bb47d1cb6e1ee",
+			"targetIndex" : 1,
+			"type" : "target"
+		},
+		{
+			"backtrace" : 3,
+			"component" : "Unspecified",
+			"destination" : "lib/cmake/ggml",
+			"paths" : 
+			[
+				"/home/user/MyApp/app/.cxx/Release/6a6f3z2d/arm64-v8a/ggml_build/ggml-config.cmake",
+				"/home/user/MyApp/app/.cxx/Release/6a6f3z2d/arm64-v8a/ggml_build/ggml-version.cmake"
+			],
+			"type" : "file"
+		}
+	],
+	"paths" : 
+	{
+		"build" : "ggml_build",
+		"source" : "whisper/ggml"
+	}
+}

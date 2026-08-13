@@ -1,0 +1,50 @@
+{
+  "buildFiles": [
+    "/home/user/MyApp/app/src/main/cpp/CMakeLists.txt",
+    "/home/user/MyApp/app/src/main/cpp/whisper/ggml/CMakeLists.txt",
+    "/home/user/MyApp/app/src/main/cpp/whisper/ggml/cmake/common.cmake",
+    "/home/user/MyApp/app/src/main/cpp/whisper/ggml/cmake/ggml-config.cmake.in",
+    "/home/user/MyApp/app/src/main/cpp/whisper/ggml/src/CMakeLists.txt",
+    "/home/user/MyApp/app/src/main/cpp/whisper/ggml/src/ggml-cpu/CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "/tmp/claude-0/-home-user-MyApp/f45a90a0-5b78-581d-8464-0210cfbfc467/scratchpad/android-sdk/cmake/3.22.1/bin/ninja",
+      "-C",
+      "/home/user/MyApp/app/.cxx/Release/6a6f3z2d/arm64-v8a",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "/tmp/claude-0/-home-user-MyApp/f45a90a0-5b78-581d-8464-0210cfbfc467/scratchpad/android-sdk/cmake/3.22.1/bin/ninja",
+    "-C",
+    "/home/user/MyApp/app/.cxx/Release/6a6f3z2d/arm64-v8a",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {
+    "ggml::@a96a941bb47d1cb6e1ee": {
+      "artifactName": "ggml",
+      "abi": "arm64-v8a",
+      "output": "/home/user/MyApp/app/.cxx/Release/6a6f3z2d/arm64-v8a/ggml_build/src/libggml.a",
+      "runtimeFiles": []
+    },
+    "hoerpraxis::@6890427a1f51a3e7e1df": {
+      "artifactName": "hoerpraxis",
+      "abi": "arm64-v8a",
+      "output": "/home/user/MyApp/app/build/intermediates/cxx/Release/6a6f3z2d/obj/arm64-v8a/libhoerpraxis.so",
+      "runtimeFiles": []
+    },
+    "ggml-base::@a96a941bb47d1cb6e1ee": {
+      "artifactName": "ggml-base",
+      "abi": "arm64-v8a",
+      "output": "/home/user/MyApp/app/.cxx/Release/6a6f3z2d/arm64-v8a/ggml_build/src/libggml-base.a",
+      "runtimeFiles": []
+    },
+    "ggml-cpu::@a96a941bb47d1cb6e1ee": {
+      "artifactName": "ggml-cpu",
+      "abi": "arm64-v8a",
+      "output": "/home/user/MyApp/app/.cxx/Release/6a6f3z2d/arm64-v8a/ggml_build/src/libggml-cpu.a",
+      "runtimeFiles": []
+    }
+  }
+}

@@ -1,0 +1,6 @@
+/home/user/MyApp/app/src/main/cpp/CMakeLists.txt
+/home/user/MyApp/app/src/main/cpp/whisper/ggml/CMakeLists.txt
+/home/user/MyApp/app/src/main/cpp/whisper/ggml/cmake/common.cmake
+/home/user/MyApp/app/src/main/cpp/whisper/ggml/cmake/ggml-config.cmake.in
+/home/user/MyApp/app/src/main/cpp/whisper/ggml/src/CMakeLists.txt
+/home/user/MyApp/app/src/main/cpp/whisper/ggml/src/ggml-cpu/CMakeLists.txt

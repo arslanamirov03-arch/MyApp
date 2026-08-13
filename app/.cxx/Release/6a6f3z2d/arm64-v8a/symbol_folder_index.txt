@@ -1,0 +1,1 @@
+/home/user/MyApp/app/build/intermediates/cxx/Release/6a6f3z2d/obj/arm64-v8a
