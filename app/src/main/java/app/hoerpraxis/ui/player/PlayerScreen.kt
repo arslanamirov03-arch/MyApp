@@ -8,7 +8,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,6 +32,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Forward5
@@ -48,6 +51,7 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -64,18 +68,24 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import app.hoerpraxis.data.ItemStatus
 import app.hoerpraxis.data.Word
 import app.hoerpraxis.ui.library.formatDuration
 import app.hoerpraxis.ui.theme.AmberTint
 import app.hoerpraxis.ui.theme.BlueTint
 import app.hoerpraxis.ui.theme.GoogleAmber
 import app.hoerpraxis.ui.theme.GoogleBlue
+import app.hoerpraxis.ui.theme.GoogleGreen
+import app.hoerpraxis.ui.theme.GreenTint
 
 private val SPEEDS = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f)
 
@@ -117,6 +127,13 @@ fun PlayerScreen(itemId: String, onBack: () -> Unit) {
     var editingWordIndex by remember { mutableStateOf<Int?>(null) }
     var editingFullText by remember { mutableStateOf(false) }
     var loopMenuOpen by remember { mutableStateOf(false) }
+    var pinningWordIndex by remember { mutableStateOf<Int?>(null) }
+
+    val calibrating = item?.status == ItemStatus.CALIBRATING
+    val calibrationProgress = item?.progress ?: 0
+    // Recognition walks the audio front to back, so progress doubles as the
+    // point the AI has reached in the recording.
+    val calibratedUpToMs = ((item?.durationMs ?: 0L) * calibrationProgress / 100)
 
     val paragraphs = remember(words) { buildParagraphs(words) }
     val currentWordIndex by remember(words) {
@@ -199,6 +216,12 @@ fun PlayerScreen(itemId: String, onBack: () -> Unit) {
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
 
+            CalibrationBanner(
+                visible = calibrating,
+                progress = calibrationProgress,
+                positionMs = calibratedUpToMs,
+            )
+
             ModeBanner(
                 mode = mode,
                 hasLoop = loopRange != null,
@@ -216,10 +239,21 @@ fun PlayerScreen(itemId: String, onBack: () -> Unit) {
                 loopRange = loopRange,
                 loopAnchor = loopAnchor,
                 editMode = mode == TranscriptMode.EDIT,
+                calibrating = calibrating,
+                calibratedUpToMs = calibratedUpToMs,
                 onWordTap = { index ->
+                    if (calibrating) return@TranscriptView
                     if (mode == TranscriptMode.EDIT) editingWordIndex = index
                     else vm.onWordTap(index)
                 },
+                onWordLongPress = { index ->
+                    if (!calibrating && mode == TranscriptMode.LISTEN) pinningWordIndex = index
+                },
+            )
+
+            CalibrateBar(
+                visible = !calibrating && item?.status == ItemStatus.READY,
+                onCalibrate = { vm.calibrate() },
             )
 
             PlayerControls(
@@ -251,6 +285,34 @@ fun PlayerScreen(itemId: String, onBack: () -> Unit) {
         }
     }
 
+    pinningWordIndex?.let { index ->
+        val word = words.getOrNull(index)
+        if (word != null) {
+            AlertDialog(
+                onDismissRequest = { pinningWordIndex = null },
+                shape = MaterialTheme.shapes.large,
+                title = { Text("Поправить одно слово") },
+                text = {
+                    Text(
+                        "Поставить начало слова «${word.w}» на ${formatPreciseTime(positionMs)}?\n\n" +
+                            "Сейчас у него ${formatPreciseTime(word.s)}. Остальные слова не изменятся.",
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        vm.setWordStart(index, positionMs)
+                        pinningWordIndex = null
+                    }) { Text("Поставить") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { pinningWordIndex = null }) { Text("Отмена") }
+                },
+            )
+        } else {
+            pinningWordIndex = null
+        }
+    }
+
     if (editingFullText) {
         FullTextEditDialog(
             initial = words.joinToString(" ") { it.w },
@@ -261,6 +323,100 @@ fun PlayerScreen(itemId: String, onBack: () -> Unit) {
             },
         )
     }
+}
+
+/** Live view of the AI re-listening to the recording. */
+@Composable
+private fun CalibrationBanner(visible: Boolean, progress: Int, positionMs: Long) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = expandVertically(tween(300)) + fadeIn(tween(300)),
+        exit = shrinkVertically(tween(300)) + fadeOut(tween(300)),
+    ) {
+        Surface(
+            shape = MaterialTheme.shapes.large,
+            color = GreenTint,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp, 4.dp, 16.dp, 8.dp),
+        ) {
+            Column(Modifier.padding(18.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Filled.AutoFixHigh,
+                        contentDescription = null,
+                        tint = GoogleGreen,
+                        modifier = Modifier.size(20.dp),
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        "Слушаю запись и расставляю время…",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        "$progress%",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Spacer(Modifier.height(12.dp))
+                LinearProgressIndicator(
+                    progress = { progress / 100f },
+                    color = GoogleGreen,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .clip(CircleShape),
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Дошёл до ${formatPreciseTime(positionMs)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+/** Offers the precise re-listening pass on a finished transcript. */
+@Composable
+private fun CalibrateBar(visible: Boolean, onCalibrate: () -> Unit) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = expandVertically(tween(250)) + fadeIn(tween(250)),
+        exit = shrinkVertically(tween(250)) + fadeOut(tween(250)),
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(onClick = onCalibrate, shape = MaterialTheme.shapes.small) {
+                Icon(Icons.Filled.AutoFixHigh, null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Финальная калибровка")
+            }
+            Spacer(Modifier.weight(1f))
+            Text(
+                "удерживайте слово, чтобы поправить вручную",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/** 1:04.3 — precise enough to judge a word boundary. */
+private fun formatPreciseTime(ms: Long): String {
+    val safe = ms.coerceAtLeast(0)
+    val minutes = safe / 60000
+    val seconds = (safe % 60000) / 1000
+    val tenths = (safe % 1000) / 100
+    return "%d:%02d.%d".format(minutes, seconds, tenths)
 }
 
 @Composable
@@ -353,7 +509,10 @@ private fun TranscriptView(
     loopRange: LoopRange?,
     loopAnchor: Int?,
     editMode: Boolean,
+    calibrating: Boolean,
+    calibratedUpToMs: Long,
     onWordTap: (Int) -> Unit,
+    onWordLongPress: (Int) -> Unit,
 ) {
     val listState = rememberLazyListState()
 
@@ -362,10 +521,26 @@ private fun TranscriptView(
         if (currentWordIndex < 0) -1
         else paragraphs.indexOfLast { it.firstIndex <= currentWordIndex }
     }
-    LaunchedEffect(currentParagraph, followPlayback) {
-        if (followPlayback && currentParagraph >= 0) {
-            val visible = listState.layoutInfo.visibleItemsInfo.any { it.index == currentParagraph }
-            if (!visible) listState.animateScrollToItem(currentParagraph)
+    LaunchedEffect(currentParagraph, followPlayback, calibrating) {
+        if (!calibrating && followPlayback && currentParagraph >= 0) {
+            val info = listState.layoutInfo
+            val entry = info.visibleItemsInfo.find { it.index == currentParagraph }
+            // Scroll when the line is off screen or sinking into the bottom third.
+            val bottomThird = info.viewportEndOffset - (info.viewportEndOffset - info.viewportStartOffset) / 3
+            if (entry == null || entry.offset > bottomThird) {
+                listState.animateScrollToItem(currentParagraph)
+            }
+        }
+    }
+
+    // Ride along with the AI while it works, so nothing has to be scrolled by hand.
+    val calibrationParagraph = remember(paragraphs, calibratedUpToMs, calibrating) {
+        if (!calibrating) -1
+        else paragraphs.indexOfLast { it.words.first().s <= calibratedUpToMs }
+    }
+    LaunchedEffect(calibrationParagraph) {
+        if (calibrating && calibrationParagraph >= 0) {
+            listState.animateScrollToItem(calibrationParagraph)
         }
     }
 
@@ -389,7 +564,15 @@ private fun TranscriptView(
                             global >= loopRange.startIndex && global <= loopRange.endIndex,
                         isAnchor = global == loopAnchor,
                         editMode = editMode,
+                        calibrating = calibrating,
+                        calibrated = word.s <= calibratedUpToMs,
+                        timeLabel = if (calibrating && word.s <= calibratedUpToMs) {
+                            formatPreciseTime(word.s)
+                        } else {
+                            null
+                        },
                         onTap = { onWordTap(global) },
+                        onLongPress = { onWordLongPress(global) },
                     )
                 }
             }
@@ -397,6 +580,7 @@ private fun TranscriptView(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun WordChip(
     word: String,
@@ -404,7 +588,11 @@ private fun WordChip(
     inLoop: Boolean,
     isAnchor: Boolean,
     editMode: Boolean,
+    calibrating: Boolean,
+    calibrated: Boolean,
+    timeLabel: String?,
     onTap: () -> Unit,
+    onLongPress: () -> Unit,
 ) {
     val background by animateColorAsState(
         targetValue = when {
@@ -422,17 +610,31 @@ private fun WordChip(
         animationSpec = tween(160),
         label = "wordFg",
     )
-    Text(
-        text = word,
-        style = MaterialTheme.typography.bodyLarge,
-        fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Normal,
-        color = textColor,
-        modifier = Modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(background)
-            .clickable(onClick = onTap)
-            .padding(horizontal = 4.dp, vertical = 2.dp),
-    )
+    // While calibrating, words the AI hasn't reached yet are hazy; the ones it
+    // has just measured turn sharp and show the time it gave them.
+    val pending = calibrating && !calibrated
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = word,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Normal,
+            color = textColor,
+            modifier = Modifier
+                .then(if (pending) Modifier.blur(3.dp).alpha(0.45f) else Modifier)
+                .clip(RoundedCornerShape(10.dp))
+                .background(if (calibrated && calibrating) GreenTint else background)
+                .combinedClickable(onClick = onTap, onLongClick = onLongPress)
+                .padding(horizontal = 4.dp, vertical = 2.dp),
+        )
+        if (calibrating) {
+            Text(
+                text = timeLabel ?: " ",
+                fontSize = 9.sp,
+                color = GoogleGreen,
+                modifier = Modifier.padding(top = 1.dp),
+            )
+        }
+    }
 }
 
 @Composable

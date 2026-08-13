@@ -45,5 +45,9 @@ enum class WhisperModel(
 
     companion object {
         fun byId(id: String?): WhisperModel = entries.find { it.id == id } ?: SMALL
+
+        /** The strongest model already on the phone — used for calibration. */
+        fun bestDownloaded(context: Context): WhisperModel? =
+            entries.filter { it.isDownloaded(context) }.maxByOrNull { it.sizeBytes }
     }
 }

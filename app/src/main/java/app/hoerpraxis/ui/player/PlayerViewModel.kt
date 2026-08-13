@@ -8,7 +8,11 @@ import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.SeekParameters
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.extractor.DefaultExtractorsFactory
+import androidx.media3.extractor.mp3.Mp3Extractor
 import app.hoerpraxis.data.AudioItem
+import app.hoerpraxis.data.ItemStatus
 import app.hoerpraxis.data.Repository
 import app.hoerpraxis.data.Transcript
 import app.hoerpraxis.data.Word
@@ -16,6 +20,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import app.hoerpraxis.transcribe.TranscribeService
 
 /** Interaction modes of the transcript area. */
 enum class TranscriptMode { LISTEN, LOOP_WORD, LOOP_RANGE, EDIT }
@@ -26,7 +31,14 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private val repo = Repository.get(application)
 
-    val player: ExoPlayer = ExoPlayer.Builder(application).build()
+    // Many MP3s carry no seek table, so jumping to a time lands in the wrong
+    // place. Index seeking scans the file once and makes seeks land true.
+    private val extractors = DefaultExtractorsFactory()
+        .setMp3ExtractorFlags(Mp3Extractor.FLAG_ENABLE_INDEX_SEEKING)
+
+    val player: ExoPlayer = ExoPlayer.Builder(application)
+        .setMediaSourceFactory(DefaultMediaSourceFactory(application, extractors))
+        .build()
 
     private val _item = MutableStateFlow<AudioItem?>(null)
     val item: StateFlow<AudioItem?> = _item
@@ -88,7 +100,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                         val end = words[loop.endIndex.coerceIn(words.indices)].e
                         val start = words[loop.startIndex.coerceIn(words.indices)].s
                         if (player.currentPosition > end + LOOP_TAIL_MS) {
-                            player.seekTo((start - LEAD_IN_MS).coerceAtLeast(0))
+                            player.seekTo(start.coerceAtLeast(0))
                         }
                     }
                 }
@@ -102,6 +114,43 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 saveProgress()
             }
         }
+
+        // Follow the record itself so calibration progress shows up live and the
+        // refreshed timings are picked up the moment it finishes.
+        viewModelScope.launch {
+            repo.library.collect { library ->
+                val current = library.items.find { it.id == id } ?: return@collect
+                val wasCalibrating = _item.value?.status == ItemStatus.CALIBRATING
+                _item.value = current
+                if (wasCalibrating && current.status != ItemStatus.CALIBRATING) {
+                    _words.value = repo.loadTranscript(id).words
+                }
+            }
+        }
+    }
+
+    /** Re-listens to the recording to place every word precisely. */
+    fun calibrate() {
+        val id = itemId ?: return
+        player.pause()
+        TranscribeService.calibrate(getApplication(), id)
+    }
+
+    /**
+     * Pins one word to the moment it is actually heard. Only this word and the
+     * end of the one before it move, so a long pause elsewhere changes nothing.
+     */
+    fun setWordStart(index: Int, ms: Long) {
+        val id = itemId ?: return
+        val list = _words.value.toMutableList()
+        if (index !in list.indices) return
+        val lower = if (index > 0) list[index - 1].s + 30 else 0L
+        val upper = if (index < list.size - 1) list[index + 1].s - 30 else Long.MAX_VALUE
+        val value = ms.coerceIn(lower, maxOf(lower, upper))
+        list[index] = list[index].copy(s = value, e = maxOf(value, list[index].e))
+        if (index > 0) list[index - 1] = list[index - 1].copy(e = value)
+        _words.value = list
+        repo.saveTranscript(id, Transcript(list))
     }
 
     fun togglePlay() {
@@ -116,15 +165,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         _positionMs.value = player.currentPosition
     }
 
-    /**
-     * Seeks to a word with a short lead-in: starting exactly on the measured
-     * onset clips the first consonant, which is precisely what listeners are
-     * trying to hear.
-     */
+    /** Lands exactly on the word's own start — no nudging backwards. */
     private fun seekToWord(index: Int) {
         val words = _words.value
         if (index !in words.indices) return
-        seekTo(words[index].s - LEAD_IN_MS)
+        seekTo(words[index].s)
     }
 
     fun seekBy(deltaMs: Long) = seekTo(player.currentPosition + deltaMs)
@@ -260,9 +305,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private companion object {
-        /** Start slightly before a word so its first sound isn't clipped. */
-        const val LEAD_IN_MS = 70L
-
         /** Let a looped fragment finish ringing out before repeating. */
         const val LOOP_TAIL_MS = 120L
     }

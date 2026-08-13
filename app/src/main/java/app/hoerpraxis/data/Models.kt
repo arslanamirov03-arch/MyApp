@@ -9,6 +9,9 @@ enum class ItemStatus {
     MODEL_DOWNLOAD,
     DECODING,
     TRANSCRIBING,
+
+    /** Re-listening to the audio to place every word precisely. */
+    CALIBRATING,
     READY,
     ERROR,
 }

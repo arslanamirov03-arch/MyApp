@@ -12,6 +12,7 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import app.hoerpraxis.R
 import app.hoerpraxis.audio.AudioDecoder
+import app.hoerpraxis.audio.VoiceActivity
 import app.hoerpraxis.data.ItemStatus
 import app.hoerpraxis.data.Repository
 import app.hoerpraxis.data.Transcript
@@ -47,6 +48,14 @@ class TranscribeService : Service() {
             }
             return START_NOT_STICKY
         }
+        val calibrateId = intent?.getStringExtra(EXTRA_CALIBRATE)
+        if (calibrateId != null) {
+            scope.launch {
+                calibrate(calibrateId)
+                if (!running) stopSelf()
+            }
+            return START_NOT_STICKY
+        }
         if (!running) {
             running = true
             scope.launch { processQueue() }
@@ -70,6 +79,76 @@ class TranscribeService : Service() {
             repo.setModelProgress(null)
             repo.setModelError(t.message ?: "Не удалось скачать модель")
             false
+        }
+    }
+
+    /**
+     * Listens to the recording again with the strongest model on the phone and
+     * rewrites the timings only — the existing wording is kept. Word starts are
+     * then snapped onto real speech, so none of them sits inside a pause.
+     */
+    private suspend fun calibrate(id: String) {
+        val repo = Repository.get(this)
+        val item = repo.item(id) ?: return
+        val existing = repo.loadTranscript(id).words
+        if (existing.isEmpty()) return
+
+        val model = WhisperModel.bestDownloaded(this)
+            ?: WhisperModel.byId(repo.selectedModel.value)
+
+        try {
+            repo.updateItem(id) {
+                it.copy(status = ItemStatus.CALIBRATING, progress = 0, errorMessage = null)
+            }
+            updateNotification("Калибровка: ${item.title}", 0)
+
+            if (!model.isDownloaded(this)) {
+                WhisperBridge.download(this, model) { p ->
+                    repo.setModelProgress(p)
+                    updateNotification("Загрузка модели «${model.label}»", p)
+                }
+                repo.setModelProgress(null)
+                repo.notifyModelsChanged()
+            }
+
+            val pcm = AudioDecoder.decodeTo16kMono(repo.audioFile(item).absolutePath)
+            check(pcm.isNotEmpty()) { "В файле не оказалось звука" }
+
+            bridge.progressListener = { p ->
+                runBlocking { repo.updateItem(id) { it.copy(progress = p) } }
+                updateNotification("Калибровка: ${item.title}", p)
+            }
+            val heard = bridge.transcribe(this, model, pcm)
+            bridge.progressListener = null
+
+            if (heard == null) {
+                repo.updateItem(id) { it.copy(status = ItemStatus.READY, progress = 100) }
+                return
+            }
+
+            // Measured from the decoded audio, so it is exact.
+            val realDuration = pcm.size * 1000L / AudioDecoder.WHISPER_SAMPLE_RATE
+            val text = existing.joinToString(" ") { it.w }
+            val aligned = TranscriptAligner.align(text, heard, realDuration)
+            val snapped = VoiceActivity.snap(aligned, pcm)
+
+            repo.saveTranscript(id, Transcript(snapped))
+            repo.updateItem(id) {
+                it.copy(
+                    status = ItemStatus.READY,
+                    progress = 100,
+                    durationMs = realDuration,
+                    approximateTimings = false,
+                )
+            }
+        } catch (t: Throwable) {
+            bridge.progressListener = null
+            repo.updateItem(id) {
+                it.copy(
+                    status = ItemStatus.ERROR,
+                    errorMessage = t.message ?: "Не удалось откалибровать запись",
+                )
+            }
         }
     }
 
@@ -131,14 +210,20 @@ class TranscribeService : Service() {
             if (words == null) {
                 repo.updateItem(id) { it.copy(status = ItemStatus.ERROR, errorMessage = "Отменено") }
             } else {
-                val finalWords = if (pastedText != null && pastedText.isNotBlank()) {
-                    TranscriptAligner.align(pastedText, words, item.durationMs)
+                val realDuration = pcm.size * 1000L / AudioDecoder.WHISPER_SAMPLE_RATE
+                val aligned = if (pastedText != null && pastedText.isNotBlank()) {
+                    TranscriptAligner.align(pastedText, words, realDuration)
                 } else {
                     words
                 }
-                repo.saveTranscript(id, Transcript(finalWords))
+                repo.saveTranscript(id, Transcript(VoiceActivity.snap(aligned, pcm)))
                 repo.updateItem(id) {
-                    it.copy(status = ItemStatus.READY, progress = 100, approximateTimings = false)
+                    it.copy(
+                        status = ItemStatus.READY,
+                        progress = 100,
+                        durationMs = realDuration,
+                        approximateTimings = false,
+                    )
                 }
             }
         } catch (t: Throwable) {
@@ -190,8 +275,14 @@ class TranscribeService : Service() {
         private const val CHANNEL = "transcribe"
         private const val NOTIF_ID = 1
         private const val EXTRA_DOWNLOAD_MODEL = "download_model"
+        private const val EXTRA_CALIBRATE = "calibrate"
 
         fun start(context: Context) = launch(context, Intent(context, TranscribeService::class.java))
+
+        fun calibrate(context: Context, itemId: String) = launch(
+            context,
+            Intent(context, TranscribeService::class.java).putExtra(EXTRA_CALIBRATE, itemId),
+        )
 
         fun downloadModel(context: Context, model: WhisperModel) = launch(
             context,

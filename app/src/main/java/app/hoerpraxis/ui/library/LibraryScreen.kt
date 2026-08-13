@@ -424,6 +424,7 @@ private fun LibraryCard(
                     ItemStatus.MODEL_DOWNLOAD -> StatusText("Загрузка модели · ${item.progress}%")
                     ItemStatus.DECODING -> StatusText("Чтение аудио · ${item.progress}%")
                     ItemStatus.TRANSCRIBING -> StatusText("Распознавание · ${item.progress}%")
+                    ItemStatus.CALIBRATING -> StatusText("Калибровка времени · ${item.progress}%")
                     ItemStatus.READY -> StatusText(
                         formatDuration(item.durationMs) +
                             if (item.approximateTimings) " · тайминги примерные" else ""
@@ -436,7 +437,7 @@ private fun LibraryCard(
                 }
 
                 if (item.status == ItemStatus.MODEL_DOWNLOAD || item.status == ItemStatus.DECODING ||
-                    item.status == ItemStatus.TRANSCRIBING
+                    item.status == ItemStatus.TRANSCRIBING || item.status == ItemStatus.CALIBRATING
                 ) {
                     Spacer(Modifier.height(10.dp))
                     LinearProgressIndicator(
