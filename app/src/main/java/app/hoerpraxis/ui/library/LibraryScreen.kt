@@ -31,6 +31,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Headphones
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.AlertDialog
@@ -152,6 +153,14 @@ fun LibraryScreen(onOpenItem: (String) -> Unit, onOpenSettings: () -> Unit) {
                         item = item,
                         onClick = { if (item.status == ItemStatus.READY) onOpenItem(item.id) },
                         onLongClick = { itemToDelete = item },
+                        onRetry = {
+                            scope.launch {
+                                repo.updateItem(item.id) {
+                                    it.copy(status = ItemStatus.PENDING, progress = 0, errorMessage = null)
+                                }
+                                TranscribeService.start(context)
+                            }
+                        },
                     )
                 }
             }
@@ -179,7 +188,12 @@ fun LibraryScreen(onOpenItem: (String) -> Unit, onOpenSettings: () -> Unit) {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun LibraryCard(item: AudioItem, onClick: () -> Unit, onLongClick: () -> Unit) {
+private fun LibraryCard(
+    item: AudioItem,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    onRetry: () -> Unit,
+) {
     val progress by animateFloatAsState(
         targetValue = item.progress / 100f,
         animationSpec = spring(stiffness = Spring.StiffnessLow),
@@ -234,6 +248,26 @@ private fun LibraryCard(item: AudioItem, onClick: () -> Unit, onLongClick: () ->
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.error,
                     )
+                }
+                if (item.status == ItemStatus.ERROR) {
+                    Spacer(Modifier.height(10.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(
+                            onClick = onRetry,
+                            shape = MaterialTheme.shapes.small,
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                        ) {
+                            Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Повторить")
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "удерживайте карточку, чтобы удалить",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
                 if (item.status == ItemStatus.MODEL_DOWNLOAD || item.status == ItemStatus.DECODING ||
                     item.status == ItemStatus.TRANSCRIBING
@@ -296,16 +330,35 @@ private fun EmptyState(modifier: Modifier = Modifier) {
 private fun importFile(context: android.content.Context, repo: Repository, uri: Uri) {
     val id = UUID.randomUUID().toString()
     var displayName = "Аудио"
+    var sourceSize = -1L
     context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-        val idx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-        if (idx >= 0 && cursor.moveToFirst()) displayName = cursor.getString(idx) ?: displayName
+        val nameIdx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+        val sizeIdx = cursor.getColumnIndex(OpenableColumns.SIZE)
+        if (cursor.moveToFirst()) {
+            if (nameIdx >= 0) displayName = cursor.getString(nameIdx) ?: displayName
+            if (sizeIdx >= 0 && !cursor.isNull(sizeIdx)) sourceSize = cursor.getLong(sizeIdx)
+        }
     }
     val ext = displayName.substringAfterLast('.', "dat")
     val fileName = "$id.$ext"
     val target = File(repo.audioDir, fileName)
-    context.contentResolver.openInputStream(uri)!!.use { input ->
-        target.outputStream().use { output -> input.copyTo(output, 1 shl 20) }
+
+    var copyError: String? = null
+    try {
+        context.contentResolver.openInputStream(uri)!!.use { input ->
+            target.outputStream().use { output -> input.copyTo(output, 1 shl 20) }
+        }
+        // A short copy means the source was a cloud placeholder or the read was cut off.
+        if (sourceSize > 0 && target.length() != sourceSize) {
+            copyError = "Файл скопировался не полностью (${target.length() / 1024} КБ из " +
+                "${sourceSize / 1024} КБ). Убедитесь, что он скачан на телефон, и добавьте снова."
+        } else if (target.length() == 0L) {
+            copyError = "Файл пустой. Так бывает с файлами из облака, которые не скачаны на телефон."
+        }
+    } catch (t: Throwable) {
+        copyError = "Не удалось прочитать файл: ${t.message ?: "нет доступа"}"
     }
+
     var durationMs = 0L
     runCatching {
         val mmr = MediaMetadataRetriever()
@@ -321,6 +374,8 @@ private fun importFile(context: android.content.Context, repo: Repository, uri: 
                 fileName = fileName,
                 durationMs = durationMs,
                 addedAt = System.currentTimeMillis(),
+                status = if (copyError != null) ItemStatus.ERROR else ItemStatus.PENDING,
+                errorMessage = copyError,
             )
         )
     }

@@ -7,8 +7,8 @@ import kotlinx.serialization.json.Json
 import java.io.File
 
 /**
- * Thin JNI wrapper around whisper.cpp. The model ships inside the APK assets
- * and is copied once into private storage so whisper can mmap it.
+ * Thin JNI wrapper around whisper.cpp. Models live in private storage and are
+ * downloaded once; after that recognition runs fully offline.
  */
 class WhisperBridge {
 
@@ -28,10 +28,10 @@ class WhisperBridge {
     fun cancel() = nativeCancel()
 
     /** Runs full transcription; returns null when cancelled. */
-    fun transcribe(context: Context, pcm: FloatArray): List<Word>? {
-        val modelPath = ensureModel(context) {}
+    fun transcribe(context: Context, model: WhisperModel, pcm: FloatArray): List<Word>? {
+        val modelPath = model.file(context).absolutePath
         val ctx = nativeInit(modelPath)
-        check(ctx != 0L) { "Не удалось загрузить модель распознавания" }
+        check(ctx != 0L) { "Не удалось загрузить модель распознавания — скачайте её заново в настройках" }
         try {
             val result = nativeTranscribe(ctx, pcm)
             if (result == "CANCELLED") return null
@@ -42,66 +42,58 @@ class WhisperBridge {
     }
 
     companion object {
-        private const val MODEL_ASSET = "models/ggml-small-q8_0.bin"
-        private const val MODEL_FILE = "ggml-small-q8_0.bin"
-        private const val MODEL_SIZE = 264_464_607L
-        private const val MODEL_URL =
-            "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small-q8_0.bin"
-
         init {
             System.loadLibrary("hoerpraxis")
         }
 
-        fun modelReady(context: Context): Boolean =
-            File(File(context.filesDir, "models"), MODEL_FILE).length() == MODEL_SIZE
-
         /**
-         * Makes sure the Whisper model is on disk: copies it from APK assets
-         * when bundled, otherwise downloads it once. After that the app is
-         * fully offline.
+         * Downloads the model unless it is already complete. Supports resuming
+         * a partial download so a dropped connection doesn't start over.
          */
         @Synchronized
-        fun ensureModel(context: Context, onProgress: (Int) -> Unit): String {
-            val dir = File(context.filesDir, "models").apply { mkdirs() }
-            val target = File(dir, MODEL_FILE)
-            if (target.length() == MODEL_SIZE) return target.absolutePath
+        fun download(context: Context, model: WhisperModel, onProgress: (Int) -> Unit) {
+            val target = model.file(context)
+            if (target.length() == model.sizeBytes) return
+            target.parentFile?.mkdirs()
 
-            val tmp = File(dir, "$MODEL_FILE.tmp")
-            val fromAssets = runCatching {
-                context.assets.open(MODEL_ASSET).use { input ->
-                    tmp.outputStream().use { output -> input.copyTo(output, 1 shl 20) }
-                }
-                true
-            }.getOrDefault(false)
+            val part = File(target.parentFile, "${model.fileName}.part")
+            var done = part.length()
+            if (done > model.sizeBytes) { part.delete(); done = 0 }
 
-            if (!fromAssets) {
-                try {
-                    val connection = java.net.URL(MODEL_URL).openConnection()
-                    connection.connectTimeout = 20_000
-                    connection.readTimeout = 60_000
-                    connection.getInputStream().use { input ->
-                        tmp.outputStream().use { output ->
-                            val buffer = ByteArray(1 shl 20)
-                            var done = 0L
-                            while (true) {
-                                val read = input.read(buffer)
-                                if (read < 0) break
-                                output.write(buffer, 0, read)
-                                done += read
-                                onProgress(((done * 100) / MODEL_SIZE).toInt().coerceIn(0, 100))
-                            }
+            try {
+                val connection = java.net.URL(model.url).openConnection() as java.net.HttpURLConnection
+                connection.connectTimeout = 20_000
+                connection.readTimeout = 60_000
+                if (done > 0) connection.setRequestProperty("Range", "bytes=$done-")
+                connection.connect()
+                // Server ignored our resume request, so start from scratch.
+                if (done > 0 && connection.responseCode != 206) done = 0
+
+                java.io.FileOutputStream(part, done > 0).use { output ->
+                    connection.inputStream.use { input ->
+                        val buffer = ByteArray(1 shl 20)
+                        while (true) {
+                            val read = input.read(buffer)
+                            if (read < 0) break
+                            output.write(buffer, 0, read)
+                            done += read
+                            onProgress(((done * 100) / model.sizeBytes).toInt().coerceIn(0, 100))
                         }
                     }
-                } catch (t: Throwable) {
-                    tmp.delete()
-                    throw IllegalStateException(
-                        "Для первой загрузки модели распознавания нужен интернет (~264 МБ, один раз)", t
-                    )
                 }
+            } catch (t: Throwable) {
+                throw IllegalStateException(
+                    "Не удалось скачать модель (нужен интернет). Скачанная часть сохранена — " +
+                        "нажмите ещё раз, загрузка продолжится с того же места.",
+                    t,
+                )
             }
-            check(tmp.length() == MODEL_SIZE) { "Модель загрузилась не полностью — попробуйте ещё раз" }
-            tmp.renameTo(target)
-            return target.absolutePath
+
+            check(part.length() == model.sizeBytes) {
+                "Модель скачалась не полностью — нажмите «Скачать» ещё раз"
+            }
+            target.delete()
+            part.renameTo(target)
         }
     }
 }

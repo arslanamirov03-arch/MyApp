@@ -16,8 +16,32 @@ object AudioDecoder {
     const val WHISPER_SAMPLE_RATE = 16000
 
     fun decodeTo16kMono(path: String, onProgress: (Int) -> Unit = {}): FloatArray {
+        val file = java.io.File(path)
+        check(file.exists()) { "Файл не найден — добавьте его заново" }
+        check(file.length() > 0) {
+            "Файл пустой (0 байт). Так бывает, когда файл лежит в облаке и не скачан на телефон — " +
+                "откройте его в проводнике, дождитесь загрузки и добавьте снова."
+        }
+
         val extractor = MediaExtractor()
-        extractor.setDataSource(path)
+        // A file descriptor is more reliable than a path: some MP3s with large
+        // ID3 tags fail to open by path on certain Android builds.
+        try {
+            java.io.FileInputStream(file).use { fis ->
+                extractor.setDataSource(fis.fd, 0, file.length())
+            }
+        } catch (first: Throwable) {
+            runCatching { extractor.setDataSource(path) }.getOrElse {
+                val mb = "%.1f".format(file.length() / 1024f / 1024f)
+                throw IllegalStateException(
+                    "Android не смог прочитать этот файл ($mb МБ). Возможно, он повреждён или " +
+                        "сохранён в неподдерживаемом формате. Попробуйте другой файл или " +
+                        "пересохраните его как обычный MP3.",
+                    first,
+                )
+            }
+        }
+
         var trackIndex = -1
         var format: MediaFormat? = null
         for (i in 0 until extractor.trackCount) {
@@ -26,7 +50,10 @@ object AudioDecoder {
                 trackIndex = i; format = f; break
             }
         }
-        require(trackIndex >= 0 && format != null) { "В файле нет аудиодорожки" }
+        if (trackIndex < 0 || format == null) {
+            extractor.release()
+            throw IllegalStateException("В файле нет звуковой дорожки")
+        }
         extractor.selectTrack(trackIndex)
 
         val durationUs = if (format.containsKey(MediaFormat.KEY_DURATION))

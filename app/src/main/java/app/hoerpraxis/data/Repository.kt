@@ -35,6 +35,37 @@ class Repository private constructor(private val appContext: Context) {
         _highlightEnabled.value = value
     }
 
+    private val _selectedModel = MutableStateFlow(prefs.getString("model", "small") ?: "small")
+    val selectedModel: StateFlow<String> = _selectedModel
+
+    fun setSelectedModel(id: String) {
+        prefs.edit().putString("model", id).apply()
+        _selectedModel.value = id
+    }
+
+    /** Download progress of a model in percent, or null when nothing is downloading. */
+    private val _modelProgress = MutableStateFlow<Int?>(null)
+    val modelProgress: StateFlow<Int?> = _modelProgress
+
+    fun setModelProgress(value: Int?) {
+        _modelProgress.value = value
+    }
+
+    private val _modelError = MutableStateFlow<String?>(null)
+    val modelError: StateFlow<String?> = _modelError
+
+    fun setModelError(message: String?) {
+        _modelError.value = message
+    }
+
+    /** Bumped whenever a model finishes downloading so the UI re-checks disk state. */
+    private val _modelsChanged = MutableStateFlow(0)
+    val modelsChanged: StateFlow<Int> = _modelsChanged
+
+    fun notifyModelsChanged() {
+        _modelsChanged.value += 1
+    }
+
     private fun loadLibrary(): Library = runCatching {
         if (libraryFile.exists()) json.decodeFromString<Library>(libraryFile.readText()) else Library()
     }.getOrDefault(Library())
