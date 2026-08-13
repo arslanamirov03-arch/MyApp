@@ -1615,10 +1615,10 @@
 			[
 				{
 					"name" : "HELPSTRING",
-					"value" : "The CMake toolchain file"
+					"value" : "No help, variable specified on the command line."
 				}
 			],
-			"type" : "FILEPATH",
+			"type" : "UNINITIALIZED",
 			"value" : "/tmp/claude-0/-home-user-MyApp/f45a90a0-5b78-581d-8464-0210cfbfc467/scratchpad/android-sdk/ndk/27.2.12479018/build/cmake/android.toolchain.cmake"
 		},
 		{

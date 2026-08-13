@@ -35,31 +35,37 @@
 			{
 				"command" : 1,
 				"file" : 0,
-				"line" : 32,
+				"line" : 33,
 				"parent" : 0
 			},
 			{
 				"command" : 2,
 				"file" : 0,
-				"line" : 35,
+				"line" : 36,
 				"parent" : 0
 			},
 			{
 				"command" : 3,
 				"file" : 0,
-				"line" : 28,
+				"line" : 29,
 				"parent" : 0
 			},
 			{
 				"command" : 3,
 				"file" : 0,
-				"line" : 31,
+				"line" : 32,
 				"parent" : 0
 			},
 			{
 				"command" : 4,
 				"file" : 0,
 				"line" : 25,
+				"parent" : 0
+			},
+			{
+				"command" : 4,
+				"file" : 0,
+				"line" : 26,
 				"parent" : 0
 			},
 			{
@@ -102,25 +108,29 @@
 					"define" : "GGML_USE_CPU"
 				},
 				{
+					"backtrace" : 7,
+					"define" : "WHISPER_VERSION=\"1.8.2\""
+				},
+				{
 					"define" : "hoerpraxis_EXPORTS"
 				}
 			],
 			"includes" : 
 			[
 				{
-					"backtrace" : 7,
+					"backtrace" : 8,
 					"path" : "/home/user/MyApp/app/src/main/cpp/whisper/include"
 				},
 				{
-					"backtrace" : 7,
+					"backtrace" : 8,
 					"path" : "/home/user/MyApp/app/src/main/cpp/whisper/src"
 				},
 				{
-					"backtrace" : 7,
+					"backtrace" : 8,
 					"path" : "/home/user/MyApp/app/src/main/cpp/whisper/ggml/include"
 				},
 				{
-					"backtrace" : 7,
+					"backtrace" : 8,
 					"path" : "/home/user/MyApp/app/src/main/cpp/whisper/ggml/src"
 				},
 				{
@@ -152,7 +162,7 @@
 	[
 		{
 			"backtrace" : 3,
-			"id" : "ggml-cpu::@a96a941bb47d1cb6e1ee"
+			"id" : "ggml-base::@a96a941bb47d1cb6e1ee"
 		},
 		{
 			"backtrace" : 3,
@@ -160,7 +170,7 @@
 		},
 		{
 			"backtrace" : 3,
-			"id" : "ggml-base::@a96a941bb47d1cb6e1ee"
+			"id" : "ggml-cpu::@a96a941bb47d1cb6e1ee"
 		}
 	],
 	"id" : "hoerpraxis::@6890427a1f51a3e7e1df",

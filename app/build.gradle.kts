@@ -77,7 +77,6 @@ android {
 // The Whisper speech model is too large for git; fetch it on demand before packaging.
 val modelFile = file("src/main/assets/models/ggml-small-q8_0.bin")
 val downloadModel = tasks.register("downloadWhisperModel") {
-    outputs.file(modelFile)
     doLast {
         if (!modelFile.exists() || modelFile.length() < 100_000_000L) {
             modelFile.parentFile.mkdirs()
@@ -89,7 +88,10 @@ val downloadModel = tasks.register("downloadWhisperModel") {
         }
     }
 }
-tasks.matching { it.name.startsWith("merge") && it.name.endsWith("Assets") }.configureEach {
+tasks.matching {
+    (it.name.startsWith("merge") && it.name.endsWith("Assets")) ||
+        it.name.startsWith("lint") || it.name.startsWith("generate")
+}.configureEach {
     dependsOn(downloadModel)
 }
 

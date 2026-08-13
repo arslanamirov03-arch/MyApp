@@ -170,7 +170,7 @@
 			[
 				{
 					"backtrace" : 0,
-					"define" : "GGML_COMMIT=\"7070df7\""
+					"define" : "GGML_COMMIT=\"60f9ba2\""
 				},
 				{
 					"backtrace" : 6,
@@ -282,7 +282,7 @@
 			[
 				{
 					"backtrace" : 0,
-					"define" : "GGML_COMMIT=\"7070df7\""
+					"define" : "GGML_COMMIT=\"60f9ba2\""
 				},
 				{
 					"backtrace" : 6,
