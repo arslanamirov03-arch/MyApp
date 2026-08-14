@@ -870,7 +870,7 @@
 
     var html = '<div class="glass ledger">' + rows + '</div>';
     if (matched.length > visible.length) {
-      html += '<div class="ledger__more" id="ledger-more">' +
+      html += '<div class="ledger__more" id="ledger-more">показано ' +
         visible.length + ' из ' + matched.length + '</div>';
     }
     return html;
