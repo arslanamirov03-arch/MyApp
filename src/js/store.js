@@ -44,6 +44,9 @@ window.Store = (function () {
   };
 
   var state = { version: 2, blocks: [], settings: cloneSettings(DEFAULT_SETTINGS) };
+  /* Растёт при каждом изменении картотеки — по нему видно,
+     что посчитанное раньше можно брать готовым. */
+  var version = 0;
   var listeners = [];
   var memoryOnly = false;
   var lastSavedAt = 0;
@@ -132,8 +135,13 @@ window.Store = (function () {
          останется хотя бы одна — берём ту, что новее. */
       candidates.sort(function (a, b) { return (b.savedAt || 0) - (a.savedAt || 0); });
       state = normalize(candidates[0]);
+      version++;
       lastSavedAt = candidates[0].savedAt || 0;
     }
+
+    /* Что лежит в основной ячейке сейчас — это и будет запасной копией
+       при первой записи. */
+    try { lastPayload = localStorage.getItem(KEY); } catch (e) { lastPayload = null; }
 
     /* Часы устройства ушли назад — расписание могло съехать. */
     if (lastSavedAt && now() < lastSavedAt - 12 * 60 * 60 * 1000) clockWentBack = true;
@@ -222,15 +230,20 @@ window.Store = (function () {
   }
 
   /* Запись идёт в две ячейки по очереди, чтобы обрыв на середине
-     не оставил приложение вообще без данных. */
-  function writeNow() {
+     не оставил приложение вообще без данных. Прошлую запись держим
+     в памяти: перечитывать её из хранилища на каждое изменение —
+     лишний проход по всей картотеке. */
+  var lastPayload = null;
+
+  function writeNow(immediate) {
     if (memoryOnly) return;
     var payload = serialize();
     try {
-      localStorage.setItem(KEY_SPARE, localStorage.getItem(KEY) || payload);
+      localStorage.setItem(KEY_SPARE, lastPayload || payload);
       localStorage.setItem(KEY, payload);
+      lastPayload = payload;
       lastSavedAt = now();
-      mirrorToDatabase(payload);
+      mirrorToDatabase(payload, immediate);
     } catch (e) {
       memoryOnly = true;
       console.warn('Не удалось сохранить данные', e);
@@ -239,14 +252,15 @@ window.Store = (function () {
 
   var saveTimer = null;
   function save() {
+    version++;
     if (saveTimer) clearTimeout(saveTimer);
-    saveTimer = setTimeout(function () { saveTimer = null; writeNow(); }, 60);
+    saveTimer = setTimeout(function () { saveTimer = null; writeNow(); }, 250);
   }
 
   /* Немедленная запись: вызывается перед уходом со страницы. */
   function flush() {
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
-    writeNow();
+    writeNow(true);
   }
 
   /* ---------- Второй экземпляр в базе данных ---------- */
@@ -268,7 +282,27 @@ window.Store = (function () {
     }
   }
 
-  function mirrorToDatabase(payload) {
+  /* Зеркало в базе — запасной путь на случай, если хранилище вычистят.
+     Оно не обязано поспевать за каждым нажатием, поэтому пишется редко,
+     а перед уходом со страницы — сразу. */
+  var mirrorTimer = null;
+  var mirrorPayload = null;
+
+  function mirrorToDatabase(payload, immediate) {
+    mirrorPayload = payload;
+    if (immediate) {
+      if (mirrorTimer) { clearTimeout(mirrorTimer); mirrorTimer = null; }
+      writeMirror();
+      return;
+    }
+    if (mirrorTimer) return;
+    mirrorTimer = setTimeout(function () { mirrorTimer = null; writeMirror(); }, 4000);
+  }
+
+  function writeMirror() {
+    var payload = mirrorPayload;
+    if (!payload) return;
+    mirrorPayload = null;
     openDatabase(function (db) {
       if (!db) return;
       try {
@@ -292,6 +326,7 @@ window.Store = (function () {
           if ((parsed.savedAt || 0) <= lastSavedAt) return;
 
           state = normalize(parsed);
+          version++;
           lastSavedAt = parsed.savedAt || 0;
           listeners.forEach(function (fn) { fn(state); });
         };
@@ -317,17 +352,36 @@ window.Store = (function () {
     });
   }
 
+  /* Картинки читаются пачкой: на списке их просят сразу десятками, а
+     каждая отдельная сделка с базой стоит дороже самой картинки. */
+  var imageQueue = [];
+  var imageQueueTimer = null;
+
   function imageLoad(id) {
     return new Promise(function (resolve) {
       if (!id) { resolve(null); return; }
-      openDatabase(function (db) {
-        if (!db) { resolve(null); return; }
-        try {
-          var request = db.transaction(DB_IMAGES, 'readonly').objectStore(DB_IMAGES).get(id);
-          request.onsuccess = function () { resolve(request.result || null); };
-          request.onerror = function () { resolve(null); };
-        } catch (e) { resolve(null); }
-      });
+      imageQueue.push({ id: id, resolve: resolve });
+      if (!imageQueueTimer) imageQueueTimer = setTimeout(flushImageQueue, 0);
+    });
+  }
+
+  function flushImageQueue() {
+    imageQueueTimer = null;
+    var batch = imageQueue;
+    imageQueue = [];
+    if (!batch.length) return;
+
+    openDatabase(function (db) {
+      function giveUp() { batch.forEach(function (item) { item.resolve(null); }); }
+      if (!db) { giveUp(); return; }
+      try {
+        var store = db.transaction(DB_IMAGES, 'readonly').objectStore(DB_IMAGES);
+        batch.forEach(function (item) {
+          var request = store.get(item.id);
+          request.onsuccess = function () { item.resolve(request.result || null); };
+          request.onerror = function () { item.resolve(null); };
+        });
+      } catch (e) { giveUp(); }
     });
   }
 
@@ -644,6 +698,27 @@ window.Store = (function () {
 
   /* ---------- Повторения ---------- */
 
+  /* Сколько раз каждое слово встречается во всей картотеке. Считается
+     один раз на изменение: ведомости этот счёт нужен на каждой строке. */
+  var repeatsCache = null;
+  var repeatsVersion = -1;
+
+  function repeatCounts() {
+    if (repeatsCache && repeatsVersion === version) return repeatsCache;
+    var map = new Map();
+    state.blocks.forEach(function (block) {
+      block.sets.forEach(function (set) {
+        set.words.forEach(function (word) {
+          var key = word.de.trim().toLowerCase();
+          map.set(key, (map.get(key) || 0) + 1);
+        });
+      });
+    });
+    repeatsCache = map;
+    repeatsVersion = version;
+    return map;
+  }
+
   function collectWords(scope) {
     scope = scope || {};
     var result = [];
@@ -887,7 +962,7 @@ window.Store = (function () {
     addSet: addSet, renameSet: renameSet, removeSet: removeSet,
     addWord: addWord, addWordsBulk: addWordsBulk, updateWord: updateWord, removeWord: removeWord,
 
-    collectWords: collectWords, dueCount: dueCount, stats: stats, buildQueue: buildQueue,
+    collectWords: collectWords, repeatCounts: repeatCounts, dueCount: dueCount, stats: stats, buildQueue: buildQueue,
     isFresh: isFresh, freshCount: freshCount, buildLearnBatch: buildLearnBatch,
     imageSave: imageSave, imageLoad: imageLoad, imageRemove: imageRemove, setWordImage: setWordImage,
     getApiKey: getApiKey, setApiKey: setApiKey, uid: uid,

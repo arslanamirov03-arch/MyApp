@@ -1285,6 +1285,16 @@ body::after {
 }
 
 
+/* Отметка конца показанной части: список дорисовывается сам,
+   когда до неё доходит прокрутка. */
+.ledger__more {
+  margin: 10px 4px 0;
+  font-size: 12px;
+  text-align: center;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
 /* ---------- Пустые состояния ---------- */
 
 .empty {

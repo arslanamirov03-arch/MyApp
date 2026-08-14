@@ -5,7 +5,7 @@
   "description": "Lexis — слова наизусть: блоки, списки по 500 слов, разбор по интервалам, картинки и выгрузка в PDF и Word",
   "scripts": {
     "build": "node scripts/build.mjs",
-    "test": "node scripts/e2e.mjs && node scripts/e2e-time.mjs && node scripts/e2e-images.mjs && node scripts/e2e-storage.mjs && node scripts/check-artifact.mjs",
+    "test": "node scripts/e2e.mjs && node scripts/e2e-time.mjs && node scripts/e2e-images.mjs && node scripts/e2e-storage.mjs && node scripts/e2e-speed.mjs && node scripts/check-artifact.mjs",
     "check:exports": "node scripts/verify.mjs",
     "icons": "python3 scripts/make-icons.py",
     "shots": "node scripts/shot-check.mjs"

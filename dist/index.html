@@ -1294,6 +1294,16 @@ body::after {
 }
 
 
+/* Отметка конца показанной части: список дорисовывается сам,
+   когда до неё доходит прокрутка. */
+.ledger__more {
+  margin: 10px 4px 0;
+  font-size: 12px;
+  text-align: center;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
 /* ---------- Пустые состояния ---------- */
 
 .empty {
@@ -3098,6 +3108,9 @@ window.Store = (function () {
   };
 
   var state = { version: 2, blocks: [], settings: cloneSettings(DEFAULT_SETTINGS) };
+  /* Растёт при каждом изменении картотеки — по нему видно,
+     что посчитанное раньше можно брать готовым. */
+  var version = 0;
   var listeners = [];
   var memoryOnly = false;
   var lastSavedAt = 0;
@@ -3186,8 +3199,13 @@ window.Store = (function () {
          останется хотя бы одна — берём ту, что новее. */
       candidates.sort(function (a, b) { return (b.savedAt || 0) - (a.savedAt || 0); });
       state = normalize(candidates[0]);
+      version++;
       lastSavedAt = candidates[0].savedAt || 0;
     }
+
+    /* Что лежит в основной ячейке сейчас — это и будет запасной копией
+       при первой записи. */
+    try { lastPayload = localStorage.getItem(KEY); } catch (e) { lastPayload = null; }
 
     /* Часы устройства ушли назад — расписание могло съехать. */
     if (lastSavedAt && now() < lastSavedAt - 12 * 60 * 60 * 1000) clockWentBack = true;
@@ -3276,15 +3294,20 @@ window.Store = (function () {
   }
 
   /* Запись идёт в две ячейки по очереди, чтобы обрыв на середине
-     не оставил приложение вообще без данных. */
-  function writeNow() {
+     не оставил приложение вообще без данных. Прошлую запись держим
+     в памяти: перечитывать её из хранилища на каждое изменение —
+     лишний проход по всей картотеке. */
+  var lastPayload = null;
+
+  function writeNow(immediate) {
     if (memoryOnly) return;
     var payload = serialize();
     try {
-      localStorage.setItem(KEY_SPARE, localStorage.getItem(KEY) || payload);
+      localStorage.setItem(KEY_SPARE, lastPayload || payload);
       localStorage.setItem(KEY, payload);
+      lastPayload = payload;
       lastSavedAt = now();
-      mirrorToDatabase(payload);
+      mirrorToDatabase(payload, immediate);
     } catch (e) {
       memoryOnly = true;
       console.warn('Не удалось сохранить данные', e);
@@ -3293,14 +3316,15 @@ window.Store = (function () {
 
   var saveTimer = null;
   function save() {
+    version++;
     if (saveTimer) clearTimeout(saveTimer);
-    saveTimer = setTimeout(function () { saveTimer = null; writeNow(); }, 60);
+    saveTimer = setTimeout(function () { saveTimer = null; writeNow(); }, 250);
   }
 
   /* Немедленная запись: вызывается перед уходом со страницы. */
   function flush() {
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
-    writeNow();
+    writeNow(true);
   }
 
   /* ---------- Второй экземпляр в базе данных ---------- */
@@ -3322,7 +3346,27 @@ window.Store = (function () {
     }
   }
 
-  function mirrorToDatabase(payload) {
+  /* Зеркало в базе — запасной путь на случай, если хранилище вычистят.
+     Оно не обязано поспевать за каждым нажатием, поэтому пишется редко,
+     а перед уходом со страницы — сразу. */
+  var mirrorTimer = null;
+  var mirrorPayload = null;
+
+  function mirrorToDatabase(payload, immediate) {
+    mirrorPayload = payload;
+    if (immediate) {
+      if (mirrorTimer) { clearTimeout(mirrorTimer); mirrorTimer = null; }
+      writeMirror();
+      return;
+    }
+    if (mirrorTimer) return;
+    mirrorTimer = setTimeout(function () { mirrorTimer = null; writeMirror(); }, 4000);
+  }
+
+  function writeMirror() {
+    var payload = mirrorPayload;
+    if (!payload) return;
+    mirrorPayload = null;
     openDatabase(function (db) {
       if (!db) return;
       try {
@@ -3346,6 +3390,7 @@ window.Store = (function () {
           if ((parsed.savedAt || 0) <= lastSavedAt) return;
 
           state = normalize(parsed);
+          version++;
           lastSavedAt = parsed.savedAt || 0;
           listeners.forEach(function (fn) { fn(state); });
         };
@@ -3371,17 +3416,36 @@ window.Store = (function () {
     });
   }
 
+  /* Картинки читаются пачкой: на списке их просят сразу десятками, а
+     каждая отдельная сделка с базой стоит дороже самой картинки. */
+  var imageQueue = [];
+  var imageQueueTimer = null;
+
   function imageLoad(id) {
     return new Promise(function (resolve) {
       if (!id) { resolve(null); return; }
-      openDatabase(function (db) {
-        if (!db) { resolve(null); return; }
-        try {
-          var request = db.transaction(DB_IMAGES, 'readonly').objectStore(DB_IMAGES).get(id);
-          request.onsuccess = function () { resolve(request.result || null); };
-          request.onerror = function () { resolve(null); };
-        } catch (e) { resolve(null); }
-      });
+      imageQueue.push({ id: id, resolve: resolve });
+      if (!imageQueueTimer) imageQueueTimer = setTimeout(flushImageQueue, 0);
+    });
+  }
+
+  function flushImageQueue() {
+    imageQueueTimer = null;
+    var batch = imageQueue;
+    imageQueue = [];
+    if (!batch.length) return;
+
+    openDatabase(function (db) {
+      function giveUp() { batch.forEach(function (item) { item.resolve(null); }); }
+      if (!db) { giveUp(); return; }
+      try {
+        var store = db.transaction(DB_IMAGES, 'readonly').objectStore(DB_IMAGES);
+        batch.forEach(function (item) {
+          var request = store.get(item.id);
+          request.onsuccess = function () { item.resolve(request.result || null); };
+          request.onerror = function () { item.resolve(null); };
+        });
+      } catch (e) { giveUp(); }
     });
   }
 
@@ -3698,6 +3762,27 @@ window.Store = (function () {
 
   /* ---------- Повторения ---------- */
 
+  /* Сколько раз каждое слово встречается во всей картотеке. Считается
+     один раз на изменение: ведомости этот счёт нужен на каждой строке. */
+  var repeatsCache = null;
+  var repeatsVersion = -1;
+
+  function repeatCounts() {
+    if (repeatsCache && repeatsVersion === version) return repeatsCache;
+    var map = new Map();
+    state.blocks.forEach(function (block) {
+      block.sets.forEach(function (set) {
+        set.words.forEach(function (word) {
+          var key = word.de.trim().toLowerCase();
+          map.set(key, (map.get(key) || 0) + 1);
+        });
+      });
+    });
+    repeatsCache = map;
+    repeatsVersion = version;
+    return map;
+  }
+
   function collectWords(scope) {
     scope = scope || {};
     var result = [];
@@ -3941,7 +4026,7 @@ window.Store = (function () {
     addSet: addSet, renameSet: renameSet, removeSet: removeSet,
     addWord: addWord, addWordsBulk: addWordsBulk, updateWord: updateWord, removeWord: removeWord,
 
-    collectWords: collectWords, dueCount: dueCount, stats: stats, buildQueue: buildQueue,
+    collectWords: collectWords, repeatCounts: repeatCounts, dueCount: dueCount, stats: stats, buildQueue: buildQueue,
     isFresh: isFresh, freshCount: freshCount, buildLearnBatch: buildLearnBatch,
     imageSave: imageSave, imageLoad: imageLoad, imageRemove: imageRemove, setWordImage: setWordImage,
     getApiKey: getApiKey, setApiKey: setApiKey, uid: uid,
@@ -4065,13 +4150,18 @@ window.Store = (function () {
 
   function markFresh() {
     var nodes = screenEl.querySelectorAll('[data-id]');
+    var fresh = [];
     for (var i = 0; i < nodes.length; i++) {
       var id = nodes[i].getAttribute('data-id');
-      if (!seen.has(id)) {
-        seen.add(id);
-        nodes[i].classList.add('is-new');
-      }
+      if (seen.has(id)) continue;
+      seen.add(id);
+      fresh.push(nodes[i]);
     }
+    /* Открылся целый список — пусть появляется разом: полсотни
+       одновременных появлений телефон отрисовывает заметно дольше,
+       чем сам список. */
+    if (fresh.length > 8) return;
+    fresh.forEach(function (node) { node.classList.add('is-new'); });
   }
 
   /* ---------- Навигация ---------- */
@@ -4080,6 +4170,7 @@ window.Store = (function () {
     if (advanceTimer) { clearTimeout(advanceTimer); advanceTimer = null; }
     route = next;
     filter = '';
+    shownRows = LEDGER_PAGE;
     pendingImage = null;
     if (replace) history.replaceState(next, '');
     else history.pushState(next, '');
@@ -4093,6 +4184,7 @@ window.Store = (function () {
     if (advanceTimer) { clearTimeout(advanceTimer); advanceTimer = null; }
     route = event.state || { name: 'blocks' };
     filter = '';
+    shownRows = LEDGER_PAGE;
     closeModal();
     render(true);
   });
@@ -4182,6 +4274,19 @@ window.Store = (function () {
   var imageCache = new Map();
   var pendingImage = null;
 
+  /* Картинок в картотеке могут быть сотни, и каждая занимает десятки
+     килобайт. Держим в памяти только последние — остальные всегда можно
+     перечитать из базы. */
+  var IMAGE_CACHE_MAX = 160;
+
+  function cacheImage(id, url) {
+    if (imageCache.has(id)) imageCache.delete(id);
+    imageCache.set(id, url);
+    if (imageCache.size > IMAGE_CACHE_MAX) {
+      imageCache.delete(imageCache.keys().next().value);
+    }
+  }
+
   function imageBox(imageId, extraClass) {
     if (!imageId) return '';
     var cached = imageCache.get(imageId);
@@ -4189,22 +4294,45 @@ window.Store = (function () {
       (cached ? ' style="background-image:url(' + cached + ')"' : '') + '></span>';
   }
 
+  function paintImage(node) {
+    var id = node.getAttribute('data-image-id');
+    if (!id || node.dataset.painted) return;
+    node.dataset.painted = '1';
+    if (imageCache.has(id)) {
+      var known = imageCache.get(id);
+      cacheImage(id, known);
+      node.style.backgroundImage = 'url(' + known + ')';
+      return;
+    }
+    Store.imageLoad(id).then(function (url) {
+      if (!url) { delete node.dataset.painted; return; }
+      cacheImage(id, url);
+      node.style.backgroundImage = 'url(' + url + ')';
+    });
+  }
+
+  /* Картинки подставляются только тогда, когда до них доходит взгляд:
+     читать из базы всю сотню миниатюр разом — это и есть та задержка,
+     из-за которой длинный список открывался медленно. */
+  var imageWatcher = null;
+
+  function watchImage(node) {
+    if (!window.IntersectionObserver) { paintImage(node); return; }
+    if (!imageWatcher) {
+      imageWatcher = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (!entry.isIntersecting) return;
+          imageWatcher.unobserve(entry.target);
+          paintImage(entry.target);
+        });
+      }, { rootMargin: '400px 0px' });
+    }
+    imageWatcher.observe(node);
+  }
+
   function hydrateImages(root) {
     var nodes = (root || document).querySelectorAll('[data-image-id]');
-    for (var i = 0; i < nodes.length; i++) {
-      (function (node) {
-        var id = node.getAttribute('data-image-id');
-        if (imageCache.has(id)) {
-          node.style.backgroundImage = 'url(' + imageCache.get(id) + ')';
-          return;
-        }
-        Store.imageLoad(id).then(function (url) {
-          if (!url) return;
-          imageCache.set(id, url);
-          node.style.backgroundImage = 'url(' + url + ')';
-        });
-      })(nodes[i]);
-    }
+    for (var i = 0; i < nodes.length; i++) watchImage(nodes[i]);
   }
 
   function applySize(slider) {
@@ -4230,7 +4358,7 @@ window.Store = (function () {
     if (id) {
       if (imageCache.has(id)) return Promise.resolve(imageCache.get(id));
       return Store.imageLoad(id).then(function (url) {
-        if (url) imageCache.set(id, url);
+        if (url) cacheImage(id, url);
         return url;
       });
     }
@@ -4741,64 +4869,101 @@ window.Store = (function () {
     } else {
       html += '<div class="search"><input class="input" type="search" id="input-search" ' +
         'placeholder="Поиск по словам" value="' + esc(filter) + '"></div>';
-
-      var needle = filter.trim().toLowerCase();
-      var rows = '';
-      var shown = 0;
-
-      /* Сколько раз каждое слово встречается во всей картотеке —
-         считаем разом, чтобы не искать повторы для каждой строки. */
-      var repeats = new Map();
-      Store.collectWords({}).forEach(function (item) {
-        var key = item.word.de.trim().toLowerCase();
-        repeats.set(key, (repeats.get(key) || 0) + 1);
-      });
-
-      /* Свежая запись стоит первой: только что добавленное слово видно
-         сразу, без прокрутки в конец. Номер при этом остаётся настоящим —
-         тем же, что в выгруженном файле. */
-      var listed = set.words.map(function (word, index) {
-        return { word: word, no: index + 1 };
-      }).reverse();
-
-      listed.forEach(function (item) {
-        var word = item.word;
-        if (needle &&
-          word.de.toLowerCase().indexOf(needle) < 0 &&
-          word.ru.toLowerCase().indexOf(needle) < 0) return;
-        shown++;
-
-        var label = Store.dueLabel(word);
-        var chipClass = word.mastered ? 'chip chip--calm' : (label === 'сейчас' ? 'chip chip--due' : 'chip');
-        var repeated = (repeats.get(word.de.trim().toLowerCase()) || 0) > 1;
-        var note = word.ru ? esc(word.ru) : '<span style="opacity:.65">нет перевода — в разбор не попадёт</span>';
-
-        rows += '<div class="ledger__row" data-id="' + word.id + '" data-row="' + word.id + '">' +
-          '<div class="ledger__no">' + item.no + '</div>' +
-          '<div class="ledger__de">' + esc(word.de) + '</div>' +
-          '<div class="ledger__meta">' +
-          '<span class="ledger__ru">' + note + '</span>' +
-          '<span class="' + chipClass + '">' + label + '</span>' +
-          (repeated
-            ? '<button class="chip chip--warn" data-show-same="' + word.id + '">повтор</button>'
-            : '') +
-          '</div>' +
-          '<div class="ledger__side">' +
-          (word.image ? imageBox(word.image.id, 'picture--thumb') : '') +
-          '<button class="icon-btn" data-edit-word="' + word.id + '" title="Изменить" aria-label="Изменить">' + ICON_EDIT + '</button>' +
-          '<button class="icon-btn" data-delete-word="' + word.id + '" title="Удалить" aria-label="Удалить">' + ICON_DELETE + '</button>' +
-          '</div></div>';
-      });
-
-      if (!shown) {
-        rows = '<div class="ledger__row"><div class="ledger__no">—</div>' +
-          '<div class="ledger__de" style="font-weight:400">Ничего не найдено</div></div>';
-      }
-
-      html += '<div class="glass ledger">' + rows + '</div>';
+      html += '<div id="ledger-box">' + ledgerHtml(set) + '</div>';
     }
 
     screenEl.innerHTML = html;
+  }
+
+  /* Ведомость строится порциями: пятьсот строк разом — это тысяча значков
+     и столько же чтений из базы, отчего список и открывался медленно.
+     Остальное дорисовывается само, когда до него доходит прокрутка. */
+  var LEDGER_PAGE = 50;
+  var shownRows = LEDGER_PAGE;
+
+  function ledgerHtml(set) {
+    var needle = filter.trim().toLowerCase();
+    var repeats = Store.repeatCounts();
+
+    /* Свежая запись стоит первой: только что добавленное слово видно
+       сразу, без прокрутки в конец. Номер при этом остаётся настоящим —
+       тем же, что в выгруженном файле. */
+    var matched = [];
+    for (var i = set.words.length - 1; i >= 0; i--) {
+      var word = set.words[i];
+      if (needle &&
+        word.de.toLowerCase().indexOf(needle) < 0 &&
+        word.ru.toLowerCase().indexOf(needle) < 0) continue;
+      matched.push({ word: word, no: i + 1 });
+    }
+
+    if (!matched.length) {
+      return '<div class="glass ledger"><div class="ledger__row">' +
+        '<div class="ledger__no">—</div>' +
+        '<div class="ledger__de" style="font-weight:400">Ничего не найдено</div></div></div>';
+    }
+
+    var visible = matched.slice(0, shownRows);
+    var rows = visible.map(function (item) {
+      return rowHtml(item.word, item.no, repeats);
+    }).join('');
+
+    var html = '<div class="glass ledger">' + rows + '</div>';
+    if (matched.length > visible.length) {
+      html += '<div class="ledger__more" id="ledger-more">' +
+        visible.length + ' из ' + matched.length + '</div>';
+    }
+    return html;
+  }
+
+  function rowHtml(word, no, repeats) {
+    var label = Store.dueLabel(word);
+    var chipClass = word.mastered ? 'chip chip--calm' : (label === 'сейчас' ? 'chip chip--due' : 'chip');
+    var repeated = (repeats.get(word.de.trim().toLowerCase()) || 0) > 1;
+    var note = word.ru ? esc(word.ru) : '<span style="opacity:.65">нет перевода — в разбор не попадёт</span>';
+
+    return '<div class="ledger__row" data-id="' + word.id + '" data-row="' + word.id + '">' +
+      '<div class="ledger__no">' + no + '</div>' +
+      '<div class="ledger__de">' + esc(word.de) + '</div>' +
+      '<div class="ledger__meta">' +
+      '<span class="ledger__ru">' + note + '</span>' +
+      '<span class="' + chipClass + '">' + label + '</span>' +
+      (repeated
+        ? '<button class="chip chip--warn" data-show-same="' + word.id + '">повтор</button>'
+        : '') +
+      '</div>' +
+      '<div class="ledger__side">' +
+      (word.image ? imageBox(word.image.id, 'picture--thumb') : '') +
+      '<button class="icon-btn" data-edit-word="' + word.id + '" title="Изменить" aria-label="Изменить">' + ICON_EDIT + '</button>' +
+      '<button class="icon-btn" data-delete-word="' + word.id + '" title="Удалить" aria-label="Удалить">' + ICON_DELETE + '</button>' +
+      '</div></div>';
+  }
+
+  /* Перерисовка одной ведомости: поиск и дозагрузка не трогают весь экран,
+     поэтому поле ввода не теряет ни фокуса, ни каретки. */
+  function refreshLedger() {
+    var box = document.getElementById('ledger-box');
+    var set = Store.getSet(route.blockId, route.setId);
+    if (!box || !set) return;
+    box.innerHTML = ledgerHtml(set);
+    hydrateImages(box);
+    watchLedgerEnd();
+  }
+
+  /* Конец списка виден — значит пора дорисовать следующую порцию. */
+  var moreWatcher = null;
+
+  function watchLedgerEnd() {
+    var marker = document.getElementById('ledger-more');
+    if (!marker || !window.IntersectionObserver) return;
+    if (moreWatcher) moreWatcher.disconnect();
+    moreWatcher = new IntersectionObserver(function (entries) {
+      if (!entries[0].isIntersecting) return;
+      moreWatcher.disconnect();
+      shownRows += LEDGER_PAGE;
+      refreshLedger();
+    }, { rootMargin: '600px 0px' });
+    moreWatcher.observe(marker);
   }
 
   /* ---------- Экран: разбор ---------- */
@@ -5177,6 +5342,7 @@ window.Store = (function () {
     renderChrome();
     markFresh();
     hydrateImages(screenEl);
+    watchLedgerEnd();
 
     if (routeChanged) {
       screenEl.classList.remove('screen--enter');
@@ -5320,7 +5486,7 @@ window.Store = (function () {
       var picture = pendingImage;
       pendingImage = null;
       Store.imageSave(imageId, picture).then(function () {
-        imageCache.set(imageId, picture);
+        cacheImage(imageId, picture);
         Store.setWordImage(result.word.id, imageId, 'photo');
         render();
       }, function () { toast('Картинку сохранить не удалось'); });
@@ -5405,7 +5571,7 @@ window.Store = (function () {
     function attach(dataUrl, kind) {
       var imageId = Store.uid();
       Store.imageSave(imageId, dataUrl).then(function () {
-        imageCache.set(imageId, dataUrl);
+        cacheImage(imageId, dataUrl);
         Store.setWordImage(wordId, imageId, kind);
         closeModal();
         render();
@@ -6060,14 +6226,17 @@ window.Store = (function () {
 
     if (event.target.id !== 'input-search') return;
     filter = event.target.value;
-    var caret = event.target.selectionStart;
-    render();
-    var search = document.getElementById('input-search');
-    if (search) {
-      search.focus();
-      try { search.setSelectionRange(caret, caret); } catch (e) { /* не все поля это умеют */ }
-    }
+    shownRows = LEDGER_PAGE;
+    /* Перерисовывается только ведомость и только после паузы: на каждую
+       букву поднимать весь экран — это и есть заметная задержка ввода. */
+    if (searchTimer) clearTimeout(searchTimer);
+    searchTimer = setTimeout(function () {
+      searchTimer = null;
+      refreshLedger();
+    }, 130);
   });
+
+  var searchTimer = null;
 
   /* ---------- Запуск ---------- */
 

@@ -110,13 +110,18 @@
 
   function markFresh() {
     var nodes = screenEl.querySelectorAll('[data-id]');
+    var fresh = [];
     for (var i = 0; i < nodes.length; i++) {
       var id = nodes[i].getAttribute('data-id');
-      if (!seen.has(id)) {
-        seen.add(id);
-        nodes[i].classList.add('is-new');
-      }
+      if (seen.has(id)) continue;
+      seen.add(id);
+      fresh.push(nodes[i]);
     }
+    /* Открылся целый список — пусть появляется разом: полсотни
+       одновременных появлений телефон отрисовывает заметно дольше,
+       чем сам список. */
+    if (fresh.length > 8) return;
+    fresh.forEach(function (node) { node.classList.add('is-new'); });
   }
 
   /* ---------- Навигация ---------- */
@@ -125,6 +130,7 @@
     if (advanceTimer) { clearTimeout(advanceTimer); advanceTimer = null; }
     route = next;
     filter = '';
+    shownRows = LEDGER_PAGE;
     pendingImage = null;
     if (replace) history.replaceState(next, '');
     else history.pushState(next, '');
@@ -138,6 +144,7 @@
     if (advanceTimer) { clearTimeout(advanceTimer); advanceTimer = null; }
     route = event.state || { name: 'blocks' };
     filter = '';
+    shownRows = LEDGER_PAGE;
     closeModal();
     render(true);
   });
@@ -227,6 +234,19 @@
   var imageCache = new Map();
   var pendingImage = null;
 
+  /* Картинок в картотеке могут быть сотни, и каждая занимает десятки
+     килобайт. Держим в памяти только последние — остальные всегда можно
+     перечитать из базы. */
+  var IMAGE_CACHE_MAX = 160;
+
+  function cacheImage(id, url) {
+    if (imageCache.has(id)) imageCache.delete(id);
+    imageCache.set(id, url);
+    if (imageCache.size > IMAGE_CACHE_MAX) {
+      imageCache.delete(imageCache.keys().next().value);
+    }
+  }
+
   function imageBox(imageId, extraClass) {
     if (!imageId) return '';
     var cached = imageCache.get(imageId);
@@ -234,22 +254,45 @@
       (cached ? ' style="background-image:url(' + cached + ')"' : '') + '></span>';
   }
 
+  function paintImage(node) {
+    var id = node.getAttribute('data-image-id');
+    if (!id || node.dataset.painted) return;
+    node.dataset.painted = '1';
+    if (imageCache.has(id)) {
+      var known = imageCache.get(id);
+      cacheImage(id, known);
+      node.style.backgroundImage = 'url(' + known + ')';
+      return;
+    }
+    Store.imageLoad(id).then(function (url) {
+      if (!url) { delete node.dataset.painted; return; }
+      cacheImage(id, url);
+      node.style.backgroundImage = 'url(' + url + ')';
+    });
+  }
+
+  /* Картинки подставляются только тогда, когда до них доходит взгляд:
+     читать из базы всю сотню миниатюр разом — это и есть та задержка,
+     из-за которой длинный список открывался медленно. */
+  var imageWatcher = null;
+
+  function watchImage(node) {
+    if (!window.IntersectionObserver) { paintImage(node); return; }
+    if (!imageWatcher) {
+      imageWatcher = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (!entry.isIntersecting) return;
+          imageWatcher.unobserve(entry.target);
+          paintImage(entry.target);
+        });
+      }, { rootMargin: '400px 0px' });
+    }
+    imageWatcher.observe(node);
+  }
+
   function hydrateImages(root) {
     var nodes = (root || document).querySelectorAll('[data-image-id]');
-    for (var i = 0; i < nodes.length; i++) {
-      (function (node) {
-        var id = node.getAttribute('data-image-id');
-        if (imageCache.has(id)) {
-          node.style.backgroundImage = 'url(' + imageCache.get(id) + ')';
-          return;
-        }
-        Store.imageLoad(id).then(function (url) {
-          if (!url) return;
-          imageCache.set(id, url);
-          node.style.backgroundImage = 'url(' + url + ')';
-        });
-      })(nodes[i]);
-    }
+    for (var i = 0; i < nodes.length; i++) watchImage(nodes[i]);
   }
 
   function applySize(slider) {
@@ -275,7 +318,7 @@
     if (id) {
       if (imageCache.has(id)) return Promise.resolve(imageCache.get(id));
       return Store.imageLoad(id).then(function (url) {
-        if (url) imageCache.set(id, url);
+        if (url) cacheImage(id, url);
         return url;
       });
     }
@@ -786,64 +829,101 @@
     } else {
       html += '<div class="search"><input class="input" type="search" id="input-search" ' +
         'placeholder="Поиск по словам" value="' + esc(filter) + '"></div>';
-
-      var needle = filter.trim().toLowerCase();
-      var rows = '';
-      var shown = 0;
-
-      /* Сколько раз каждое слово встречается во всей картотеке —
-         считаем разом, чтобы не искать повторы для каждой строки. */
-      var repeats = new Map();
-      Store.collectWords({}).forEach(function (item) {
-        var key = item.word.de.trim().toLowerCase();
-        repeats.set(key, (repeats.get(key) || 0) + 1);
-      });
-
-      /* Свежая запись стоит первой: только что добавленное слово видно
-         сразу, без прокрутки в конец. Номер при этом остаётся настоящим —
-         тем же, что в выгруженном файле. */
-      var listed = set.words.map(function (word, index) {
-        return { word: word, no: index + 1 };
-      }).reverse();
-
-      listed.forEach(function (item) {
-        var word = item.word;
-        if (needle &&
-          word.de.toLowerCase().indexOf(needle) < 0 &&
-          word.ru.toLowerCase().indexOf(needle) < 0) return;
-        shown++;
-
-        var label = Store.dueLabel(word);
-        var chipClass = word.mastered ? 'chip chip--calm' : (label === 'сейчас' ? 'chip chip--due' : 'chip');
-        var repeated = (repeats.get(word.de.trim().toLowerCase()) || 0) > 1;
-        var note = word.ru ? esc(word.ru) : '<span style="opacity:.65">нет перевода — в разбор не попадёт</span>';
-
-        rows += '<div class="ledger__row" data-id="' + word.id + '" data-row="' + word.id + '">' +
-          '<div class="ledger__no">' + item.no + '</div>' +
-          '<div class="ledger__de">' + esc(word.de) + '</div>' +
-          '<div class="ledger__meta">' +
-          '<span class="ledger__ru">' + note + '</span>' +
-          '<span class="' + chipClass + '">' + label + '</span>' +
-          (repeated
-            ? '<button class="chip chip--warn" data-show-same="' + word.id + '">повтор</button>'
-            : '') +
-          '</div>' +
-          '<div class="ledger__side">' +
-          (word.image ? imageBox(word.image.id, 'picture--thumb') : '') +
-          '<button class="icon-btn" data-edit-word="' + word.id + '" title="Изменить" aria-label="Изменить">' + ICON_EDIT + '</button>' +
-          '<button class="icon-btn" data-delete-word="' + word.id + '" title="Удалить" aria-label="Удалить">' + ICON_DELETE + '</button>' +
-          '</div></div>';
-      });
-
-      if (!shown) {
-        rows = '<div class="ledger__row"><div class="ledger__no">—</div>' +
-          '<div class="ledger__de" style="font-weight:400">Ничего не найдено</div></div>';
-      }
-
-      html += '<div class="glass ledger">' + rows + '</div>';
+      html += '<div id="ledger-box">' + ledgerHtml(set) + '</div>';
     }
 
     screenEl.innerHTML = html;
+  }
+
+  /* Ведомость строится порциями: пятьсот строк разом — это тысяча значков
+     и столько же чтений из базы, отчего список и открывался медленно.
+     Остальное дорисовывается само, когда до него доходит прокрутка. */
+  var LEDGER_PAGE = 50;
+  var shownRows = LEDGER_PAGE;
+
+  function ledgerHtml(set) {
+    var needle = filter.trim().toLowerCase();
+    var repeats = Store.repeatCounts();
+
+    /* Свежая запись стоит первой: только что добавленное слово видно
+       сразу, без прокрутки в конец. Номер при этом остаётся настоящим —
+       тем же, что в выгруженном файле. */
+    var matched = [];
+    for (var i = set.words.length - 1; i >= 0; i--) {
+      var word = set.words[i];
+      if (needle &&
+        word.de.toLowerCase().indexOf(needle) < 0 &&
+        word.ru.toLowerCase().indexOf(needle) < 0) continue;
+      matched.push({ word: word, no: i + 1 });
+    }
+
+    if (!matched.length) {
+      return '<div class="glass ledger"><div class="ledger__row">' +
+        '<div class="ledger__no">—</div>' +
+        '<div class="ledger__de" style="font-weight:400">Ничего не найдено</div></div></div>';
+    }
+
+    var visible = matched.slice(0, shownRows);
+    var rows = visible.map(function (item) {
+      return rowHtml(item.word, item.no, repeats);
+    }).join('');
+
+    var html = '<div class="glass ledger">' + rows + '</div>';
+    if (matched.length > visible.length) {
+      html += '<div class="ledger__more" id="ledger-more">' +
+        visible.length + ' из ' + matched.length + '</div>';
+    }
+    return html;
+  }
+
+  function rowHtml(word, no, repeats) {
+    var label = Store.dueLabel(word);
+    var chipClass = word.mastered ? 'chip chip--calm' : (label === 'сейчас' ? 'chip chip--due' : 'chip');
+    var repeated = (repeats.get(word.de.trim().toLowerCase()) || 0) > 1;
+    var note = word.ru ? esc(word.ru) : '<span style="opacity:.65">нет перевода — в разбор не попадёт</span>';
+
+    return '<div class="ledger__row" data-id="' + word.id + '" data-row="' + word.id + '">' +
+      '<div class="ledger__no">' + no + '</div>' +
+      '<div class="ledger__de">' + esc(word.de) + '</div>' +
+      '<div class="ledger__meta">' +
+      '<span class="ledger__ru">' + note + '</span>' +
+      '<span class="' + chipClass + '">' + label + '</span>' +
+      (repeated
+        ? '<button class="chip chip--warn" data-show-same="' + word.id + '">повтор</button>'
+        : '') +
+      '</div>' +
+      '<div class="ledger__side">' +
+      (word.image ? imageBox(word.image.id, 'picture--thumb') : '') +
+      '<button class="icon-btn" data-edit-word="' + word.id + '" title="Изменить" aria-label="Изменить">' + ICON_EDIT + '</button>' +
+      '<button class="icon-btn" data-delete-word="' + word.id + '" title="Удалить" aria-label="Удалить">' + ICON_DELETE + '</button>' +
+      '</div></div>';
+  }
+
+  /* Перерисовка одной ведомости: поиск и дозагрузка не трогают весь экран,
+     поэтому поле ввода не теряет ни фокуса, ни каретки. */
+  function refreshLedger() {
+    var box = document.getElementById('ledger-box');
+    var set = Store.getSet(route.blockId, route.setId);
+    if (!box || !set) return;
+    box.innerHTML = ledgerHtml(set);
+    hydrateImages(box);
+    watchLedgerEnd();
+  }
+
+  /* Конец списка виден — значит пора дорисовать следующую порцию. */
+  var moreWatcher = null;
+
+  function watchLedgerEnd() {
+    var marker = document.getElementById('ledger-more');
+    if (!marker || !window.IntersectionObserver) return;
+    if (moreWatcher) moreWatcher.disconnect();
+    moreWatcher = new IntersectionObserver(function (entries) {
+      if (!entries[0].isIntersecting) return;
+      moreWatcher.disconnect();
+      shownRows += LEDGER_PAGE;
+      refreshLedger();
+    }, { rootMargin: '600px 0px' });
+    moreWatcher.observe(marker);
   }
 
   /* ---------- Экран: разбор ---------- */
@@ -1222,6 +1302,7 @@
     renderChrome();
     markFresh();
     hydrateImages(screenEl);
+    watchLedgerEnd();
 
     if (routeChanged) {
       screenEl.classList.remove('screen--enter');
@@ -1365,7 +1446,7 @@
       var picture = pendingImage;
       pendingImage = null;
       Store.imageSave(imageId, picture).then(function () {
-        imageCache.set(imageId, picture);
+        cacheImage(imageId, picture);
         Store.setWordImage(result.word.id, imageId, 'photo');
         render();
       }, function () { toast('Картинку сохранить не удалось'); });
@@ -1450,7 +1531,7 @@
     function attach(dataUrl, kind) {
       var imageId = Store.uid();
       Store.imageSave(imageId, dataUrl).then(function () {
-        imageCache.set(imageId, dataUrl);
+        cacheImage(imageId, dataUrl);
         Store.setWordImage(wordId, imageId, kind);
         closeModal();
         render();
@@ -2105,14 +2186,17 @@
 
     if (event.target.id !== 'input-search') return;
     filter = event.target.value;
-    var caret = event.target.selectionStart;
-    render();
-    var search = document.getElementById('input-search');
-    if (search) {
-      search.focus();
-      try { search.setSelectionRange(caret, caret); } catch (e) { /* не все поля это умеют */ }
-    }
+    shownRows = LEDGER_PAGE;
+    /* Перерисовывается только ведомость и только после паузы: на каждую
+       букву поднимать весь экран — это и есть заметная задержка ввода. */
+    if (searchTimer) clearTimeout(searchTimer);
+    searchTimer = setTimeout(function () {
+      searchTimer = null;
+      refreshLedger();
+    }, 130);
   });
+
+  var searchTimer = null;
 
   /* ---------- Запуск ---------- */
 
