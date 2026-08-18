@@ -95,6 +95,9 @@
     padding:110px 34px 240px;overflow-y:auto;}
   .bg-text span{font-family:Georgia,serif;font-size:24px;line-height:1.55;text-align:center;
     white-space:pre-wrap;word-break:break-word;color:var(--ink);}
+  .slider-row{display:flex;justify-content:space-between;align-items:center;
+    font-size:13.5px;font-weight:700;color:var(--ink2);margin-top:16px;}
+  .slider-row b{color:var(--accent);font-variant-numeric:tabular-nums;}
   .bg-default{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
     gap:22px;padding-bottom:140px;}
   .bg-disc{width:158px;height:158px;border-radius:50%;background:var(--surface);
@@ -393,6 +396,12 @@
   <div class="sh-title">Выбор фона</div>
   <div class="sh-sub">Текст, фото или видео — что будет на экране, пока играет аудио.</div>
   <textarea class="ta" id="bgTextInput" rows="3" placeholder="Напиши текст: слова песни, цитату, что угодно…"></textarea>
+  <div class="slider-row"><span>Размер текста</span><b id="bgTextSizeVal">24</b></div>
+  <input type="range" id="bgTextSize" min="6" max="60" step="1" value="24">
+  <div id="bgMediaSizeWrap" style="display:none">
+    <div class="slider-row"><span>Размер фото и видео</span><b id="bgMediaSizeVal">100%</b></div>
+    <input type="range" id="bgMediaSize" min="10" max="100" step="1" value="100">
+  </div>
   <button class="btn" id="bgSaveText">Сохранить текст</button>
   <button class="btn primary" id="bgPick">
     <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
@@ -440,7 +449,7 @@
 'use strict';
 /* ---------------- helpers ---------------- */
 const $ = id => document.getElementById(id);
-const HOLD_MS = 3000;               // hold seek button this long -> step adjuster
+const HOLD_MS = 450;                // hold seek button this long -> step adjuster
 const hasPA = () => typeof window.PA !== 'undefined';
 function hap(t){ try{ if(hasPA()) PA.haptic(t||'light'); }catch(e){} }
 function store(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
@@ -548,11 +557,12 @@ window.onBackgroundPicked = function(f){
   if(old && (old.type==='image'||old.type==='video') && hasPA()){
     try{ PA.deleteFile(old.value); }catch(e){}
   }
-  const bg={type:type, value:f.path};
+  const bg={type:type, value:f.path, size:100};
   store('pa.bg.'+cur.id, bg);
   applyBg(bg);
   hap('medium');
   toast('Фон обновлён');
+  openBgSheet(); // show the size slider right away
 };
 
 $('btnAdd').addEventListener('click', ()=>{
@@ -892,22 +902,45 @@ function applyBg(bg){
   if(bg.type==='text'){
     const w=document.createElement('div'); w.className='bg-text';
     const s=document.createElement('span'); s.textContent=bg.value;
+    s.style.fontSize=(bg.size||24)+'px';
     w.appendChild(s); l.appendChild(w);
   } else if(bg.type==='image'){
-    const img=document.createElement('img'); img.src=bg.value; l.appendChild(img);
+    const img=document.createElement('img'); img.src=bg.value;
+    applyBgMediaStyle(img, bg.size);
+    l.appendChild(img);
   } else if(bg.type==='video'){
     const v=document.createElement('video');
     v.muted=true; v.loop=true; v.autoplay=true; v.playsInline=true;
     v.setAttribute('playsinline','');
     v.src=bg.value;
+    applyBgMediaStyle(v, bg.size);
     l.appendChild(v);
     v.play().catch(()=>{});
   }
   maybeKeepAwake();
 }
+function applyBgMediaStyle(el, size){
+  size = size || 100;
+  if(size>=100){
+    el.style.cssText='width:100%;height:100%;object-fit:cover;';
+  } else {
+    el.style.cssText='position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);'+
+      'max-width:'+size+'%;max-height:'+size+'%;width:auto;height:auto;object-fit:contain;'+
+      'border-radius:26px;box-shadow:0 10px 34px rgba(61,57,41,.22);';
+  }
+}
+function saveCurBg(){
+  if(cur && curBg) store('pa.bg.'+cur.id, curBg);
+}
 function openBgSheet(){
   const bg=cur?loadLS('pa.bg.'+cur.id,null):null;
   $('bgTextInput').value = bg && bg.type==='text' ? bg.value : '';
+  const ts = bg && bg.type==='text' && bg.size ? bg.size : 24;
+  $('bgTextSize').value=ts; $('bgTextSizeVal').textContent=ts;
+  const isMedia = bg && (bg.type==='image'||bg.type==='video');
+  $('bgMediaSizeWrap').style.display = isMedia ? 'block' : 'none';
+  const ms = isMedia && bg.size ? bg.size : 100;
+  $('bgMediaSize').value=ms; $('bgMediaSizeVal').textContent=ms+'%';
   openSheet('shBg');
 }
 $('bgSaveText').addEventListener('click', ()=>{
@@ -916,10 +949,36 @@ $('bgSaveText').addEventListener('click', ()=>{
   if(!v){ toast('Сначала напиши текст'); return; }
   const old=loadLS('pa.bg.'+cur.id,null);
   if(old && (old.type==='image'||old.type==='video') && hasPA()){ try{ PA.deleteFile(old.value); }catch(e){} }
-  const bg={type:'text', value:v};
+  const bg={type:'text', value:v, size:parseInt($('bgTextSize').value,10)||24};
   store('pa.bg.'+cur.id,bg);
   applyBg(bg);
   hap('medium'); closeSheets(); toast('Фон сохранён');
+});
+let lastTextSize=null;
+$('bgTextSize').addEventListener('input', ()=>{
+  const v=parseInt($('bgTextSize').value,10);
+  if(v===lastTextSize) return;
+  lastTextSize=v;
+  $('bgTextSizeVal').textContent=v;
+  hap('light');
+  if(curBg && curBg.type==='text'){
+    curBg.size=v; saveCurBg();
+    const s=$('bgLayer').querySelector('.bg-text span');
+    if(s) s.style.fontSize=v+'px';
+  }
+});
+let lastMediaSize=null;
+$('bgMediaSize').addEventListener('input', ()=>{
+  const v=parseInt($('bgMediaSize').value,10);
+  if(v===lastMediaSize) return;
+  lastMediaSize=v;
+  $('bgMediaSizeVal').textContent=v+'%';
+  hap('light');
+  if(curBg && (curBg.type==='image'||curBg.type==='video')){
+    curBg.size=v; saveCurBg();
+    const el=$('bgLayer').querySelector('img,video');
+    if(el) applyBgMediaStyle(el, v);
+  }
 });
 $('bgPick').addEventListener('click', ()=>{
   hap('light');

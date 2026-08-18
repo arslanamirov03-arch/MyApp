@@ -164,11 +164,20 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void pickBackground() {
-            Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-            i.addCategory(Intent.CATEGORY_OPENABLE);
-            i.setType("*/*");
-            i.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"image/*", "video/*"});
-            runOnUiThread(() -> startActivityForResult(i, REQ_BG));
+            runOnUiThread(() -> {
+                // System photo picker (gallery) returns originals at full quality;
+                // fall back to the documents UI on devices without it.
+                Intent picker = new Intent("android.provider.action.PICK_IMAGES");
+                if (picker.resolveActivity(getPackageManager()) != null) {
+                    startActivityForResult(picker, REQ_BG);
+                    return;
+                }
+                Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                i.addCategory(Intent.CATEGORY_OPENABLE);
+                i.setType("*/*");
+                i.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"image/*", "video/*"});
+                startActivityForResult(i, REQ_BG);
+            });
         }
 
         @JavascriptInterface
