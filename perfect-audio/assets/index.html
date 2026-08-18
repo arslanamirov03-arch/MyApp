@@ -1,0 +1,1032 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Perfect Audio</title>
+<style>
+  :root{
+    --bg:#FAF9F5;
+    --surface:#FFFFFF;
+    --ink:#3D3929;
+    --ink2:#8A8778;
+    --accent:#D97757;
+    --accent-soft:#F7EBE4;
+    --line:rgba(61,57,41,.08);
+    --sh-btn:0 1px 2px rgba(61,57,41,.05),0 5px 12px rgba(61,57,41,.10),0 14px 30px rgba(61,57,41,.10);
+    --sh-btn-press:0 1px 2px rgba(61,57,41,.08),0 3px 7px rgba(61,57,41,.10);
+    --sh-card:0 1px 2px rgba(61,57,41,.04),0 6px 18px rgba(61,57,41,.08);
+    --sh-pop:0 4px 14px rgba(61,57,41,.12),0 20px 50px rgba(61,57,41,.22);
+    --ease:cubic-bezier(.25,.9,.3,1);
+    --sat:env(safe-area-inset-top,0px);
+    --sab:env(safe-area-inset-bottom,0px);
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    background:var(--bg);color:var(--ink);
+    font-family:-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;
+    touch-action:manipulation;
+    overflow:hidden;
+  }
+  input,textarea{user-select:text;-webkit-user-select:text;font-family:inherit;color:var(--ink);}
+  button{font-family:inherit;border:none;background:none;color:var(--ink);cursor:pointer;}
+  svg{display:block;}
+
+  /* ---------- floating 3D buttons ---------- */
+  .fbtn{
+    display:flex;align-items:center;justify-content:center;
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:999px;
+    box-shadow:var(--sh-btn);
+    transition:transform .13s var(--ease),box-shadow .13s var(--ease);
+    position:relative;
+  }
+  .fbtn:active{transform:translateY(2px) scale(.965);box-shadow:var(--sh-btn-press);}
+  .fbtn.accent{background:var(--accent);color:#fff;border-color:rgba(0,0,0,.04);
+    box-shadow:0 1px 2px rgba(61,57,41,.06),0 6px 14px rgba(217,119,87,.35),0 16px 34px rgba(217,119,87,.28);}
+  .fbtn.accent:active{box-shadow:0 1px 2px rgba(61,57,41,.08),0 3px 8px rgba(217,119,87,.30);}
+
+  /* ---------- screens ---------- */
+  .screen{position:fixed;inset:0;background:var(--bg);
+    transition:transform .26s var(--ease),opacity .26s var(--ease);}
+  #scrPlayer{transform:translateX(104%);z-index:10;background:var(--bg);}
+  #scrPlayer.open{transform:translateX(0);}
+
+  /* ---------- library ---------- */
+  .lib-head{padding:calc(var(--sat) + 26px) 24px 6px;}
+  .lib-title{font-family:Georgia,'Times New Roman',serif;font-size:32px;letter-spacing:-.4px;}
+  .lib-sub{color:var(--ink2);font-size:14px;margin-top:5px;}
+  .lib-list{position:absolute;top:calc(var(--sat) + 106px);bottom:0;left:0;right:0;
+    overflow-y:auto;padding:12px 18px calc(var(--sab) + 120px);
+    -webkit-overflow-scrolling:touch;}
+  .card{
+    display:flex;align-items:center;gap:13px;
+    background:var(--surface);border:1px solid var(--line);
+    border-radius:22px;padding:13px 14px;margin-bottom:12px;
+    box-shadow:var(--sh-card);
+    transition:transform .13s var(--ease),box-shadow .13s var(--ease);
+  }
+  .card:active{transform:scale(.977);}
+  .card-ic{flex:0 0 46px;height:46px;border-radius:16px;background:var(--accent-soft);
+    display:flex;align-items:center;justify-content:center;color:var(--accent);}
+  .card-body{flex:1;min-width:0;}
+  .card-name{font-size:15.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .card-meta{font-size:12.5px;color:var(--ink2);margin-top:3px;}
+  .card-menu{flex:0 0 38px;height:38px;border-radius:999px;display:flex;align-items:center;justify-content:center;
+    color:var(--ink2);transition:background .12s;}
+  .card-menu:active{background:#F1EEE5;}
+  .empty{position:absolute;top:38%;left:0;right:0;transform:translateY(-50%);
+    text-align:center;padding:0 40px;color:var(--ink2);}
+  .empty-ic{width:86px;height:86px;margin:0 auto 18px;border-radius:30px;background:var(--surface);
+    border:1px solid var(--line);box-shadow:var(--sh-card);
+    display:flex;align-items:center;justify-content:center;color:var(--accent);}
+  .empty-t{font-family:Georgia,serif;font-size:20px;color:var(--ink);margin-bottom:8px;}
+  .empty-s{font-size:14px;line-height:1.55;}
+  #btnAdd{position:fixed;right:22px;bottom:calc(var(--sab) + 26px);width:64px;height:64px;z-index:5;}
+
+  /* ---------- player ---------- */
+  .bg-layer{position:absolute;inset:0;overflow:hidden;background:var(--bg);}
+  .bg-layer img,.bg-layer video{width:100%;height:100%;object-fit:cover;}
+  .bg-text{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    padding:110px 34px 240px;overflow-y:auto;}
+  .bg-text span{font-family:Georgia,serif;font-size:24px;line-height:1.55;text-align:center;
+    white-space:pre-wrap;word-break:break-word;color:var(--ink);}
+  .bg-default{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:22px;padding-bottom:140px;}
+  .bg-disc{width:158px;height:158px;border-radius:50%;background:var(--surface);
+    border:1px solid var(--line);box-shadow:var(--sh-card);
+    display:flex;align-items:center;justify-content:center;color:var(--accent);}
+  .bg-disc.spinning{animation:spin 16s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .bg-hint{font-size:13px;color:var(--ink2);text-align:center;line-height:1.5;padding:0 50px;}
+  #btnPlayerBack{position:absolute;top:calc(var(--sat) + 16px);left:16px;width:52px;height:52px;z-index:6;}
+  .track-chip{position:absolute;top:calc(var(--sat) + 24px);left:80px;right:80px;z-index:5;
+    display:flex;justify-content:center;pointer-events:none;}
+  .track-chip span{background:var(--surface);border:1px solid var(--line);box-shadow:var(--sh-card);
+    border-radius:999px;padding:9px 18px;font-size:13.5px;font-weight:600;
+    max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  #videoWrap{position:absolute;left:16px;right:16px;top:calc(var(--sat) + 86px);
+    bottom:206px;display:none;align-items:center;justify-content:center;z-index:2;}
+  #videoWrap video{max-width:100%;max-height:100%;border-radius:24px;background:#000;
+    box-shadow:0 10px 34px rgba(61,57,41,.25);}
+  .p-chip{position:absolute;top:calc(var(--sat) + 78px);left:0;right:0;z-index:5;
+    display:flex;justify-content:center;}
+  .p-chip .inner{display:flex;align-items:center;gap:8px;background:var(--accent);color:#fff;
+    border-radius:999px;padding:7px 8px 7px 16px;font-size:13px;font-weight:600;
+    box-shadow:0 6px 16px rgba(217,119,87,.4);}
+  .p-chip button{width:26px;height:26px;border-radius:999px;background:rgba(255,255,255,.25);
+    color:#fff;display:flex;align-items:center;justify-content:center;}
+  .progress-zone{position:absolute;left:20px;right:20px;bottom:calc(var(--sab) + 108px);z-index:4;
+    background:var(--surface);border:1px solid var(--line);border-radius:20px;
+    padding:11px 16px 14px;box-shadow:var(--sh-card);}
+  .time-row{display:flex;justify-content:space-between;font-size:11.5px;color:var(--ink2);
+    font-variant-numeric:tabular-nums;margin-bottom:8px;}
+  .bar{height:22px;display:flex;align-items:center;touch-action:none;}
+  .bar-track{position:relative;height:6px;width:100%;border-radius:99px;background:#EDEAE0;}
+  .bar-fill{position:absolute;left:0;top:0;bottom:0;width:0%;border-radius:99px;background:var(--accent);}
+  .bar-knob{position:absolute;top:50%;width:16px;height:16px;border-radius:99px;background:#fff;
+    border:1px solid var(--line);box-shadow:0 2px 6px rgba(61,57,41,.25);
+    transform:translate(-50%,-50%);left:0%;}
+  .controls{position:absolute;left:0;right:0;bottom:calc(var(--sab) + 22px);z-index:4;
+    display:flex;align-items:center;justify-content:center;gap:13px;}
+  .ctl{width:58px;height:58px;}
+  .ctl.big{width:76px;height:76px;}
+  .step-badge{position:absolute;bottom:-5px;left:50%;transform:translateX(-50%);
+    background:var(--accent);color:#fff;font-size:10px;font-weight:700;
+    border-radius:99px;padding:1.5px 7px;box-shadow:0 2px 6px rgba(61,57,41,.2);
+    pointer-events:none;white-space:nowrap;}
+  .step-badge.pulse{animation:pulse .3s var(--ease);}
+  @keyframes pulse{50%{transform:translateX(-50%) scale(1.35);}}
+
+  /* ---------- popovers ---------- */
+  .pop{position:fixed;z-index:40;background:var(--surface);border:1px solid var(--line);
+    border-radius:20px;box-shadow:var(--sh-pop);padding:8px;
+    opacity:0;transform:scale(.55) translateY(14px);pointer-events:none;
+    transition:transform .17s var(--ease),opacity .14s var(--ease);}
+  .pop.show{opacity:1;transform:scale(1) translateY(0);pointer-events:auto;}
+  .pop-item{display:flex;align-items:center;gap:12px;width:100%;
+    padding:12px 14px;border-radius:14px;font-size:15px;font-weight:600;text-align:left;
+    transition:background .12s;}
+  .pop-item:active{background:#F4F0E7;}
+  .pop-item svg{color:var(--accent);flex:0 0 auto;}
+  .pop-item.danger,.pop-item.danger svg{color:#C14434;}
+  #stepPop{padding:18px 18px 14px;width:min(320px,calc(100vw - 28px));}
+  .sp-title{font-size:13px;color:var(--ink2);font-weight:600;}
+  .sp-val{font-family:Georgia,serif;font-size:34px;margin:6px 0 2px;}
+  .sp-val small{font-size:17px;color:var(--ink2);}
+  .sp-hint{font-size:12px;color:var(--ink2);margin-top:8px;line-height:1.4;}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:34px;background:transparent;margin-top:4px;}
+  input[type=range]::-webkit-slider-runnable-track{height:8px;border-radius:99px;background:#EDEAE0;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;margin-top:-9px;
+    border-radius:99px;background:var(--accent);border:3px solid #fff;
+    box-shadow:0 3px 8px rgba(61,57,41,.3);}
+
+  /* ---------- sheets / modals ---------- */
+  #overlay{position:fixed;inset:0;background:rgba(61,57,41,.30);z-index:50;
+    opacity:0;pointer-events:none;transition:opacity .18s var(--ease);}
+  #overlay.show{opacity:1;pointer-events:auto;}
+  .sheet{position:fixed;left:50%;top:50%;z-index:60;width:min(92vw,410px);
+    max-height:calc(100vh - 90px);overflow-y:auto;-webkit-overflow-scrolling:touch;
+    background:var(--surface);border-radius:28px;padding:22px 20px 20px;
+    box-shadow:var(--sh-pop);
+    opacity:0;transform:translate(-50%,-50%) scale(.93);pointer-events:none;
+    transition:transform .18s var(--ease),opacity .15s var(--ease);}
+  .sheet.show{opacity:1;transform:translate(-50%,-50%) scale(1);pointer-events:auto;}
+  .sh-title{font-family:Georgia,serif;font-size:22px;margin-bottom:4px;}
+  .sh-sub{font-size:13px;color:var(--ink2);line-height:1.45;margin-bottom:16px;}
+  .btn{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;
+    padding:14px;border-radius:17px;font-size:15.5px;font-weight:700;
+    background:#F4F1E8;color:var(--ink);
+    box-shadow:0 1px 2px rgba(61,57,41,.05),0 4px 10px rgba(61,57,41,.07);
+    border:1px solid var(--line);
+    transition:transform .13s var(--ease),box-shadow .13s var(--ease);margin-top:10px;}
+  .btn:active{transform:translateY(2px) scale(.98);box-shadow:var(--sh-btn-press);}
+  .btn.primary{background:var(--accent);color:#fff;
+    box-shadow:0 1px 2px rgba(61,57,41,.06),0 6px 14px rgba(217,119,87,.35);}
+  .btn.danger{background:#C14434;color:#fff;}
+  .btn.ghost{background:var(--surface);}
+  .time-picker{display:flex;align-items:center;justify-content:center;gap:6px;}
+  .time-picker input{width:74px;padding:12px 4px;text-align:center;font-size:24px;
+    font-variant-numeric:tabular-nums;border:1.5px solid var(--line);border-radius:15px;
+    background:#FBFAF6;outline:none;}
+  .time-picker input:focus{border-color:var(--accent);}
+  .time-picker .colon{font-size:24px;font-weight:700;color:var(--ink2);}
+  .tp-row{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+  .tp-label{flex:0 0 44px;font-size:13.5px;font-weight:700;color:var(--ink2);}
+  .tp-now{flex:0 0 auto;padding:9px 13px;border-radius:12px;background:#F4F1E8;
+    border:1px solid var(--line);font-size:12.5px;font-weight:700;
+    box-shadow:0 2px 6px rgba(61,57,41,.07);}
+  .tp-now:active{transform:translateY(1px);}
+  .switch-row{display:flex;align-items:center;justify-content:space-between;
+    margin:16px 2px 4px;font-size:15px;font-weight:600;}
+  .switch{position:relative;width:54px;height:32px;flex:0 0 auto;}
+  .switch input{opacity:0;width:0;height:0;}
+  .knob-bg{position:absolute;inset:0;border-radius:99px;background:#E8E4D8;transition:background .16s;}
+  .knob-dot{position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:99px;background:#fff;
+    box-shadow:0 2px 5px rgba(61,57,41,.25);transition:transform .16s var(--ease);}
+  .switch input:checked + .knob-bg{background:var(--accent);}
+  .switch input:checked + .knob-bg .knob-dot{transform:translateX(22px);}
+  textarea.ta, input.ti{width:100%;border:1.5px solid var(--line);border-radius:16px;
+    background:#FBFAF6;padding:13px 14px;font-size:15px;outline:none;resize:none;}
+  textarea.ta:focus,input.ti:focus{border-color:var(--accent);}
+  .note-row{display:flex;align-items:center;gap:10px;background:#FBFAF6;
+    border:1px solid var(--line);border-radius:16px;padding:10px 12px;margin-bottom:9px;}
+  .note-time{flex:0 0 auto;background:var(--accent-soft);color:var(--accent);
+    font-weight:800;font-size:12.5px;font-variant-numeric:tabular-nums;
+    border-radius:99px;padding:6px 11px;box-shadow:0 2px 5px rgba(61,57,41,.08);}
+  .note-time:active{transform:translateY(1px);}
+  .note-text{flex:1;font-size:14px;line-height:1.4;word-break:break-word;user-select:text;-webkit-user-select:text;}
+  .note-del{flex:0 0 30px;height:30px;border-radius:99px;color:var(--ink2);
+    display:flex;align-items:center;justify-content:center;}
+  .note-del:active{background:#F1EEE5;}
+  .notes-list{max-height:34vh;overflow-y:auto;margin-bottom:6px;-webkit-overflow-scrolling:touch;}
+  .notes-empty{text-align:center;color:var(--ink2);font-size:13.5px;padding:14px 0 18px;}
+  .add-note-grid{display:flex;gap:8px;align-items:center;margin-bottom:10px;}
+  .add-note-grid input.nt{width:58px;padding:10px 2px;text-align:center;font-size:18px;
+    border:1.5px solid var(--line);border-radius:13px;background:#FBFAF6;outline:none;
+    font-variant-numeric:tabular-nums;}
+  .sheet-x{position:absolute;top:14px;right:14px;width:38px;height:38px;border-radius:99px;
+    display:flex;align-items:center;justify-content:center;color:var(--ink2);}
+  .sheet-x:active{background:#F1EEE5;}
+
+  /* ---------- toast ---------- */
+  #toast{position:fixed;left:50%;bottom:calc(var(--sab) + 110px);transform:translateX(-50%) translateY(14px);
+    z-index:90;background:var(--ink);color:#FBFAF6;font-size:14px;font-weight:600;
+    padding:11px 20px;border-radius:99px;box-shadow:var(--sh-pop);
+    opacity:0;pointer-events:none;transition:opacity .18s,transform .18s var(--ease);
+    max-width:84vw;text-align:center;}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+
+<!-- ============ LIBRARY ============ -->
+<div class="screen" id="scrLib">
+  <div class="lib-head">
+    <div class="lib-title">Perfect Audio</div>
+    <div class="lib-sub" id="libSub">Твоя коллекция</div>
+  </div>
+  <div class="empty" id="libEmpty">
+    <div class="empty-ic">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+    </div>
+    <div class="empty-t">Пока пусто</div>
+    <div class="empty-s">Нажми на оранжевую кнопку внизу и добавь свои аудио или видео</div>
+  </div>
+  <div class="lib-list" id="libList"></div>
+  <button class="fbtn accent" id="btnAdd" aria-label="Добавить">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+  </button>
+</div>
+
+<!-- ============ PLAYER ============ -->
+<div class="screen" id="scrPlayer">
+  <div class="bg-layer" id="bgLayer"></div>
+
+  <button class="fbtn" id="btnPlayerBack" aria-label="Назад">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+  </button>
+  <div class="track-chip"><span id="trackName"></span></div>
+
+  <div class="p-chip" id="pChip" style="display:none">
+    <div class="inner">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+      <span id="pChipText"></span>
+      <button id="pChipStop" aria-label="Стоп">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div id="videoWrap"><video id="videoEl" playsinline></video></div>
+
+  <div class="progress-zone">
+    <div class="time-row"><span id="tCur">0:00</span><span id="tDur">0:00</span></div>
+    <div class="bar" id="bar">
+      <div class="bar-track">
+        <div class="bar-fill" id="barFill"></div>
+        <div class="bar-knob" id="barKnob"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="fbtn ctl" id="btnRew" aria-label="Назад на несколько секунд">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+      <span class="step-badge" id="badgeRew">5с</span>
+    </button>
+    <button class="fbtn accent ctl big" id="btnPlay" aria-label="Играть / пауза">
+      <svg id="icPlay" width="32" height="32" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round" style="margin-left:4px"><path d="M6 4.5v15l13-7.5z"/></svg>
+      <svg id="icPause" width="30" height="30" viewBox="0 0 24 24" fill="currentColor" style="display:none"><rect x="5.5" y="4" width="4.6" height="16" rx="2.2"/><rect x="13.9" y="4" width="4.6" height="16" rx="2.2"/></svg>
+    </button>
+    <button class="fbtn ctl" id="btnFwd" aria-label="Вперёд на несколько секунд">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.13-9.36L23 10"/></svg>
+      <span class="step-badge" id="badgeFwd">5с</span>
+    </button>
+    <button class="fbtn ctl" id="btnMore" aria-label="Дополнительно">
+      <svg width="25" height="25" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M12 2.6l2.1 6.4 6.6 2.1-6.6 2.1L12 19.6l-2.1-6.4-6.6-2.1 6.6-2.1z"/><path d="M19.5 15.5l.9 2.6 2.6.9-2.6.9-.9 2.6-.9-2.6-2.6-.9 2.6-.9z" stroke-width="1"/></svg>
+    </button>
+  </div>
+
+  <!-- more popover -->
+  <div class="pop" id="morePop">
+    <button class="pop-item" id="miPractice">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+      Практика
+    </button>
+    <button class="pop-item" id="miBg">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+      Выбор фона
+    </button>
+    <button class="pop-item" id="miNotes">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+      Заметки
+    </button>
+  </div>
+
+  <!-- seek-step popover -->
+  <div class="pop" id="stepPop">
+    <div class="sp-title" id="spTitle">Перемотка назад</div>
+    <div class="sp-val"><span id="spVal">5</span> <small>сек</small></div>
+    <input type="range" id="spRange" min="1" max="60" step="1" value="5">
+    <div class="sp-hint">Столько секунд будет перематываться при каждом нажатии</div>
+  </div>
+</div>
+
+<!-- library card menu -->
+<div class="pop" id="cardPop">
+  <button class="pop-item" id="cmRename">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+    Переименовать
+  </button>
+  <button class="pop-item danger" id="cmDelete">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+    Удалить
+  </button>
+</div>
+
+<!-- ============ SHEETS ============ -->
+<div id="overlay"></div>
+
+<div class="sheet" id="shPractice">
+  <button class="sheet-x" data-close>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+  </button>
+  <div class="sh-title">Практика</div>
+  <div class="sh-sub">Выбери отрезок, который хочешь слушать. Минуты и секунды.</div>
+  <div class="tp-row">
+    <div class="tp-label">От</div>
+    <div class="time-picker">
+      <input type="number" id="prSM" inputmode="numeric" min="0" max="599" value="0">
+      <span class="colon">:</span>
+      <input type="number" id="prSS" inputmode="numeric" min="0" max="59" value="0">
+    </div>
+    <button class="tp-now" id="prSNow">сейчас</button>
+  </div>
+  <div class="tp-row">
+    <div class="tp-label">До</div>
+    <div class="time-picker">
+      <input type="number" id="prEM" inputmode="numeric" min="0" max="599" value="0">
+      <span class="colon">:</span>
+      <input type="number" id="prES" inputmode="numeric" min="0" max="59" value="10">
+    </div>
+    <button class="tp-now" id="prENow">сейчас</button>
+  </div>
+  <div class="switch-row">
+    <span>Бесконечный повтор</span>
+    <label class="switch">
+      <input type="checkbox" id="prLoop" checked>
+      <span class="knob-bg"><span class="knob-dot"></span></span>
+    </label>
+  </div>
+  <button class="btn primary" id="prStart">Слушать отрезок</button>
+</div>
+
+<div class="sheet" id="shBg">
+  <button class="sheet-x" data-close>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+  </button>
+  <div class="sh-title">Выбор фона</div>
+  <div class="sh-sub">Текст, фото или видео — что будет на экране, пока играет аудио.</div>
+  <textarea class="ta" id="bgTextInput" rows="3" placeholder="Напиши текст: слова песни, цитату, что угодно…"></textarea>
+  <button class="btn" id="bgSaveText">Сохранить текст</button>
+  <button class="btn primary" id="bgPick">
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+    Фото или видео из галереи
+  </button>
+  <button class="btn ghost" id="bgClear">Убрать фон</button>
+</div>
+
+<div class="sheet" id="shNotes">
+  <button class="sheet-x" data-close>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+  </button>
+  <div class="sh-title">Заметки</div>
+  <div class="sh-sub">Отметь время и запиши, что там происходит. Нажми на время — и перемотается туда.</div>
+  <div class="notes-list" id="notesList"></div>
+  <div class="add-note-grid">
+    <input class="nt" type="number" id="ntM" inputmode="numeric" min="0" max="599" value="0">
+    <span style="font-weight:700;color:var(--ink2)">:</span>
+    <input class="nt" type="number" id="ntS" inputmode="numeric" min="0" max="59" value="0">
+    <button class="tp-now" id="ntNow">сейчас</button>
+  </div>
+  <input class="ti" id="ntText" placeholder="Текст заметки…">
+  <button class="btn primary" id="ntAdd">Добавить заметку</button>
+</div>
+
+<div class="sheet" id="shRename">
+  <div class="sh-title">Переименовать</div>
+  <div style="height:10px"></div>
+  <input class="ti" id="rnInput" placeholder="Название">
+  <button class="btn primary" id="rnSave">Сохранить</button>
+  <button class="btn ghost" data-close>Отмена</button>
+</div>
+
+<div class="sheet" id="shConfirm">
+  <div class="sh-title">Удалить?</div>
+  <div class="sh-sub" id="cfText" style="margin-top:6px"></div>
+  <button class="btn danger" id="cfYes">Удалить</button>
+  <button class="btn ghost" data-close>Отмена</button>
+</div>
+
+<div id="toast"></div>
+<audio id="audioEl"></audio>
+
+<script>
+'use strict';
+/* ---------------- helpers ---------------- */
+const $ = id => document.getElementById(id);
+const HOLD_MS = 3000;               // hold seek button this long -> step adjuster
+const hasPA = () => typeof window.PA !== 'undefined';
+function hap(t){ try{ if(hasPA()) PA.haptic(t||'light'); }catch(e){} }
+function store(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+function loadLS(k,d){ try{ const v=localStorage.getItem(k); return v==null?d:JSON.parse(v); }catch(e){ return d; } }
+function uid(){ return Math.random().toString(36).slice(2,10); }
+function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+function fmt(sec){
+  if(!isFinite(sec)||sec<0) sec=0;
+  sec = Math.floor(sec);
+  const h=Math.floor(sec/3600), m=Math.floor(sec%3600/60), s=sec%60;
+  return h>0 ? h+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')
+             : m+':'+String(s).padStart(2,'0');
+}
+function esc(s){ const d=document.createElement('div'); d.textContent=s==null?'':String(s); return d.innerHTML; }
+
+let toastTimer=null;
+function toast(msg, sticky){
+  const t=$('toast'); t.textContent=msg; t.classList.add('show');
+  if(toastTimer){ clearTimeout(toastTimer); toastTimer=null; }
+  if(!sticky) toastTimer=setTimeout(()=>t.classList.remove('show'), 2000);
+}
+function hideToast(){ $('toast').classList.remove('show'); if(toastTimer){clearTimeout(toastTimer);toastTimer=null;} }
+
+/* ---------------- state ---------------- */
+let lib = loadLS('pa.lib', []);
+let settings = Object.assign({seekBack:5, seekFwd:5}, loadLS('pa.settings', {}));
+let cur = null;           // current track object
+let media = null;         // active HTMLMediaElement
+let curBg = null;         // active background descriptor
+let practice = null;      // {start,end,loop}
+let posSaveT = 0;
+
+/* ---------------- library ---------------- */
+function kindIcon(kind){
+  return kind==='video'
+    ? '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="4"/><path d="M10 9.5l5 2.5-5 2.5z" fill="currentColor" stroke="none"/></svg>'
+    : '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>';
+}
+function renderLib(){
+  const list=$('libList');
+  list.innerHTML='';
+  $('libEmpty').style.display = lib.length ? 'none' : 'block';
+  $('libSub').textContent = lib.length
+    ? lib.length + ' ' + plural(lib.length,'запись','записи','записей')
+    : 'Твоя коллекция';
+  lib.forEach(tr=>{
+    const el=document.createElement('div');
+    el.className='card';
+    el.innerHTML =
+      '<div class="card-ic">'+kindIcon(tr.kind)+'</div>'+
+      '<div class="card-body"><div class="card-name">'+esc(tr.name)+'</div>'+
+      '<div class="card-meta">'+(tr.kind==='video'?'Видео':'Аудио')+(tr.duration?' · '+fmt(tr.duration):'')+'</div></div>'+
+      '<button class="card-menu" aria-label="Меню">'+
+      '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>';
+    el.addEventListener('click', e=>{
+      if(e.target.closest('.card-menu')){ e.stopPropagation(); hap('light'); openCardMenu(e.target.closest('.card-menu'), tr.id); return; }
+      hap('light'); openPlayer(tr.id);
+    });
+    list.appendChild(el);
+  });
+}
+function plural(n,a,b,c){
+  const m10=n%10, m100=n%100;
+  if(m10===1&&m100!==11) return a;
+  if(m10>=2&&m10<=4&&(m100<10||m100>=20)) return b;
+  return c;
+}
+function probeDuration(tr){
+  try{
+    const el=document.createElement(tr.kind==='video'?'video':'audio');
+    el.preload='metadata';
+    el.src=tr.path;
+    el.onloadedmetadata=()=>{
+      tr.duration = isFinite(el.duration)?el.duration:0;
+      el.removeAttribute('src'); el.load();
+      store('pa.lib', lib); renderLib();
+    };
+  }catch(e){}
+}
+
+/* import callbacks from native side */
+window.onImportStart = function(n){ toast('Добавляю…', true); };
+window.onMediaPicked = function(arr){
+  hideToast();
+  if(!arr || !arr.length){ toast('Ничего не добавлено'); return; }
+  arr.forEach(f=>{
+    const kind = (f.mime||'').indexOf('video')===0 ? 'video' : 'audio';
+    let name = f.name||'Без названия';
+    const dot = name.lastIndexOf('.');
+    if(dot>0) name = name.slice(0,dot);
+    const tr = {id:uid(), name:name, path:f.path, mime:f.mime, kind:kind, duration:0, added:Date.now()};
+    lib.unshift(tr);
+    probeDuration(tr);
+  });
+  store('pa.lib', lib);
+  renderLib();
+  hap('medium');
+  toast('Добавлено: '+arr.length);
+};
+window.onBackgroundPicked = function(f){
+  hideToast();
+  if(!f || !cur){ toast('Не получилось выбрать фон'); return; }
+  const type = (f.mime||'').indexOf('video')===0 ? 'video' : 'image';
+  const old = loadLS('pa.bg.'+cur.id, null);
+  if(old && (old.type==='image'||old.type==='video') && hasPA()){
+    try{ PA.deleteFile(old.value); }catch(e){}
+  }
+  const bg={type:type, value:f.path};
+  store('pa.bg.'+cur.id, bg);
+  applyBg(bg);
+  hap('medium');
+  toast('Фон обновлён');
+};
+
+$('btnAdd').addEventListener('click', ()=>{
+  hap('medium');
+  if(hasPA()) PA.pickMedia();
+  else toast('Выбор файлов доступен в приложении');
+});
+
+/* ---------------- card menu ---------------- */
+let cardMenuId=null;
+function openCardMenu(btn, id){
+  cardMenuId=id;
+  showPopAt($('cardPop'), btn);
+}
+$('cmRename').addEventListener('click', ()=>{
+  hap('light'); closePops();
+  const tr=lib.find(t=>t.id===cardMenuId); if(!tr) return;
+  $('rnInput').value=tr.name;
+  openSheet('shRename');
+});
+$('rnSave').addEventListener('click', ()=>{
+  const tr=lib.find(t=>t.id===cardMenuId); if(!tr){ closeSheets(); return; }
+  const v=$('rnInput').value.trim();
+  if(v){ tr.name=v; store('pa.lib',lib); renderLib(); if(cur&&cur.id===tr.id) $('trackName').textContent=v; }
+  hap('light'); closeSheets();
+});
+$('cmDelete').addEventListener('click', ()=>{
+  hap('light'); closePops();
+  const tr=lib.find(t=>t.id===cardMenuId); if(!tr) return;
+  $('cfText').textContent='«'+tr.name+'» будет удалено из приложения.';
+  openSheet('shConfirm');
+});
+$('cfYes').addEventListener('click', ()=>{
+  const tr=lib.find(t=>t.id===cardMenuId); if(!tr){ closeSheets(); return; }
+  if(hasPA()){
+    try{ PA.deleteFile(tr.path); }catch(e){}
+    const bg=loadLS('pa.bg.'+tr.id,null);
+    if(bg&&(bg.type==='image'||bg.type==='video')){ try{ PA.deleteFile(bg.value); }catch(e){} }
+  }
+  localStorage.removeItem('pa.bg.'+tr.id);
+  localStorage.removeItem('pa.notes.'+tr.id);
+  localStorage.removeItem('pa.pos.'+tr.id);
+  lib=lib.filter(t=>t.id!==tr.id);
+  store('pa.lib',lib);
+  renderLib();
+  hap('heavy'); closeSheets(); toast('Удалено');
+});
+
+/* ---------------- popover positioning ---------------- */
+const pops=[...document.querySelectorAll('.pop')];
+function showPopAt(pop, anchorBtn){
+  closePops();
+  const r=anchorBtn.getBoundingClientRect();
+  pop.style.visibility='hidden';
+  pop.classList.add('show');
+  const pw=pop.offsetWidth, ph=pop.offsetHeight;
+  let left = r.left + r.width/2 - pw/2;
+  left = clamp(left, 12, window.innerWidth - pw - 12);
+  let top = r.top - ph - 12;
+  if(top < 12) top = r.bottom + 12;
+  pop.style.left=left+'px';
+  pop.style.top=top+'px';
+  const ox = clamp(r.left + r.width/2 - left, 16, pw-16);
+  pop.style.transformOrigin = ox+'px '+(top < r.top ? ph+'px' : '0px');
+  pop.classList.remove('show');
+  pop.style.visibility='';
+  requestAnimationFrame(()=>pop.classList.add('show'));
+}
+function closePops(){ pops.forEach(p=>p.classList.remove('show')); }
+function anyPopOpen(){ return pops.some(p=>p.classList.contains('show')); }
+document.addEventListener('pointerdown', e=>{
+  if(!anyPopOpen()) return;
+  if(e.target.closest('.pop')) return;
+  if(e.target.closest('#btnMore')||e.target.closest('#btnRew')||e.target.closest('#btnFwd')||e.target.closest('.card-menu')) return;
+  closePops();
+}, true);
+
+/* ---------------- player ---------------- */
+const audioEl=$('audioEl'), videoEl=$('videoEl');
+
+function detachMedia(){
+  if(!media) return;
+  media.onplay=media.onpause=media.ontimeupdate=media.onended=media.onloadedmetadata=media.onerror=null;
+  media.pause();
+  media.removeAttribute('src');
+  try{ media.load(); }catch(e){}
+  media=null;
+}
+function openPlayer(id){
+  const tr=lib.find(t=>t.id===id); if(!tr) return;
+  cur=tr;
+  detachMedia();
+  practice=null; updatePracticeChip();
+  media = tr.kind==='video' ? videoEl : audioEl;
+  $('videoWrap').style.display = tr.kind==='video' ? 'flex' : 'none';
+  $('trackName').textContent = tr.name;
+  $('tCur').textContent='0:00';
+  $('tDur').textContent = tr.duration ? fmt(tr.duration) : '0:00';
+  setBarRatio(0);
+  updatePlayIcon(false);
+  updateBadges();
+
+  media.onplay=()=>{ updatePlayIcon(true); maybeKeepAwake(); updateDiscSpin(); };
+  media.onpause=()=>{ updatePlayIcon(false); maybeKeepAwake(); savePos(); updateDiscSpin(); };
+  media.onended=()=>{ updatePlayIcon(false); maybeKeepAwake(); updateDiscSpin(); };
+  media.onloadedmetadata=()=>{
+    if(isFinite(media.duration)){
+      $('tDur').textContent=fmt(media.duration);
+      if(!tr.duration){ tr.duration=media.duration; store('pa.lib',lib); }
+    }
+    const pos=loadLS('pa.pos.'+tr.id, 0);
+    if(pos>3 && media.duration && pos < media.duration-3){
+      media.currentTime=pos;
+    }
+    updateProgress();
+  };
+  media.ontimeupdate=onTimeUpdate;
+  media.onerror=()=>{ toast('Не удалось открыть файл'); };
+  media.src=tr.path;
+  try{ media.load(); }catch(e){}
+
+  applyBg(loadLS('pa.bg.'+tr.id, null));
+  $('scrPlayer').classList.add('open');
+}
+function closePlayer(){
+  savePos();
+  if(media) media.pause();
+  practice=null; updatePracticeChip();
+  $('scrPlayer').classList.remove('open');
+  closePops(); closeSheets();
+  const bgv=$('bgLayer').querySelector('video'); if(bgv) bgv.pause();
+  setTimeout(()=>{ if(!$('scrPlayer').classList.contains('open')){ detachMedia(); clearBgLayer(); cur=null; } }, 320);
+  if(hasPA()){ try{ PA.keepAwake(false); }catch(e){} }
+}
+$('btnPlayerBack').addEventListener('click', ()=>{ hap('light'); closePlayer(); });
+
+function savePos(){
+  if(cur && media && isFinite(media.currentTime)) store('pa.pos.'+cur.id, media.currentTime);
+}
+function maybeKeepAwake(){
+  if(!hasPA()) return;
+  const playing = media && !media.paused;
+  const visual = (cur && cur.kind==='video') || (curBg && curBg.type==='video');
+  try{ PA.keepAwake(!!(playing && visual)); }catch(e){}
+}
+function updatePlayIcon(playing){
+  $('icPlay').style.display = playing?'none':'block';
+  $('icPause').style.display = playing?'block':'none';
+}
+$('btnPlay').addEventListener('click', ()=>{
+  if(!media) return;
+  hap('medium');
+  if(media.paused) media.play().catch(()=>toast('Не удалось включить'));
+  else media.pause();
+});
+
+function onTimeUpdate(){
+  updateProgress();
+  if(practice && media){
+    if(media.currentTime >= practice.end - 0.05){
+      if(practice.loop){ media.currentTime = practice.start; }
+      else { media.pause(); practice=null; updatePracticeChip(); }
+    }
+  }
+  const now=Date.now();
+  if(now-posSaveT>3000){ posSaveT=now; savePos(); }
+}
+function setBarRatio(r){
+  r=clamp(r,0,1);
+  $('barFill').style.width=(r*100)+'%';
+  $('barKnob').style.left=(r*100)+'%';
+}
+function updateProgress(){
+  if(!media || !isFinite(media.duration) || media.duration===0){ return; }
+  if(!dragging){
+    setBarRatio(media.currentTime/media.duration);
+    $('tCur').textContent=fmt(media.currentTime);
+  }
+}
+/* progress dragging */
+let dragging=false;
+const bar=$('bar');
+function seekFromEvent(e){
+  if(!media || !isFinite(media.duration) || media.duration===0) return;
+  const r=bar.getBoundingClientRect();
+  const ratio=clamp((e.clientX-r.left)/r.width,0,1);
+  setBarRatio(ratio);
+  $('tCur').textContent=fmt(ratio*media.duration);
+  media.currentTime=ratio*media.duration;
+}
+bar.addEventListener('pointerdown', e=>{
+  dragging=true;
+  try{ bar.setPointerCapture(e.pointerId); }catch(err){}
+  seekFromEvent(e);
+});
+bar.addEventListener('pointermove', e=>{ if(dragging) seekFromEvent(e); });
+bar.addEventListener('pointerup', e=>{ if(dragging){ dragging=false; seekFromEvent(e); hap('light'); } });
+bar.addEventListener('pointercancel', ()=>{ dragging=false; });
+
+/* ---------------- seek buttons + hold-to-adjust ---------------- */
+function updateBadges(){
+  $('badgeRew').textContent=settings.seekBack+'с';
+  $('badgeFwd').textContent=settings.seekFwd+'с';
+}
+function doSeek(dir){
+  if(!media || !isFinite(media.duration)) return;
+  const step = dir<0 ? settings.seekBack : settings.seekFwd;
+  media.currentTime = clamp(media.currentTime + dir*step, 0, media.duration);
+  updateProgress();
+  hap('light');
+  const b = dir<0 ? $('badgeRew') : $('badgeFwd');
+  b.classList.remove('pulse'); void b.offsetWidth; b.classList.add('pulse');
+}
+let stepDir=-1;
+function openStepPop(btn, dir){
+  stepDir=dir;
+  $('spTitle').textContent = dir<0 ? 'Перемотка назад' : 'Перемотка вперёд';
+  const v = dir<0 ? settings.seekBack : settings.seekFwd;
+  $('spVal').textContent=v;
+  $('spRange').value=v;
+  showPopAt($('stepPop'), btn);
+}
+let lastRangeVal=null;
+$('spRange').addEventListener('input', ()=>{
+  const v=parseInt($('spRange').value,10);
+  if(v===lastRangeVal) return;
+  lastRangeVal=v;
+  $('spVal').textContent=v;
+  if(stepDir<0) settings.seekBack=v; else settings.seekFwd=v;
+  store('pa.settings',settings);
+  updateBadges();
+  hap('light');
+});
+function setupSeekBtn(btn, dir){
+  let timer=null, fired=false;
+  btn.addEventListener('pointerdown', ()=>{
+    fired=false;
+    timer=setTimeout(()=>{ fired=true; timer=null; hap('heavy'); openStepPop(btn, dir); }, HOLD_MS);
+  });
+  const cancel=()=>{ if(timer){ clearTimeout(timer); timer=null; } };
+  btn.addEventListener('pointerup', ()=>{ const wasWaiting=!!timer; cancel(); if(wasWaiting && !fired) doSeek(dir); });
+  btn.addEventListener('pointercancel', cancel);
+  btn.addEventListener('pointerleave', cancel);
+}
+setupSeekBtn($('btnRew'), -1);
+setupSeekBtn($('btnFwd'), 1);
+
+/* ---------------- more popover ---------------- */
+$('btnMore').addEventListener('click', ()=>{
+  hap('light');
+  const mp=$('morePop');
+  if(mp.classList.contains('show')) closePops();
+  else showPopAt(mp, $('btnMore'));
+});
+$('miPractice').addEventListener('click', ()=>{ hap('light'); closePops(); openPractice(); });
+$('miBg').addEventListener('click', ()=>{ hap('light'); closePops(); openBgSheet(); });
+$('miNotes').addEventListener('click', ()=>{ hap('light'); closePops(); openNotes(); });
+
+/* ---------------- practice ---------------- */
+function openPractice(){
+  const t = media ? Math.floor(media.currentTime||0) : 0;
+  const d = media && isFinite(media.duration) ? Math.floor(media.duration) : 0;
+  const end = d ? Math.min(d, t+10) : t+10;
+  $('prSM').value=Math.floor(t/60); $('prSS').value=t%60;
+  $('prEM').value=Math.floor(end/60); $('prES').value=end%60;
+  openSheet('shPractice');
+}
+$('prSNow').addEventListener('click', ()=>{
+  hap('light');
+  const t=media?Math.floor(media.currentTime||0):0;
+  $('prSM').value=Math.floor(t/60); $('prSS').value=t%60;
+});
+$('prENow').addEventListener('click', ()=>{
+  hap('light');
+  const t=media?Math.floor(media.currentTime||0):0;
+  $('prEM').value=Math.floor(t/60); $('prES').value=t%60;
+});
+function readTime(mi, si){
+  const m=parseInt($(mi).value,10)||0, s=parseInt($(si).value,10)||0;
+  return Math.max(0, m*60 + Math.min(59,Math.max(0,s)));
+}
+$('prStart').addEventListener('click', ()=>{
+  if(!media){ closeSheets(); return; }
+  let s=readTime('prSM','prSS'), e=readTime('prEM','prES');
+  const d=isFinite(media.duration)?media.duration:0;
+  if(d && s>=d){ toast('Начало позже конца записи'); return; }
+  if(d && e>d) e=d;
+  if(e<=s){ toast('«До» должно быть позже, чем «От»'); return; }
+  practice={start:s, end:e, loop:$('prLoop').checked};
+  updatePracticeChip();
+  media.currentTime=s;
+  media.play().catch(()=>{});
+  hap('medium');
+  closeSheets();
+});
+function updatePracticeChip(){
+  const c=$('pChip');
+  if(!practice){ c.style.display='none'; return; }
+  $('pChipText').textContent=fmt(practice.start)+' – '+fmt(practice.end)+(practice.loop?' ∞':'');
+  c.style.display='flex';
+}
+$('pChipStop').addEventListener('click', ()=>{
+  hap('medium'); practice=null; updatePracticeChip();
+  if(media) media.pause();
+});
+
+/* ---------------- background ---------------- */
+function clearBgLayer(){
+  const l=$('bgLayer');
+  const v=l.querySelector('video');
+  if(v){ v.pause(); v.removeAttribute('src'); try{v.load();}catch(e){} }
+  l.innerHTML='';
+  curBg=null;
+}
+function updateDiscSpin(){
+  const d=$('bgLayer').querySelector('.bg-disc');
+  if(d) d.classList.toggle('spinning', !!(media && !media.paused));
+}
+function applyBg(bg){
+  clearBgLayer();
+  curBg=bg||null;
+  const l=$('bgLayer');
+  if(!bg){
+    if(cur && cur.kind!=='video'){
+      const w=document.createElement('div');
+      w.className='bg-default';
+      w.innerHTML='<div class="bg-disc">'+
+        '<svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>'+
+        '</div>'+
+        '<div class="bg-hint">Нажми ✦, чтобы добавить фон,<br>практику или заметки</div>';
+      l.appendChild(w);
+      updateDiscSpin();
+    }
+    maybeKeepAwake();
+    return;
+  }
+  if(bg.type==='text'){
+    const w=document.createElement('div'); w.className='bg-text';
+    const s=document.createElement('span'); s.textContent=bg.value;
+    w.appendChild(s); l.appendChild(w);
+  } else if(bg.type==='image'){
+    const img=document.createElement('img'); img.src=bg.value; l.appendChild(img);
+  } else if(bg.type==='video'){
+    const v=document.createElement('video');
+    v.muted=true; v.loop=true; v.autoplay=true; v.playsInline=true;
+    v.setAttribute('playsinline','');
+    v.src=bg.value;
+    l.appendChild(v);
+    v.play().catch(()=>{});
+  }
+  maybeKeepAwake();
+}
+function openBgSheet(){
+  const bg=cur?loadLS('pa.bg.'+cur.id,null):null;
+  $('bgTextInput').value = bg && bg.type==='text' ? bg.value : '';
+  openSheet('shBg');
+}
+$('bgSaveText').addEventListener('click', ()=>{
+  if(!cur) return;
+  const v=$('bgTextInput').value.trim();
+  if(!v){ toast('Сначала напиши текст'); return; }
+  const old=loadLS('pa.bg.'+cur.id,null);
+  if(old && (old.type==='image'||old.type==='video') && hasPA()){ try{ PA.deleteFile(old.value); }catch(e){} }
+  const bg={type:'text', value:v};
+  store('pa.bg.'+cur.id,bg);
+  applyBg(bg);
+  hap('medium'); closeSheets(); toast('Фон сохранён');
+});
+$('bgPick').addEventListener('click', ()=>{
+  hap('light');
+  if(!hasPA()){ toast('Галерея доступна в приложении'); return; }
+  closeSheets();
+  PA.pickBackground();
+});
+$('bgClear').addEventListener('click', ()=>{
+  if(!cur) return;
+  const old=loadLS('pa.bg.'+cur.id,null);
+  if(old && (old.type==='image'||old.type==='video') && hasPA()){ try{ PA.deleteFile(old.value); }catch(e){} }
+  localStorage.removeItem('pa.bg.'+cur.id);
+  applyBg(null);
+  hap('light'); closeSheets(); toast('Фон убран');
+});
+
+/* ---------------- notes ---------------- */
+function getNotes(){ return cur ? loadLS('pa.notes.'+cur.id, []) : []; }
+function setNotes(n){ if(cur) store('pa.notes.'+cur.id, n); }
+function renderNotes(){
+  const list=$('notesList');
+  const notes=getNotes().slice().sort((a,b)=>a.t-b.t);
+  list.innerHTML='';
+  if(!notes.length){
+    list.innerHTML='<div class="notes-empty">Заметок пока нет</div>';
+    return;
+  }
+  notes.forEach(n=>{
+    const row=document.createElement('div');
+    row.className='note-row';
+    row.innerHTML='<button class="note-time">'+fmt(n.t)+'</button>'+
+      '<div class="note-text">'+esc(n.text)+'</div>'+
+      '<button class="note-del" aria-label="Удалить">'+
+      '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>';
+    row.querySelector('.note-time').addEventListener('click', ()=>{
+      if(media && isFinite(media.duration)){
+        media.currentTime=clamp(n.t,0,media.duration);
+        updateProgress();
+        hap('medium');
+        toast('Перемотано на '+fmt(n.t));
+      }
+    });
+    row.querySelector('.note-del').addEventListener('click', ()=>{
+      setNotes(getNotes().filter(x=>x.id!==n.id));
+      renderNotes(); hap('light');
+    });
+    list.appendChild(row);
+  });
+}
+function openNotes(){
+  const t=media?Math.floor(media.currentTime||0):0;
+  $('ntM').value=Math.floor(t/60); $('ntS').value=t%60;
+  $('ntText').value='';
+  renderNotes();
+  openSheet('shNotes');
+}
+$('ntNow').addEventListener('click', ()=>{
+  hap('light');
+  const t=media?Math.floor(media.currentTime||0):0;
+  $('ntM').value=Math.floor(t/60); $('ntS').value=t%60;
+});
+$('ntAdd').addEventListener('click', ()=>{
+  const text=$('ntText').value.trim();
+  if(!text){ toast('Напиши текст заметки'); return; }
+  const t=readTime('ntM','ntS');
+  const notes=getNotes();
+  notes.push({id:uid(), t:t, text:text});
+  setNotes(notes);
+  $('ntText').value='';
+  renderNotes();
+  hap('medium');
+});
+
+/* ---------------- sheets ---------------- */
+const sheets=[...document.querySelectorAll('.sheet')];
+function openSheet(id){
+  closeSheets();
+  $('overlay').classList.add('show');
+  $(id).classList.add('show');
+}
+function closeSheets(){
+  $('overlay').classList.remove('show');
+  sheets.forEach(s=>s.classList.remove('show'));
+}
+function anySheetOpen(){ return sheets.some(s=>s.classList.contains('show')); }
+$('overlay').addEventListener('click', closeSheets);
+document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click', ()=>{ hap('light'); closeSheets(); }));
+
+/* ---------------- system back ---------------- */
+window.handleBack = function(){
+  if(anyPopOpen()){ closePops(); return true; }
+  if(anySheetOpen()){ closeSheets(); return true; }
+  if($('scrPlayer').classList.contains('open')){ closePlayer(); return true; }
+  return false;
+};
+
+/* ---------------- demo seed (for previews outside the app) ---------------- */
+if(location.hash==='#demo' && !lib.length){
+  lib=[
+    {id:'d1', name:'Deutsch A2 — Dialog im Café', path:'', mime:'audio/mpeg', kind:'audio', duration:754, added:Date.now()},
+    {id:'d2', name:'Подкаст — медленный немецкий', path:'', mime:'audio/mpeg', kind:'audio', duration:1930, added:Date.now()},
+    {id:'d3', name:'Урок 12 — видео', path:'', mime:'video/mp4', kind:'video', duration:433, added:Date.now()}
+  ];
+}
+
+renderLib();
+updateBadges();
+</script>
+</body>
+</html>

@@ -1,33 +1,33 @@
-name: Build Android APK
+name: Build Perfect Audio APK
+
 on:
   push:
+    paths:
+      - 'perfect-audio/**'
+      - '.github/workflows/build.yml'
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Extract project ZIP
-      run: unzip *.zip -d extracted_project
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
 
-    - name: Set up JDK 17
-      uses: actions/setup-java@v4
-      with:
-        distribution: 'temurin'
-        java-version: '17'
+      - name: Install Android build tools
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-34" "build-tools;35.0.0" > /dev/null
 
-    - name: Compile APK via Gradle
-      run: |
-        GRADLEW_PATH=$(find . -name gradlew)
-        cd $(dirname "$GRADLEW_PATH")
-        chmod +x ./gradlew
-        ./gradlew assembleDebug
+      - name: Build APK
+        run: bash perfect-audio/build.sh
 
-    - name: Upload Finished APK
-      uses: actions/upload-artifact@v4
-      with:
-        name: german-app-speed
-        path: "**/build/outputs/apk/debug/*.apk"
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: PerfectAudio-apk
+          path: perfect-audio/build/PerfectAudio.apk
