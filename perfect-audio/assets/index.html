@@ -91,13 +91,49 @@
   /* ---------- player ---------- */
   .bg-layer{position:absolute;inset:0;overflow:hidden;background:var(--bg);}
   .bg-layer img,.bg-layer video{width:100%;height:100%;object-fit:cover;}
-  .bg-text{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-    padding:110px 34px 240px;overflow-y:auto;}
-  .bg-text span{font-family:Georgia,serif;font-size:24px;line-height:1.55;text-align:center;
+  /* text starts below the top buttons and scrolls; short text is centered
+     (margin:auto collapses once the content overflows, so nothing is clipped) */
+  .bg-text{position:absolute;inset:0;display:flex;flex-direction:column;
+    overflow-y:auto;-webkit-overflow-scrolling:touch;
+    padding:calc(var(--sat) + 92px) 34px 250px;}
+  .bg-text span{display:block;width:100%;margin:auto;
+    font-family:Georgia,serif;font-size:24px;line-height:1.55;text-align:center;
     white-space:pre-wrap;word-break:break-word;color:var(--ink);}
-  .slider-row{display:flex;justify-content:space-between;align-items:center;
-    font-size:13.5px;font-weight:700;color:var(--ink2);margin-top:16px;}
-  .slider-row b{color:var(--accent);font-variant-numeric:tabular-nums;}
+
+  /* zen mode & background editor: top controls fly up, bottom controls fly down */
+  #btnPlayerBack,.track-chip,.p-chip,.progress-zone,.controls{
+    transition:transform .34s var(--ease),opacity .26s var(--ease);}
+  #scrPlayer.zen #btnPlayerBack,#scrPlayer.editing #btnPlayerBack,
+  #scrPlayer.zen .track-chip,#scrPlayer.editing .track-chip,
+  #scrPlayer.zen .p-chip,#scrPlayer.editing .p-chip{
+    transform:translateY(-200px);opacity:0;pointer-events:none;}
+  #scrPlayer.zen .progress-zone,#scrPlayer.editing .progress-zone,
+  #scrPlayer.zen .controls,#scrPlayer.editing .controls{
+    transform:translateY(300px);opacity:0;pointer-events:none;}
+
+  /* background editor panel */
+  #bgEditor{position:fixed;left:0;right:0;bottom:0;z-index:45;background:var(--surface);
+    border:1px solid var(--line);border-bottom:none;border-radius:28px 28px 0 0;
+    box-shadow:0 -12px 44px rgba(61,57,41,.2);
+    padding:14px 20px calc(var(--sab) + 20px);max-height:62vh;
+    overflow-y:auto;-webkit-overflow-scrolling:touch;
+    transform:translateY(106%);transition:transform .32s var(--ease);}
+  #scrPlayer.editing #bgEditor{transform:translateY(0);}
+  .ed-handle{width:44px;height:5px;border-radius:99px;background:#E7E3D7;margin:0 auto 12px;}
+  #btnBgDone{position:fixed;top:calc(var(--sat) + 16px);right:16px;width:54px;height:54px;z-index:46;
+    opacity:0;transform:scale(.4);pointer-events:none;
+    transition:transform .26s var(--ease),opacity .2s var(--ease);}
+  #scrPlayer.editing #btnBgDone{opacity:1;transform:scale(1);pointer-events:auto;}
+  .ed-label{font-size:12px;font-weight:800;color:var(--ink2);margin-top:16px;letter-spacing:.4px;}
+  .ed-label b{color:var(--accent);font-variant-numeric:tabular-nums;}
+  .seg-row{display:flex;gap:8px;margin-top:9px;}
+  .seg{flex:1;min-width:0;display:flex;align-items:center;justify-content:center;
+    padding:11px 4px;border-radius:14px;background:#F6F3EA;border:1.5px solid var(--line);
+    font-size:15px;font-weight:700;color:var(--ink);
+    box-shadow:0 2px 6px rgba(61,57,41,.06);
+    transition:transform .12s var(--ease),background .15s,border-color .15s,color .15s;}
+  .seg:active{transform:translateY(1px) scale(.96);}
+  .seg.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);}
   .bg-default{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
     gap:22px;padding-bottom:140px;}
   .bg-disc{width:158px;height:158px;border-radius:50%;background:var(--surface);
@@ -338,6 +374,59 @@
     <input type="range" id="spRange" min="1" max="60" step="1" value="5">
     <div class="sp-hint">Столько секунд будет перематываться при каждом нажатии</div>
   </div>
+
+  <!-- background editor (full-screen mode) -->
+  <div id="bgEditor">
+    <div class="ed-handle"></div>
+    <textarea class="ta" id="bgTextInput" rows="2" placeholder="Напиши текст: слова, цитату, что угодно…"></textarea>
+    <button class="btn" id="bgSaveText" style="margin-top:9px">Показать текст</button>
+
+    <div class="ed-label">РАЗМЕР ТЕКСТА — <b id="bgTextSizeVal">24</b></div>
+    <input type="range" id="bgTextSize" min="6" max="60" step="1" value="24">
+
+    <div class="ed-label">ПОЛЯ — <b id="bgMarginVal">34</b></div>
+    <input type="range" id="bgMargin" min="0" max="60" step="1" value="34">
+
+    <div class="ed-label">ВЫРАВНИВАНИЕ</div>
+    <div class="seg-row" id="alignRow">
+      <button class="seg" data-align="left" aria-label="По левому краю">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 6h18M3 11h11M3 16h15M3 21h8"/></svg>
+      </button>
+      <button class="seg" data-align="center" aria-label="По центру">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 6h18M6.5 11h11M4.5 16h15M8 21h8"/></svg>
+      </button>
+      <button class="seg" data-align="right" aria-label="По правому краю">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 6h18M10 11h11M6 16h15M13 21h8"/></svg>
+      </button>
+      <button class="seg" data-align="justify" aria-label="По ширине">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 6h18M3 11h18M3 16h18M3 21h18"/></svg>
+      </button>
+    </div>
+
+    <div class="ed-label">ШРИФТ</div>
+    <div class="seg-row" id="fontRow">
+      <button class="seg" data-font="serif" style="font-family:Georgia,serif">Аа</button>
+      <button class="seg" data-font="sans-serif" style="font-family:sans-serif">Аа</button>
+      <button class="seg" data-font="sans-serif-light" style="font-family:sans-serif-light,sans-serif;font-weight:300">Аа</button>
+      <button class="seg" data-font="cursive" style="font-family:cursive">Аа</button>
+      <button class="seg" data-font="casual" style="font-family:casual,'Comic Sans MS',cursive">Аа</button>
+      <button class="seg" data-font="monospace" style="font-family:monospace">Аа</button>
+    </div>
+
+    <div style="height:1px;background:var(--line);margin:18px 0 2px"></div>
+    <button class="btn primary" id="bgPick">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+      Фото или видео из галереи
+    </button>
+    <div id="bgMediaSizeWrap" style="display:none">
+      <div class="ed-label">РАЗМЕР ФОТО И ВИДЕО — <b id="bgMediaSizeVal">100%</b></div>
+      <input type="range" id="bgMediaSize" min="10" max="100" step="1" value="100">
+    </div>
+    <button class="btn ghost" id="bgClear">Убрать фон</button>
+  </div>
+  <button class="fbtn accent" id="btnBgDone" aria-label="Готово">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+  </button>
 </div>
 
 <!-- library card menu -->
@@ -387,27 +476,6 @@
     </label>
   </div>
   <button class="btn primary" id="prStart">Слушать отрезок</button>
-</div>
-
-<div class="sheet" id="shBg">
-  <button class="sheet-x" data-close>
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
-  </button>
-  <div class="sh-title">Выбор фона</div>
-  <div class="sh-sub">Текст, фото или видео — что будет на экране, пока играет аудио.</div>
-  <textarea class="ta" id="bgTextInput" rows="3" placeholder="Напиши текст: слова песни, цитату, что угодно…"></textarea>
-  <div class="slider-row"><span>Размер текста</span><b id="bgTextSizeVal">24</b></div>
-  <input type="range" id="bgTextSize" min="6" max="60" step="1" value="24">
-  <div id="bgMediaSizeWrap" style="display:none">
-    <div class="slider-row"><span>Размер фото и видео</span><b id="bgMediaSizeVal">100%</b></div>
-    <input type="range" id="bgMediaSize" min="10" max="100" step="1" value="100">
-  </div>
-  <button class="btn" id="bgSaveText">Сохранить текст</button>
-  <button class="btn primary" id="bgPick">
-    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
-    Фото или видео из галереи
-  </button>
-  <button class="btn ghost" id="bgClear">Убрать фон</button>
 </div>
 
 <div class="sheet" id="shNotes">
@@ -560,9 +628,11 @@ window.onBackgroundPicked = function(f){
   const bg={type:type, value:f.path, size:100};
   store('pa.bg.'+cur.id, bg);
   applyBg(bg);
+  $('bgMediaSizeWrap').style.display='block';
+  $('bgMediaSize').value=100;
+  $('bgMediaSizeVal').textContent='100%';
   hap('medium');
   toast('Фон обновлён');
-  openBgSheet(); // show the size slider right away
 };
 
 $('btnAdd').addEventListener('click', ()=>{
@@ -638,6 +708,7 @@ document.addEventListener('pointerdown', e=>{
   if(e.target.closest('.pop')) return;
   if(e.target.closest('#btnMore')||e.target.closest('#btnRew')||e.target.closest('#btnFwd')||e.target.closest('.card-menu')) return;
   closePops();
+  popJustClosed=Date.now();
 }, true);
 
 /* ---------------- player ---------------- */
@@ -685,13 +756,14 @@ function openPlayer(id){
   try{ media.load(); }catch(e){}
 
   applyBg(loadLS('pa.bg.'+tr.id, null));
+  $('scrPlayer').classList.remove('zen','editing');
   $('scrPlayer').classList.add('open');
 }
 function closePlayer(){
   savePos();
   if(media) media.pause();
   practice=null; updatePracticeChip();
-  $('scrPlayer').classList.remove('open');
+  $('scrPlayer').classList.remove('open','zen','editing');
   closePops(); closeSheets();
   const bgv=$('bgLayer').querySelector('video'); if(bgv) bgv.pause();
   setTimeout(()=>{ if(!$('scrPlayer').classList.contains('open')){ detachMedia(); clearBgLayer(); cur=null; } }, 320);
@@ -818,7 +890,7 @@ $('btnMore').addEventListener('click', ()=>{
   else showPopAt(mp, $('btnMore'));
 });
 $('miPractice').addEventListener('click', ()=>{ hap('light'); closePops(); openPractice(); });
-$('miBg').addEventListener('click', ()=>{ hap('light'); closePops(); openBgSheet(); });
+$('miBg').addEventListener('click', ()=>{ hap('light'); closePops(); openBgEditor(); });
 $('miNotes').addEventListener('click', ()=>{ hap('light'); closePops(); openNotes(); });
 
 /* ---------------- practice ---------------- */
@@ -901,9 +973,9 @@ function applyBg(bg){
   }
   if(bg.type==='text'){
     const w=document.createElement('div'); w.className='bg-text';
-    const s=document.createElement('span'); s.textContent=bg.value;
-    s.style.fontSize=(bg.size||24)+'px';
+    const s=document.createElement('span');
     w.appendChild(s); l.appendChild(w);
+    refreshTextBg();
   } else if(bg.type==='image'){
     const img=document.createElement('img'); img.src=bg.value;
     applyBgMediaStyle(img, bg.size);
@@ -932,41 +1004,103 @@ function applyBgMediaStyle(el, size){
 function saveCurBg(){
   if(cur && curBg) store('pa.bg.'+cur.id, curBg);
 }
-function openBgSheet(){
+function fontStack(f){
+  switch(f){
+    case 'sans-serif': return 'sans-serif';
+    case 'sans-serif-light': return "sans-serif-light, 'Segoe UI Light', sans-serif";
+    case 'cursive': return 'cursive';
+    case 'casual': return "casual, 'Comic Sans MS', cursive";
+    case 'monospace': return 'monospace';
+    default: return "Georgia, 'Times New Roman', serif";
+  }
+}
+function refreshTextBg(){
+  if(!curBg || curBg.type!=='text') return;
+  const w=$('bgLayer').querySelector('.bg-text');
+  if(!w) return;
+  const m = curBg.margin!=null ? curBg.margin : 34;
+  w.style.paddingLeft=m+'px';
+  w.style.paddingRight=m+'px';
+  const s=w.querySelector('span');
+  s.textContent=curBg.value;
+  s.style.fontSize=(curBg.size||24)+'px';
+  s.style.textAlign=curBg.align||'center';
+  s.style.fontFamily=fontStack(curBg.font||'serif');
+}
+/* ----- full-screen background editor ----- */
+function setSeg(rowId, attr, val){
+  [...$(rowId).children].forEach(b=>b.classList.toggle('on', b.dataset[attr]===val));
+}
+function getSeg(rowId, attr, dflt){
+  const on=[...$(rowId).children].find(b=>b.classList.contains('on'));
+  return on ? on.dataset[attr] : dflt;
+}
+function isEditing(){ return $('scrPlayer').classList.contains('editing'); }
+function openBgEditor(){
   const bg=cur?loadLS('pa.bg.'+cur.id,null):null;
-  $('bgTextInput').value = bg && bg.type==='text' ? bg.value : '';
-  const ts = bg && bg.type==='text' && bg.size ? bg.size : 24;
+  const isText = bg && bg.type==='text';
+  $('bgTextInput').value = isText ? bg.value : '';
+  const ts = isText && bg.size ? bg.size : 24;
   $('bgTextSize').value=ts; $('bgTextSizeVal').textContent=ts;
+  const mg = isText && bg.margin!=null ? bg.margin : 34;
+  $('bgMargin').value=mg; $('bgMarginVal').textContent=mg;
+  setSeg('alignRow','align', isText && bg.align ? bg.align : 'center');
+  setSeg('fontRow','font', isText && bg.font ? bg.font : 'serif');
   const isMedia = bg && (bg.type==='image'||bg.type==='video');
   $('bgMediaSizeWrap').style.display = isMedia ? 'block' : 'none';
   const ms = isMedia && bg.size ? bg.size : 100;
   $('bgMediaSize').value=ms; $('bgMediaSizeVal').textContent=ms+'%';
-  openSheet('shBg');
+  $('scrPlayer').classList.remove('zen');
+  $('scrPlayer').classList.add('editing');
 }
+function closeBgEditor(){ $('scrPlayer').classList.remove('editing'); }
+$('btnBgDone').addEventListener('click', ()=>{ hap('medium'); closeBgEditor(); });
+
 $('bgSaveText').addEventListener('click', ()=>{
   if(!cur) return;
-  const v=$('bgTextInput').value.trim();
-  if(!v){ toast('Сначала напиши текст'); return; }
+  const v=$('bgTextInput').value;
+  if(!v.trim()){ toast('Сначала напиши текст'); return; }
   const old=loadLS('pa.bg.'+cur.id,null);
   if(old && (old.type==='image'||old.type==='video') && hasPA()){ try{ PA.deleteFile(old.value); }catch(e){} }
-  const bg={type:'text', value:v, size:parseInt($('bgTextSize').value,10)||24};
+  const bg={type:'text', value:v,
+    size:parseInt($('bgTextSize').value,10)||24,
+    margin:parseInt($('bgMargin').value,10)||0,
+    align:getSeg('alignRow','align','center'),
+    font:getSeg('fontRow','font','serif')};
   store('pa.bg.'+cur.id,bg);
   applyBg(bg);
-  hap('medium'); closeSheets(); toast('Фон сохранён');
+  $('bgMediaSizeWrap').style.display='none';
+  hap('medium');
 });
-let lastTextSize=null;
-$('bgTextSize').addEventListener('input', ()=>{
-  const v=parseInt($('bgTextSize').value,10);
-  if(v===lastTextSize) return;
-  lastTextSize=v;
-  $('bgTextSizeVal').textContent=v;
-  hap('light');
+$('bgTextInput').addEventListener('input', ()=>{
   if(curBg && curBg.type==='text'){
-    curBg.size=v; saveCurBg();
-    const s=$('bgLayer').querySelector('.bg-text span');
-    if(s) s.style.fontSize=v+'px';
+    curBg.value=$('bgTextInput').value;
+    saveCurBg(); refreshTextBg();
   }
 });
+function liveTextControl(id, valId, key, suffix){
+  let last=null;
+  $(id).addEventListener('input', ()=>{
+    const v=parseInt($(id).value,10);
+    if(v===last) return;
+    last=v;
+    $(valId).textContent=v+(suffix||'');
+    hap('light');
+    if(curBg && curBg.type==='text'){ curBg[key]=v; saveCurBg(); refreshTextBg(); }
+  });
+}
+liveTextControl('bgTextSize','bgTextSizeVal','size','');
+liveTextControl('bgMargin','bgMarginVal','margin','');
+function segRowHandler(rowId, attr, key){
+  $(rowId).addEventListener('click', e=>{
+    const b=e.target.closest('.seg'); if(!b) return;
+    hap('light');
+    setSeg(rowId, attr, b.dataset[attr]);
+    if(curBg && curBg.type==='text'){ curBg[key]=b.dataset[attr]; saveCurBg(); refreshTextBg(); }
+  });
+}
+segRowHandler('alignRow','align','align');
+segRowHandler('fontRow','font','font');
 let lastMediaSize=null;
 $('bgMediaSize').addEventListener('input', ()=>{
   const v=parseInt($('bgMediaSize').value,10);
@@ -983,7 +1117,6 @@ $('bgMediaSize').addEventListener('input', ()=>{
 $('bgPick').addEventListener('click', ()=>{
   hap('light');
   if(!hasPA()){ toast('Галерея доступна в приложении'); return; }
-  closeSheets();
   PA.pickBackground();
 });
 $('bgClear').addEventListener('click', ()=>{
@@ -992,8 +1125,20 @@ $('bgClear').addEventListener('click', ()=>{
   if(old && (old.type==='image'||old.type==='video') && hasPA()){ try{ PA.deleteFile(old.value); }catch(e){} }
   localStorage.removeItem('pa.bg.'+cur.id);
   applyBg(null);
-  hap('light'); closeSheets(); toast('Фон убран');
+  $('bgMediaSizeWrap').style.display='none';
+  hap('light'); toast('Фон убран');
 });
+
+/* ----- zen mode: tap the middle, controls fly away ----- */
+let popJustClosed=0;
+function toggleZen(){
+  if(isEditing() || anySheetOpen()) return;
+  if(Date.now()-popJustClosed<450) return;
+  hap('light');
+  $('scrPlayer').classList.toggle('zen');
+}
+$('bgLayer').addEventListener('click', toggleZen);
+$('videoWrap').addEventListener('click', toggleZen);
 
 /* ---------------- notes ---------------- */
 function getNotes(){ return cur ? loadLS('pa.notes.'+cur.id, []) : []; }
@@ -1071,6 +1216,8 @@ document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',
 window.handleBack = function(){
   if(anyPopOpen()){ closePops(); return true; }
   if(anySheetOpen()){ closeSheets(); return true; }
+  if(isEditing()){ closeBgEditor(); return true; }
+  if($('scrPlayer').classList.contains('zen')){ $('scrPlayer').classList.remove('zen'); return true; }
   if($('scrPlayer').classList.contains('open')){ closePlayer(); return true; }
   return false;
 };
