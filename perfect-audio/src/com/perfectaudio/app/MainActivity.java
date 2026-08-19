@@ -37,7 +37,6 @@ public class MainActivity extends Activity {
 
     private static final int REQ_MEDIA = 11;
     private static final int REQ_BG = 12;
-    private static final int REQ_NOTIF_PERM = 21;
 
     private WebView web;
 
@@ -59,10 +58,6 @@ public class MainActivity extends Activity {
         web.addJavascriptInterface(new Bridge(), "PA");
         web.loadUrl("file:///android_asset/index.html");
         setContentView(web);
-
-        // Notification buttons and the lock-screen controls drive the web player.
-        PlaybackService.setCommandListener((command, extra) ->
-                js("window.nativeCmd && window.nativeCmd('" + command + "'," + extra + ")"));
     }
 
     @Override
@@ -78,8 +73,6 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
-        PlaybackService.setCommandListener(null);
-        stopService(new Intent(this, PlaybackService.class));
         if (web != null) {
             web.destroy();
             web = null;
@@ -275,42 +268,6 @@ public class MainActivity extends Activity {
                     getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
                 } else {
                     getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-                }
-            });
-        }
-
-        /** Mirrors the web player's state into the media notification. */
-        @JavascriptInterface
-        public void updatePlayback(String title, double positionSec, double durationSec, boolean playing) {
-            try {
-                Intent i = new Intent(MainActivity.this, PlaybackService.class)
-                        .setAction(PlaybackService.ACTION_UPDATE)
-                        .putExtra("title", title)
-                        .putExtra("position", (long) (positionSec * 1000))
-                        .putExtra("duration", (long) (durationSec * 1000))
-                        .putExtra("playing", playing);
-                startForegroundService(i);
-            } catch (Exception ignored) {
-            }
-        }
-
-        @JavascriptInterface
-        public void stopPlaybackNotification() {
-            try {
-                startService(new Intent(MainActivity.this, PlaybackService.class)
-                        .setAction(PlaybackService.ACTION_STOP));
-            } catch (Exception ignored) {
-            }
-        }
-
-        @JavascriptInterface
-        public void requestNotificationPermission() {
-            if (Build.VERSION.SDK_INT < 33) return;
-            runOnUiThread(() -> {
-                if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
-                        != PackageManager.PERMISSION_GRANTED) {
-                    requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS},
-                            REQ_NOTIF_PERM);
                 }
             });
         }

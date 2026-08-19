@@ -687,7 +687,7 @@ let media = null;         // active HTMLMediaElement
 let curBg = {text:null, media:null};
 let practice = null;      // {start,end,loop}
 let pickingWord = false;
-let posSaveT = 0, pushT = 0, playStartedAt = 0;
+let posSaveT = 0;
 
 const COLORS = {
   default:null, amber:'#C98A00', green:'#3E8E5A', blue:'#3A6FA8', red:'#C14434',
@@ -873,8 +873,8 @@ function openPlayer(id){
   updatePlayIcon(false);
   updateBadges();
 
-  media.onplay=()=>{ playStartedAt=Date.now(); updatePlayIcon(true); maybeKeepAwake(); updateDiscSpin(); pushPlayback(true); };
-  media.onpause=()=>{ updatePlayIcon(false); maybeKeepAwake(); savePos(); updateDiscSpin(); pushPlayback(true); };
+  media.onplay=()=>{ updatePlayIcon(true); maybeKeepAwake(); updateDiscSpin(); };
+  media.onpause=()=>{ updatePlayIcon(false); maybeKeepAwake(); savePos(); updateDiscSpin(); };
   media.onended=onEnded;
   media.onloadedmetadata=()=>{
     if(isFinite(media.duration)){
@@ -893,14 +893,7 @@ function openPlayer(id){
   applyBg(normalizeBg(loadLS('pa.bg.'+tr.id, null)));
   $('scrPlayer').classList.remove('zen','editing','picking');
   $('scrPlayer').classList.add('open');
-
-  // asked once per session, and never while starting playback
-  if(!notifAsked && hasPA()){
-    notifAsked=true;
-    try{ PA.requestNotificationPermission(); }catch(e){}
-  }
 }
-let notifAsked=false;
 function closePlayer(){
   savePos();
   if(media) media.pause();
@@ -911,7 +904,6 @@ function closePlayer(){
   setTimeout(()=>{ if(!$('scrPlayer').classList.contains('open')){ detachMedia(); clearBgLayer(); cur=null; } }, 320);
   if(hasPA()){
     try{ PA.keepAwake(false); }catch(e){}
-    try{ PA.stopPlaybackNotification(); }catch(e){}
   }
 }
 $('btnPlayerBack').addEventListener('click', ()=>{ hap('light'); closePlayer(); });
@@ -939,36 +931,6 @@ function play(){
   media.play().catch(()=>toast('Не удалось включить'));
 }
 
-/* keeps the media notification in sync with the web player */
-function pushPlayback(force){
-  if(!hasPA() || !cur || !media) return;
-  const now=Date.now();
-  if(!force && now-pushT<2000) return;
-  pushT=now;
-  try{
-    PA.updatePlayback(cur.name,
-      isFinite(media.currentTime)?media.currentTime:0,
-      isFinite(media.duration)?media.duration:0,
-      !media.paused);
-  }catch(e){}
-}
-/* commands coming from the notification / lock screen */
-window.nativeCmd = function(cmd, extra){
-  if(!media) return;
-  // A pause arriving right after playback started is never a real tap on the
-  // notification — it is an echo of our own audio-focus request.
-  if(cmd==='pause' && Date.now()-playStartedAt < 1200) return;
-  if(cmd==='play') play();
-  else if(cmd==='pause') media.pause();
-  else if(cmd==='rewind') doSeek(-1, true);
-  else if(cmd==='forward') doSeek(1, true);
-  else if(cmd==='seek' && isFinite(media.duration)){
-    media.currentTime=clamp(extra/1000, 0, media.duration);
-    updateProgress();
-  }
-  pushPlayback(true);
-};
-
 function onEnded(){
   updatePlayIcon(false);
   updateDiscSpin();
@@ -981,7 +943,7 @@ function onEnded(){
   }
   if(practice){ practice=null; updatePracticeChip(); }
   maybeKeepAwake();
-  pushPlayback(true);
+ 
 }
 function onTimeUpdate(){
   updateProgress();
@@ -993,7 +955,7 @@ function onTimeUpdate(){
   }
   const now=Date.now();
   if(now-posSaveT>3000){ posSaveT=now; savePos(); }
-  pushPlayback(false);
+ 
 }
 function setBarRatio(r){
   r=clamp(r,0,1);
@@ -1023,7 +985,7 @@ bar.addEventListener('pointerdown', e=>{
   seekFromEvent(e);
 });
 bar.addEventListener('pointermove', e=>{ if(dragging) seekFromEvent(e); });
-bar.addEventListener('pointerup', e=>{ if(dragging){ dragging=false; seekFromEvent(e); hap('light'); pushPlayback(true); } });
+bar.addEventListener('pointerup', e=>{ if(dragging){ dragging=false; seekFromEvent(e); hap('light'); } });
 bar.addEventListener('pointercancel', ()=>{ dragging=false; });
 
 /* ---------------- seek buttons ---------------- */
@@ -1669,7 +1631,7 @@ function renderNotes(){
     row.querySelector('.row-time').addEventListener('click', ()=>{
       if(media && isFinite(media.duration)){
         media.currentTime=clamp(n.t,0,media.duration);
-        updateProgress(); pushPlayback(true);
+        updateProgress();
         hap('medium'); toast('Перемотано на '+fmt(n.t));
       }
     });
