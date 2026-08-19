@@ -1,0 +1,238 @@
+package com.perfectaudio.app;
+
+import android.media.MediaCodec;
+import android.media.MediaExtractor;
+import android.media.MediaFormat;
+import android.media.MediaMuxer;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.RandomAccessFile;
+import java.nio.ByteBuffer;
+
+/**
+ * Cuts a time range out of an audio or video file.
+ * AAC sources are copied sample-for-sample into an .m4a (no re-encode, no
+ * quality loss); anything else is decoded to PCM and written as a .wav.
+ */
+class AudioExport {
+
+    static File extract(String srcPath, long startMs, long endMs, File outDir, String baseName)
+            throws IOException {
+        outDir.mkdirs();
+        String safe = baseName.replaceAll("[^\\p{L}\\p{N} _-]", "").trim();
+        if (safe.isEmpty()) safe = "audio";
+        if (safe.length() > 40) safe = safe.substring(0, 40);
+
+        MediaExtractor extractor = new MediaExtractor();
+        try {
+            extractor.setDataSource(srcPath);
+            int track = -1;
+            MediaFormat format = null;
+            for (int i = 0; i < extractor.getTrackCount(); i++) {
+                MediaFormat f = extractor.getTrackFormat(i);
+                String mime = f.getString(MediaFormat.KEY_MIME);
+                if (mime != null && mime.startsWith("audio/")) {
+                    track = i;
+                    format = f;
+                    break;
+                }
+            }
+            if (track < 0) throw new IOException("no audio track");
+            extractor.selectTrack(track);
+
+            String mime = format.getString(MediaFormat.KEY_MIME);
+            if (MediaFormat.MIMETYPE_AUDIO_AAC.equals(mime)) {
+                File out = new File(outDir, safe + ".m4a");
+                if (copyAac(extractor, format, startMs, endMs, out)) return out;
+                // fall through to WAV if the muxer refused the format
+                extractor.release();
+                extractor = new MediaExtractor();
+                extractor.setDataSource(srcPath);
+                extractor.selectTrack(track);
+                format = extractor.getTrackFormat(track);
+            }
+            File out = new File(outDir, safe + ".wav");
+            decodeToWav(extractor, format, startMs, endMs, out);
+            return out;
+        } finally {
+            try {
+                extractor.release();
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    /** Sample-accurate copy of compressed AAC frames into an MP4 container. */
+    private static boolean copyAac(MediaExtractor extractor, MediaFormat format,
+                                   long startMs, long endMs, File out) {
+        MediaMuxer muxer = null;
+        try {
+            muxer = new MediaMuxer(out.getAbsolutePath(), MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
+            int outTrack = muxer.addTrack(format);
+            muxer.start();
+
+            extractor.seekTo(startMs * 1000L, MediaExtractor.SEEK_TO_CLOSEST_SYNC);
+            ByteBuffer buf = ByteBuffer.allocate(512 * 1024);
+            MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
+            long endUs = endMs * 1000L;
+            long firstUs = -1;
+            boolean wrote = false;
+
+            while (true) {
+                int size = extractor.readSampleData(buf, 0);
+                if (size < 0) break;
+                long ptsUs = extractor.getSampleTime();
+                if (ptsUs > endUs) break;
+                if (firstUs < 0) firstUs = ptsUs;
+                info.offset = 0;
+                info.size = size;
+                info.presentationTimeUs = ptsUs - firstUs;
+                info.flags = extractor.getSampleFlags();
+                muxer.writeSampleData(outTrack, buf, info);
+                wrote = true;
+                extractor.advance();
+            }
+            muxer.stop();
+            return wrote;
+        } catch (Exception e) {
+            out.delete();
+            return false;
+        } finally {
+            if (muxer != null) {
+                try {
+                    muxer.release();
+                } catch (Exception ignored) {
+                }
+            }
+        }
+    }
+
+    /** Decodes the range to 16-bit PCM and writes a WAV file. */
+    private static void decodeToWav(MediaExtractor extractor, MediaFormat format,
+                                    long startMs, long endMs, File out) throws IOException {
+        String mime = format.getString(MediaFormat.KEY_MIME);
+        MediaCodec codec = MediaCodec.createDecoderByType(mime);
+        codec.configure(format, null, null, 0);
+        codec.start();
+
+        int sampleRate = format.containsKey(MediaFormat.KEY_SAMPLE_RATE)
+                ? format.getInteger(MediaFormat.KEY_SAMPLE_RATE) : 44100;
+        int channels = format.containsKey(MediaFormat.KEY_CHANNEL_COUNT)
+                ? format.getInteger(MediaFormat.KEY_CHANNEL_COUNT) : 2;
+
+        extractor.seekTo(startMs * 1000L, MediaExtractor.SEEK_TO_CLOSEST_SYNC);
+        long startUs = startMs * 1000L;
+        long endUs = endMs * 1000L;
+
+        OutputStream os = new FileOutputStream(out);
+        writeWavHeader(os, sampleRate, channels, 0);
+        long pcmBytes = 0;
+
+        MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
+        boolean inputDone = false, outputDone = false;
+
+        try {
+            while (!outputDone) {
+                if (!inputDone) {
+                    int inIdx = codec.dequeueInputBuffer(10000);
+                    if (inIdx >= 0) {
+                        ByteBuffer in = codec.getInputBuffer(inIdx);
+                        int size = in == null ? -1 : extractor.readSampleData(in, 0);
+                        long ptsUs = extractor.getSampleTime();
+                        if (size < 0 || ptsUs > endUs) {
+                            codec.queueInputBuffer(inIdx, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
+                            inputDone = true;
+                        } else {
+                            codec.queueInputBuffer(inIdx, 0, size, ptsUs, 0);
+                            extractor.advance();
+                        }
+                    }
+                }
+
+                int outIdx = codec.dequeueOutputBuffer(info, 10000);
+                if (outIdx >= 0) {
+                    if ((info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) outputDone = true;
+                    if (info.size > 0 && info.presentationTimeUs >= startUs
+                            && info.presentationTimeUs <= endUs) {
+                        ByteBuffer outBuf = codec.getOutputBuffer(outIdx);
+                        if (outBuf != null) {
+                            byte[] chunk = new byte[info.size];
+                            outBuf.position(info.offset);
+                            outBuf.get(chunk);
+                            os.write(chunk);
+                            pcmBytes += chunk.length;
+                        }
+                    }
+                    codec.releaseOutputBuffer(outIdx, false);
+                } else if (outIdx == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                    MediaFormat of = codec.getOutputFormat();
+                    sampleRate = of.getInteger(MediaFormat.KEY_SAMPLE_RATE);
+                    channels = of.getInteger(MediaFormat.KEY_CHANNEL_COUNT);
+                }
+            }
+        } finally {
+            try {
+                codec.stop();
+                codec.release();
+            } catch (Exception ignored) {
+            }
+            os.close();
+        }
+        patchWavHeader(out, sampleRate, channels, pcmBytes);
+    }
+
+    private static void writeWavHeader(OutputStream os, int sampleRate, int channels, long pcmBytes)
+            throws IOException {
+        int byteRate = sampleRate * channels * 2;
+        os.write(new byte[]{'R', 'I', 'F', 'F'});
+        writeInt(os, (int) (36 + pcmBytes));
+        os.write(new byte[]{'W', 'A', 'V', 'E', 'f', 'm', 't', ' '});
+        writeInt(os, 16);
+        writeShort(os, (short) 1);
+        writeShort(os, (short) channels);
+        writeInt(os, sampleRate);
+        writeInt(os, byteRate);
+        writeShort(os, (short) (channels * 2));
+        writeShort(os, (short) 16);
+        os.write(new byte[]{'d', 'a', 't', 'a'});
+        writeInt(os, (int) pcmBytes);
+    }
+
+    /** Rewrites the sizes once the real PCM length is known. */
+    private static void patchWavHeader(File f, int sampleRate, int channels, long pcmBytes)
+            throws IOException {
+        RandomAccessFile raf = new RandomAccessFile(f, "rw");
+        try {
+            raf.seek(4);
+            raf.write(intLE((int) (36 + pcmBytes)));
+            raf.seek(22);
+            raf.write(shortLE((short) channels));
+            raf.write(intLE(sampleRate));
+            raf.write(intLE(sampleRate * channels * 2));
+            raf.write(shortLE((short) (channels * 2)));
+            raf.seek(40);
+            raf.write(intLE((int) pcmBytes));
+        } finally {
+            raf.close();
+        }
+    }
+
+    private static byte[] intLE(int v) {
+        return new byte[]{(byte) v, (byte) (v >> 8), (byte) (v >> 16), (byte) (v >> 24)};
+    }
+
+    private static byte[] shortLE(short v) {
+        return new byte[]{(byte) v, (byte) (v >> 8)};
+    }
+
+    private static void writeInt(OutputStream os, int v) throws IOException {
+        os.write(intLE(v));
+    }
+
+    private static void writeShort(OutputStream os, short v) throws IOException {
+        os.write(shortLE(v));
+    }
+}

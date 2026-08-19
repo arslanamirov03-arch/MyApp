@@ -2,12 +2,17 @@ package com.perfectaudio.app;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.content.ContentValues;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
+import android.provider.MediaStore;
 import android.provider.OpenableColumns;
 import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
@@ -21,6 +26,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -31,6 +37,7 @@ public class MainActivity extends Activity {
 
     private static final int REQ_MEDIA = 11;
     private static final int REQ_BG = 12;
+    private static final int REQ_NOTIF_PERM = 21;
 
     private WebView web;
 
@@ -52,6 +59,10 @@ public class MainActivity extends Activity {
         web.addJavascriptInterface(new Bridge(), "PA");
         web.loadUrl("file:///android_asset/index.html");
         setContentView(web);
+
+        // Notification buttons and the lock-screen controls drive the web player.
+        PlaybackService.setCommandListener((command, extra) ->
+                js("window.nativeCmd && window.nativeCmd('" + command + "'," + extra + ")"));
     }
 
     @Override
@@ -60,13 +71,15 @@ public class MainActivity extends Activity {
         // or let the system close the activity.
         web.evaluateJavascript("window.handleBack ? window.handleBack() : false", value -> {
             if (!"true".equals(value)) {
-                finish();
+                moveTaskToBack(true);
             }
         });
     }
 
     @Override
     protected void onDestroy() {
+        PlaybackService.setCommandListener(null);
+        stopService(new Intent(this, PlaybackService.class));
         if (web != null) {
             web.destroy();
             web = null;
@@ -78,6 +91,10 @@ public class MainActivity extends Activity {
         runOnUiThread(() -> {
             if (web != null) web.evaluateJavascript(code, null);
         });
+    }
+
+    private static String esc(String s) {
+        return s == null ? "" : s.replace("\\", "\\\\").replace("'", "\\'").replace("\n", " ");
     }
 
     private String queryDisplayName(Uri uri) {
@@ -148,6 +165,32 @@ public class MainActivity extends Activity {
                 js("window.onMediaPicked && window.onMediaPicked(" + arr + ")");
             }
         }).start();
+    }
+
+    /** Copies an exported clip into the public Downloads folder (Android 10+). */
+    private String saveToDownloads(File src) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return null;
+        try {
+            ContentValues cv = new ContentValues();
+            cv.put(MediaStore.Downloads.DISPLAY_NAME, src.getName());
+            cv.put(MediaStore.Downloads.MIME_TYPE,
+                    src.getName().endsWith(".m4a") ? "audio/mp4" : "audio/wav");
+            cv.put(MediaStore.Downloads.IS_PENDING, 1);
+            Uri dest = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv);
+            if (dest == null) return null;
+            try (InputStream in = new FileInputStream(src);
+                 OutputStream os = getContentResolver().openOutputStream(dest)) {
+                byte[] buf = new byte[65536];
+                int n;
+                while ((n = in.read(buf)) > 0) os.write(buf, 0, n);
+            }
+            cv.clear();
+            cv.put(MediaStore.Downloads.IS_PENDING, 0);
+            getContentResolver().update(dest, cv, null, null);
+            return Environment.DIRECTORY_DOWNLOADS;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     class Bridge {
@@ -232,6 +275,80 @@ public class MainActivity extends Activity {
                     getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
                 } else {
                     getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                }
+            });
+        }
+
+        /** Mirrors the web player's state into the media notification. */
+        @JavascriptInterface
+        public void updatePlayback(String title, double positionSec, double durationSec, boolean playing) {
+            try {
+                Intent i = new Intent(MainActivity.this, PlaybackService.class)
+                        .setAction(PlaybackService.ACTION_UPDATE)
+                        .putExtra("title", title)
+                        .putExtra("position", (long) (positionSec * 1000))
+                        .putExtra("duration", (long) (durationSec * 1000))
+                        .putExtra("playing", playing);
+                startForegroundService(i);
+            } catch (Exception ignored) {
+            }
+        }
+
+        @JavascriptInterface
+        public void stopPlaybackNotification() {
+            try {
+                startService(new Intent(MainActivity.this, PlaybackService.class)
+                        .setAction(PlaybackService.ACTION_STOP));
+            } catch (Exception ignored) {
+            }
+        }
+
+        @JavascriptInterface
+        public void requestNotificationPermission() {
+            if (Build.VERSION.SDK_INT < 33) return;
+            runOnUiThread(() -> {
+                if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                        != PackageManager.PERMISSION_GRANTED) {
+                    requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS},
+                            REQ_NOTIF_PERM);
+                }
+            });
+        }
+
+        /** Cuts [startSec, endSec] out of the track and saves it. */
+        @JavascriptInterface
+        public void exportClip(String path, double startSec, double endSec, String name) {
+            new Thread(() -> {
+                try {
+                    String p = path.startsWith("file://") ? Uri.parse(path).getPath() : path;
+                    File out = AudioExport.extract(p, (long) (startSec * 1000), (long) (endSec * 1000),
+                            new File(getFilesDir(), "export"), name);
+                    String savedTo = saveToDownloads(out);
+                    JSONObject o = new JSONObject();
+                    o.put("name", out.getName());
+                    o.put("size", out.length());
+                    o.put("inDownloads", savedTo != null);
+                    js("window.onExportDone && window.onExportDone(" + o + ")");
+                } catch (Throwable t) {
+                    js("window.onExportFailed && window.onExportFailed('"
+                            + esc(t.getMessage()) + "')");
+                }
+            }).start();
+        }
+
+        @JavascriptInterface
+        public void shareExport(String fileName) {
+            runOnUiThread(() -> {
+                try {
+                    File f = new File(new File(getFilesDir(), "export"), fileName);
+                    if (!f.exists()) return;
+                    Uri uri = ExportProvider.uriFor(f);
+                    Intent send = new Intent(Intent.ACTION_SEND)
+                            .setType(fileName.endsWith(".m4a") ? "audio/mp4" : "audio/wav")
+                            .putExtra(Intent.EXTRA_STREAM, uri)
+                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    startActivity(Intent.createChooser(send, "Отправить отрезок"));
+                } catch (Exception ignored) {
                 }
             });
         }
