@@ -46,6 +46,8 @@ public class PlaybackService extends Service {
     private AudioManager audioManager;
     private AudioFocusRequest focusRequest;
     private boolean started;
+    private boolean hasFocus;
+    private long focusGrantedAt;
 
     private String title = "Perfect Audio";
     private long positionMs = 0;
@@ -121,29 +123,48 @@ public class PlaybackService extends Service {
         nm.createNotificationChannel(ch);
     }
 
+    /**
+     * Asks for audio focus once and keeps it. Requesting again while we already
+     * hold it makes the system report a loss for the previous request, which
+     * would immediately pause our own playback.
+     */
     private void requestFocus() {
-        if (audioManager == null) return;
-        AudioAttributes attrs = new AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_MEDIA)
-                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                .build();
-        focusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
-                .setAudioAttributes(attrs)
-                .setOnAudioFocusChangeListener(change -> {
-                    if (change == AudioManager.AUDIOFOCUS_LOSS
-                            || change == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
-                        send("pause", 0);
-                    }
-                })
-                .build();
-        audioManager.requestAudioFocus(focusRequest);
+        if (audioManager == null || hasFocus) return;
+        if (focusRequest == null) {
+            AudioAttributes attrs = new AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                    .build();
+            focusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                    .setAudioAttributes(attrs)
+                    .setOnAudioFocusChangeListener(this::onFocusChange)
+                    .build();
+        }
+        int res = audioManager.requestAudioFocus(focusRequest);
+        hasFocus = res == AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
+        focusGrantedAt = System.currentTimeMillis();
+    }
+
+    private void onFocusChange(int change) {
+        if (change == AudioManager.AUDIOFOCUS_GAIN) {
+            hasFocus = true;
+            return;
+        }
+        if (change == AudioManager.AUDIOFOCUS_LOSS
+                || change == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
+            if (change == AudioManager.AUDIOFOCUS_LOSS) hasFocus = false;
+            // Ignore a loss that arrives right after our own request: it is an
+            // echo of that request, not another app taking over.
+            if (System.currentTimeMillis() - focusGrantedAt < 800) return;
+            send("pause", 0);
+        }
     }
 
     private void abandonFocus() {
         if (audioManager != null && focusRequest != null) {
             audioManager.abandonAudioFocusRequest(focusRequest);
-            focusRequest = null;
         }
+        hasFocus = false;
     }
 
     @Override
