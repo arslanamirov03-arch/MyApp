@@ -188,6 +188,10 @@
   .mi-state{flex:0 0 auto;font-size:12.5px;font-weight:800;color:var(--ink2);
     background:#F4F0E7;border-radius:99px;padding:4px 10px;font-variant-numeric:tabular-nums;}
   .mi-state.on{background:var(--accent-soft);color:var(--accent);}
+  /* a menu item that only works while practising */
+  .pop-item.off{opacity:.4;}
+  .pop-item.off svg{color:var(--ink2);}
+  .pop-item.off:active{background:none;}
   .sp-big{font-family:Georgia,serif;font-size:40px;text-align:center;margin:2px 0 4px;
     font-variant-numeric:tabular-nums;}
   .sp-big small{font-size:20px;color:var(--ink2);}
@@ -419,6 +423,11 @@
       <span style="flex:1;text-align:left">Бесконечно</span>
       <span class="mi-state" id="miRepeatState">выкл</span>
     </button>
+    <button class="pop-item" id="miBreak">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M10 9v6M14 9v6"/></svg>
+      <span style="flex:1;text-align:left">Перерыв</span>
+      <span class="mi-state" id="miBreakState">выкл</span>
+    </button>
     <button class="pop-item" id="miSpeed">
       <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20a8 8 0 1 1 8-8"/><path d="M12 12l4.5-3.5"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/></svg>
       <span style="flex:1;text-align:left">Скорость</span>
@@ -618,6 +627,34 @@
   <button class="btn primary" id="trAllApply">Применить</button>
 </div>
 
+<div class="sheet" id="shBreak">
+  <button class="sheet-x" data-close>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+  </button>
+  <div class="sh-title">Перерыв</div>
+  <div class="sh-sub">Тишина между повторами практики. Часы, минуты и секунды.</div>
+  <div class="time-picker" style="margin-bottom:4px">
+    <input type="number" id="brH" inputmode="numeric" min="0" max="23" value="0">
+    <span class="colon">:</span>
+    <input type="number" id="brM" inputmode="numeric" min="0" max="59" value="0">
+    <span class="colon">:</span>
+    <input type="number" id="brS" inputmode="numeric" min="0" max="59" value="5">
+  </div>
+  <div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--ink2);
+              font-weight:700;padding:0 14px;margin-bottom:6px">
+    <span>часы</span><span>минуты</span><span>секунды</span>
+  </div>
+  <div class="preset-row" id="brPresets">
+    <button class="preset" data-v="2">2с</button>
+    <button class="preset" data-v="3">3с</button>
+    <button class="preset" data-v="5">5с</button>
+    <button class="preset" data-v="10">10с</button>
+    <button class="preset" data-v="30">30с</button>
+  </div>
+  <button class="btn primary" id="brApply">Сохранить</button>
+  <button class="btn ghost" id="brOff">Без перерыва</button>
+</div>
+
 <div class="sheet" id="shSpeed">
   <button class="sheet-x" data-close>
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
@@ -735,7 +772,7 @@ function hideToast(){ $('toast').classList.remove('show'); if(toastTimer){clearT
 
 /* ---------------- state ---------------- */
 let lib = loadLS('pa.lib', []);
-let settings = Object.assign({seekBack:5, seekFwd:5, speed:1}, loadLS('pa.settings', {}));
+let settings = Object.assign({seekBack:5, seekFwd:5, speed:1, breakSec:0}, loadLS('pa.settings', {}));
 let cur = null;           // current track
 let media = null;         // active HTMLMediaElement
 let curBg = {text:null, media:null};
@@ -984,6 +1021,7 @@ function updatePlayIcon(playing){
 $('btnPlay').addEventListener('click', ()=>{
   if(!media) return;
   hap('medium');
+  if(inBreak()){ endBreak(true); return; }   // tapping play skips the break
   if(media.paused) play(); else media.pause();
 });
 function play(){
@@ -1025,9 +1063,45 @@ function checkPracticeEnd(){
   if(media.currentTime >= practice.end){
     // rewind only: if it was paused (e.g. the user seeked to the edge by
     // hand), it stays paused instead of starting on its own
-    if(practice.loop){ media.currentTime = practice.start; }
+    if(practice.loop){
+      if(settings.breakSec>0) startBreak();
+      else media.currentTime = practice.start;
+    }
     else { media.pause(); practice=null; updatePracticeChip(); }
   }
+}
+
+/* ---------------- break between repeats ---------------- */
+let breakTimer=null, breakUntil=0;
+function breakLeft(){ return Math.max(0, breakUntil-Date.now()); }
+function inBreak(){ return breakTimer!==null; }
+function startBreak(){
+  if(!media) return;
+  media.pause();
+  breakUntil=Date.now()+settings.breakSec*1000;
+  breakTimer=setInterval(()=>{
+    if(breakLeft()<=0) endBreak(true);
+    else updateChipText();
+  }, 200);
+  updateChipText();   // after the timer exists, so the chip shows the countdown at once
+  hap('light');
+}
+function endBreak(resume){
+  if(breakTimer){ clearInterval(breakTimer); breakTimer=null; }
+  breakUntil=0;
+  if(resume && practice && media){
+    media.currentTime=practice.start;
+    play();
+    hap('light');
+  }
+  updateChipText();
+}
+function fmtBreak(sec){
+  if(sec<=0) return 'выкл';
+  if(sec<60) return sec+'с';
+  const h=Math.floor(sec/3600), m=Math.floor(sec%3600/60), s=sec%60;
+  return h>0 ? h+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')
+             : m+':'+String(s).padStart(2,'0');
 }
 let practiceTimer=null;
 function startPracticeWatch(){
@@ -1069,6 +1143,7 @@ function seekFromEvent(e){
   if(!media || d===0) return;
   const r=bar.getBoundingClientRect();
   const ratio=clamp((e.clientX-r.left)/r.width,0,1);
+  if(inBreak()) endBreak(false);   // seeking by hand cancels the countdown
   const t=clamp(ratio*d, seekLo(), seekHiManual());   // stops at the segment edges
   setBarRatio(t/d);
   $('tCur').textContent=fmt(t);
@@ -1630,6 +1705,7 @@ $('prEEnd').addEventListener('click', ()=>{
 
 function startPractice(s, e, loop){
   if(!media) return false;
+  if(inBreak()) endBreak(false);
   const d=media.duration;
   if(isFinite(d) && d>0){
     if(s>=d){ toast('Начало позже конца записи'); return false; }
@@ -1646,9 +1722,12 @@ $('prStart').addEventListener('click', ()=>{
   const s=readTime('prSM','prSS'), e=readTime('prEM','prES');
   if(startPractice(s,e,$('prLoop').checked)){ hap('medium'); closeSheets(); }
 });
-function updatePracticeChip(){
+function updateChipText(){
   const c=$('pChip');
-  if(practice){
+  if(practice && inBreak()){
+    $('pChipText').textContent='перерыв '+Math.ceil(breakLeft()/1000)+'с';
+    c.style.display='flex';
+  } else if(practice){
     $('pChipText').textContent=fmt(practice.start)+' – '+fmt(practice.end)+(practice.loop?' ∞':'');
     c.style.display='flex';
   } else if(repeatAll){
@@ -1657,6 +1736,13 @@ function updatePracticeChip(){
   } else {
     c.style.display='none';
   }
+}
+function updatePracticeChip(){
+  updateChipText();
+  if(!practice && inBreak()) endBreak(false);
+  $('miBreak').classList.toggle('off', !practice);
+  $('miBreakState').textContent=fmtBreak(settings.breakSec||0);
+  $('miBreakState').classList.toggle('on', !!practice && settings.breakSec>0);
   if(practice) startPracticeWatch(); else stopPracticeWatch();
   updateTimes();
   updateProgress();
@@ -1698,6 +1784,42 @@ function openSpeed(){
   $('spdInput').value='';
   openSheet('shSpeed');
 }
+$('miBreak').addEventListener('click', ()=>{
+  if(!practice){ hap('light'); toast('Перерыв работает во время практики'); return; }
+  hap('light'); closePops();
+  const sec=settings.breakSec||0;
+  $('brH').value=Math.floor(sec/3600);
+  $('brM').value=Math.floor(sec%3600/60);
+  $('brS').value=sec%60;
+  openSheet('shBreak');
+});
+$('brPresets').addEventListener('click', e=>{
+  const b=e.target.closest('.preset'); if(!b) return;
+  hap('light');
+  const v=parseInt(b.dataset.v,10);
+  $('brH').value=0; $('brM').value=0; $('brS').value=v;
+  [...$('brPresets').children].forEach(x=>x.classList.toggle('on', x===b));
+});
+function readBreak(){
+  const h=parseInt($('brH').value,10)||0;
+  const m=parseInt($('brM').value,10)||0;
+  const s=parseInt($('brS').value,10)||0;
+  return clamp(h*3600+Math.min(59,m)*60+Math.min(59,s), 0, 86399);
+}
+$('brApply').addEventListener('click', ()=>{
+  settings.breakSec=readBreak();
+  store('pa.settings', settings);
+  updatePracticeChip();
+  hap('medium'); closeSheets();
+  toast(settings.breakSec>0 ? 'Перерыв: '+fmtBreak(settings.breakSec) : 'Перерыв выключен');
+});
+$('brOff').addEventListener('click', ()=>{
+  settings.breakSec=0;
+  store('pa.settings', settings);
+  if(inBreak()) endBreak(true);
+  updatePracticeChip();
+  hap('light'); closeSheets(); toast('Перерыв выключен');
+});
 $('miSpeed').addEventListener('click', ()=>{ hap('light'); closePops(); openSpeed(); });
 let lastSpd=null;
 $('spdRange').addEventListener('input', ()=>{

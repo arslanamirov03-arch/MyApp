@@ -12,8 +12,8 @@ fi
 BT="$SDK/build-tools/${BUILD_TOOLS_VERSION:-35.0.0}"
 PLATFORM="$SDK/platforms/android-34/android.jar"
 
-VERSION_CODE="${VERSION_CODE:-10}"
-VERSION_NAME="${VERSION_NAME:-1.9}"
+VERSION_CODE="${VERSION_CODE:-11}"
+VERSION_NAME="${VERSION_NAME:-2.0}"
 
 rm -rf build
 mkdir -p build/gen build/obj
