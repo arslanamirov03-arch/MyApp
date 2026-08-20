@@ -1002,17 +1002,30 @@ function onEnded(){
 }
 function onTimeUpdate(){
   updateProgress();
-  if(practice && media){
-    if(media.currentTime >= practice.end - 0.05){
-      // rewind only: if it was paused (e.g. the user seeked to the edge by
-      // hand), it stays paused instead of starting on its own
-      if(practice.loop){ media.currentTime = practice.start; }
-      else { media.pause(); practice=null; updatePracticeChip(); }
-    }
-  }
+  checkPracticeEnd();
   const now=Date.now();
   if(now-posSaveT>3000){ posSaveT=now; savePos(); }
- 
+
+}
+/* The segment must play through to exactly the chosen second. "timeupdate"
+   only fires about four times a second, so a small timer watches the edge
+   while practising and the check never fires before practice.end. */
+function checkPracticeEnd(){
+  if(!practice || !media || media.paused) return;
+  if(media.currentTime >= practice.end){
+    // rewind only: if it was paused (e.g. the user seeked to the edge by
+    // hand), it stays paused instead of starting on its own
+    if(practice.loop){ media.currentTime = practice.start; }
+    else { media.pause(); practice=null; updatePracticeChip(); }
+  }
+}
+let practiceTimer=null;
+function startPracticeWatch(){
+  if(practiceTimer) return;
+  practiceTimer=setInterval(checkPracticeEnd, 30);
+}
+function stopPracticeWatch(){
+  if(practiceTimer){ clearInterval(practiceTimer); practiceTimer=null; }
 }
 /* The bar always spans the whole track. While practising, the segment is
    marked on it and the knob stops at its edges instead of leaving it. */
@@ -1022,7 +1035,7 @@ function seekHi(){ return practice ? practice.end : trackDur(); }
 /* Manual seeking stops a hair before the segment end, otherwise landing
    exactly on it would trigger the loop and jump back to the start. */
 function seekHiManual(){
-  return practice ? Math.max(practice.start, practice.end - 0.25) : trackDur();
+  return practice ? Math.max(practice.start, practice.end - 0.05) : trackDur();
 }
 function setBarRatio(r){
   r=clamp(r,0,1);
@@ -1581,6 +1594,7 @@ function updatePracticeChip(){
   } else {
     c.style.display='none';
   }
+  if(practice) startPracticeWatch(); else stopPracticeWatch();
   updateTimes();
   updateProgress();
   $('miRepeatState').textContent = repeatAll ? 'вкл' : 'выкл';
