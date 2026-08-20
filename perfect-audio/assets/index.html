@@ -1014,12 +1014,15 @@ function onTimeUpdate(){
   if(now-posSaveT>3000){ posSaveT=now; savePos(); }
  
 }
-/* While practising, the bar covers only the chosen segment: dragging and the
-   seek buttons stop at its edges instead of leaving it. */
+/* The bar always spans the whole track. While practising, the segment is
+   marked on it and the knob stops at its edges instead of leaving it. */
+function trackDur(){ return media && isFinite(media.duration) ? media.duration : 0; }
 function seekLo(){ return practice ? practice.start : 0; }
-function seekHi(){
-  if(practice) return practice.end;
-  return media && isFinite(media.duration) ? media.duration : 0;
+function seekHi(){ return practice ? practice.end : trackDur(); }
+/* Manual seeking stops a hair before the segment end, otherwise landing
+   exactly on it would trigger the loop and jump back to the start. */
+function seekHiManual(){
+  return practice ? Math.max(practice.start, practice.end - 0.25) : trackDur();
 }
 function setBarRatio(r){
   r=clamp(r,0,1);
@@ -1027,25 +1030,24 @@ function setBarRatio(r){
   $('barKnob').style.left=(r*100)+'%';
 }
 function updateTimes(){
-  $('tDur').textContent=fmt(seekHi());
+  $('tDur').textContent=fmt(trackDur());
 }
 function updateProgress(){
   if(!media || !isFinite(media.duration) || media.duration===0) return;
   if(!dragging){
-    const lo=seekLo(), hi=seekHi(), span=hi-lo;
-    setBarRatio(span>0 ? (media.currentTime-lo)/span : 0);
+    setBarRatio(media.currentTime/media.duration);
     $('tCur').textContent=fmt(media.currentTime);
   }
 }
 let dragging=false;
 const bar=$('bar');
 function seekFromEvent(e){
-  if(!media || !isFinite(media.duration) || media.duration===0) return;
+  const d=trackDur();
+  if(!media || d===0) return;
   const r=bar.getBoundingClientRect();
   const ratio=clamp((e.clientX-r.left)/r.width,0,1);
-  const lo=seekLo(), hi=seekHi();
-  const t=lo+ratio*(hi-lo);
-  setBarRatio(ratio);
+  const t=clamp(ratio*d, seekLo(), seekHiManual());   // stops at the segment edges
+  setBarRatio(t/d);
   $('tCur').textContent=fmt(t);
   media.currentTime=t;
 }
@@ -1066,7 +1068,7 @@ function updateBadges(){
 function doSeek(dir, silent){
   if(!media || !isFinite(media.duration)) return;
   const step = dir<0 ? settings.seekBack : settings.seekFwd;
-  media.currentTime = clamp(media.currentTime + dir*step, seekLo(), seekHi());
+  media.currentTime = clamp(media.currentTime + dir*step, seekLo(), seekHiManual());
   updateProgress();
   if(!silent){
     hap('light');
@@ -1574,7 +1576,7 @@ function updatePracticeChip(){
     $('pChipText').textContent=fmt(practice.start)+' – '+fmt(practice.end)+(practice.loop?' ∞':'');
     c.style.display='flex';
   } else if(repeatAll){
-    $('pChipText').textContent='∞ весь трек';
+    $('pChipText').textContent='по кругу ∞';
     c.style.display='flex';
   } else {
     c.style.display='none';
