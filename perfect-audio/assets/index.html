@@ -108,6 +108,8 @@
   #scrPlayer.picking .w{background:rgba(217,119,87,.10);cursor:pointer;}
   #scrPlayer.picking .w:active{background:var(--accent);color:#fff;transform:scale(.94);}
   #scrPlayer.picking .w:active .tr{color:#fff;}
+  #scrPlayer.picking .w.w-sel{background:var(--accent);color:#fff;}
+  #scrPlayer.picking .w.w-sel .tr{color:#fff;}
 
   /* ---------- player controls ---------- */
   #btnPlayerBack,.track-chip,.p-chip,.progress-zone,.controls{
@@ -403,7 +405,7 @@
     <button class="fbtn" id="btnPickClose" aria-label="Отмена">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
     </button>
-    <div class="hint">Нажми на любое слово</div>
+    <div class="hint" id="pickHint">Нажми на любое слово</div>
   </div>
 
   <!-- more popover -->
@@ -594,6 +596,10 @@
     <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V5h16v2"/><path d="M9 19h6"/><path d="M12 5v14"/></svg>
     Слово
   </button>
+  <button class="btn" id="trSentMode">
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h18M3 14h11"/><path d="M6 4v8M18 10v8"/></svg>
+    Предложение
+  </button>
   <button class="btn" id="trAllMode">
     <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h13"/></svg>
     Весь текст
@@ -605,7 +611,7 @@
   <button class="sheet-x" data-close>
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
   </button>
-  <div class="sh-title">Весь текст</div>
+  <div class="sh-title" id="trAllTitle">Весь текст</div>
   <div class="sh-sub" id="trAllSub">Вставь транскрипции через пробел — по одной на каждое слово. Поставь дефис «-», если слово нужно пропустить.</div>
   <textarea class="ta" id="trAllInput" rows="6"></textarea>
   <div style="font-size:12.5px;color:var(--ink2);margin-top:9px" id="trAllCount"></div>
@@ -665,6 +671,7 @@
       <input type="number" id="exSS" inputmode="numeric" min="0" max="59" value="0">
     </div>
     <button class="tp-now" id="exSNow">сейчас</button>
+    <button class="tp-now" id="exSStart">начало</button>
   </div>
   <div class="tp-row">
     <div class="tp-label">До</div>
@@ -735,6 +742,9 @@ let curBg = {text:null, media:null};
 let practice = null;      // {start,end,loop}
 let repeatAll = false;    // loop the whole track
 let pickingWord = false;
+let pickMode = 'word';    // 'word' | 'range'
+let rangeStart = -1;
+let transRange = null;    // {a,b} while transcribing a sentence
 let posSaveT = 0;
 
 const COLORS = {
@@ -1297,16 +1307,23 @@ function refreshTextBg(){
   });
 }
 
-/* single-word picking */
-function startPicking(){
+/* word picking: one word, or the two ends of a sentence */
+function startPicking(mode){
   if(!curBg.text){ toast('Сначала добавь текст в «Фон и текст»'); return; }
   pickingWord=true;
+  pickMode=mode||'word';
+  rangeStart=-1;
+  $('pickHint').textContent = pickMode==='range'
+    ? 'Нажми на первое слово предложения'
+    : 'Нажми на любое слово';
   $('scrPlayer').classList.add('picking');
   $('scrPlayer').classList.remove('zen');
   refreshTextBg();
 }
 function stopPicking(){
   pickingWord=false;
+  pickMode='word';
+  rangeStart=-1;
   $('scrPlayer').classList.remove('picking');
   closePops();
   refreshTextBg();
@@ -1316,6 +1333,21 @@ $('btnPickClose').addEventListener('click', ()=>{ hap('light'); stopPicking(); }
 let wordIdx=-1;
 $('bgLayer').addEventListener('click', e=>{
   const w=e.target.closest('.w');
+  if(pickingWord && w && pickMode==='range'){
+    e.stopPropagation();
+    hap('medium');
+    const i=parseInt(w.dataset.i,10);
+    if(rangeStart<0){
+      rangeStart=i;
+      w.classList.add('w-sel');
+      $('pickHint').textContent='Теперь нажми на последнее слово';
+      return;
+    }
+    const a=Math.min(rangeStart,i), b=Math.max(rangeStart,i);
+    stopPicking();
+    openTransSheet(a,b);
+    return;
+  }
   if(pickingWord && w){
     e.stopPropagation();
     hap('medium');
@@ -1351,22 +1383,46 @@ function openTransMenu(){
   if(!curBg.text){ toast('Сначала добавь текст в «Фон и текст»'); return; }
   openSheet('shTransMenu');
 }
-$('trWordMode').addEventListener('click', ()=>{ hap('medium'); closeSheets(); startPicking(); });
-$('trAllMode').addEventListener('click', ()=>{
-  hap('light'); closeSheets();
-  const n=wordCount(curBg.text.value);
-  $('trAllSub').textContent='В тексте '+n+' '+plural(n,'слово','слова','слов')+
-    '. Вставь столько же транскрипций через пробел. Дефис «-» пропускает слово.';
+$('trWordMode').addEventListener('click', ()=>{ hap('medium'); closeSheets(); startPicking('word'); });
+$('trSentMode').addEventListener('click', ()=>{ hap('medium'); closeSheets(); startPicking('range'); });
+$('trAllMode').addEventListener('click', ()=>{ hap('light'); closeSheets(); openTransSheet(); });
+
+function textWords(){ return curBg.text ? curBg.text.value.split(/\s+/).filter(Boolean) : []; }
+function transNeed(){
+  return transRange ? (transRange.b - transRange.a + 1) : textWords().length;
+}
+/* one sheet for both modes: the whole text, or just the picked sentence */
+function openTransSheet(a, b){
+  if(!curBg.text) return;
+  transRange = (a==null) ? null : {a:a, b:b};
+  const words=textWords();
+  const need=transNeed();
+  const base=transRange ? transRange.a : 0;
+  $('trAllTitle').textContent = transRange ? 'Предложение' : 'Весь текст';
+  if(transRange){
+    const quote=words.slice(a, b+1).join(' ');
+    $('trAllSub').textContent='«'+(quote.length>60 ? quote.slice(0,60)+'…' : quote)+'» — '+
+      need+' '+plural(need,'слово','слова','слов')+
+      '. Вставь столько же транскрипций через пробел. Дефис «-» пропускает слово.';
+  } else {
+    $('trAllSub').textContent='В тексте '+need+' '+plural(need,'слово','слова','слов')+
+      '. Вставь столько же транскрипций через пробел. Дефис «-» пропускает слово.';
+  }
   const tr=getTr();
   const arr=[];
-  for(let i=0;i<n;i++) arr.push(tr[i]||'-');
-  $('trAllInput').value = Object.keys(tr).length ? arr.join(' ') : '';
+  let any=false;
+  for(let i=0;i<need;i++){
+    const v=tr[base+i];
+    if(v) any=true;
+    arr.push(v||'-');
+  }
+  $('trAllInput').value = any ? arr.join(' ') : '';
   updateTrCount();
   openSheet('shTransAll');
-});
+}
 function updateTrCount(){
   if(!curBg.text) return;
-  const need=wordCount(curBg.text.value);
+  const need=transNeed();
   const got=wordCount($('trAllInput').value);
   const el=$('trAllCount');
   if(!got){ el.textContent='Нужно слов: '+need; el.style.color='var(--ink2)'; return; }
@@ -1377,7 +1433,7 @@ function updateTrCount(){
 $('trAllInput').addEventListener('input', updateTrCount);
 $('trAllApply').addEventListener('click', ()=>{
   if(!curBg.text) return;
-  const need=wordCount(curBg.text.value);
+  const need=transNeed();
   const parts=$('trAllInput').value.split(/\s+/).filter(Boolean);
   if(parts.length!==need){
     hap('heavy');
@@ -1386,11 +1442,18 @@ $('trAllApply').addEventListener('click', ()=>{
       : 'Слишком много слов: '+parts.length+' из '+need);
     return;
   }
-  const tr={};
-  parts.forEach((p,i)=>{ if(p!=='-') tr[i]=p; });
+  // a sentence updates only its own words, the whole text replaces everything
+  const tr = transRange ? getTr() : {};
+  const base = transRange ? transRange.a : 0;
+  parts.forEach((p,i)=>{
+    if(p==='-') delete tr[base+i];
+    else tr[base+i]=p;
+  });
   setTr(tr);
   refreshTextBg();
-  hap('medium'); closeSheets(); toast('Транскрипция добавлена');
+  hap('medium'); closeSheets();
+  toast(transRange ? 'Транскрипция предложения добавлена' : 'Транскрипция добавлена');
+  transRange=null;
 });
 $('trClear').addEventListener('click', ()=>{
   setTr({});
@@ -1715,6 +1778,7 @@ function openExport(s, e){
 }
 $('exSNow').addEventListener('click', ()=>{ hap('light'); writeTime('exSM','exSS', curT()); });
 $('exENow').addEventListener('click', ()=>{ hap('light'); writeTime('exEM','exES', curT()); });
+$('exSStart').addEventListener('click', ()=>{ hap('light'); writeTime('exSM','exSS', 0); });
 $('exEEnd').addEventListener('click', ()=>{
   hap('light');
   const d=durT();
