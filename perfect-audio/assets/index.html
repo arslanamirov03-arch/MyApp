@@ -183,6 +183,20 @@
   .pop-item:active{background:#F4F0E7;}
   .pop-item svg{color:var(--accent);flex:0 0 auto;}
   .pop-item.danger,.pop-item.danger svg{color:#C14434;}
+  .mi-state{flex:0 0 auto;font-size:12.5px;font-weight:800;color:var(--ink2);
+    background:#F4F0E7;border-radius:99px;padding:4px 10px;font-variant-numeric:tabular-nums;}
+  .mi-state.on{background:var(--accent-soft);color:var(--accent);}
+  .sp-big{font-family:Georgia,serif;font-size:40px;text-align:center;margin:2px 0 4px;
+    font-variant-numeric:tabular-nums;}
+  .sp-big small{font-size:20px;color:var(--ink2);}
+  .speed-row{display:flex;gap:8px;align-items:center;margin-top:12px;}
+  .speed-row input.ti{flex:1;text-align:center;font-size:18px;font-variant-numeric:tabular-nums;}
+  .preset-row{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px;}
+  .preset{flex:1;min-width:58px;padding:10px 4px;border-radius:13px;background:#F6F3EA;
+    border:1.5px solid var(--line);font-size:14px;font-weight:700;
+    box-shadow:0 2px 6px rgba(61,57,41,.06);transition:transform .12s var(--ease);}
+  .preset:active{transform:translateY(1px) scale(.96);}
+  .preset.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);}
   #stepPop{padding:18px 18px 14px;width:min(320px,calc(100vw - 28px));}
   .sp-title{font-size:13px;color:var(--ink2);font-weight:600;}
   .sp-val{font-family:Georgia,serif;font-size:34px;margin:6px 0 2px;}
@@ -398,6 +412,16 @@
       <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
       Практика
     </button>
+    <button class="pop-item" id="miRepeatAll">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 8.5a3.5 3.5 0 1 0 0 7c2.5 0 3.3-2 5.5-3.5s3-3.5 5.5-3.5a3.5 3.5 0 1 1 0 7c-2.5 0-3.3-2-5.5-3.5S9 8.5 6.5 8.5z"/></svg>
+      <span style="flex:1;text-align:left">Бесконечно</span>
+      <span class="mi-state" id="miRepeatState">выкл</span>
+    </button>
+    <button class="pop-item" id="miSpeed">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20a8 8 0 1 1 8-8"/><path d="M12 12l4.5-3.5"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/></svg>
+      <span style="flex:1;text-align:left">Скорость</span>
+      <span class="mi-state" id="miSpeedState">1×</span>
+    </button>
     <button class="pop-item" id="miTrans">
       <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h9M9 3v2c0 4-2.2 7.3-5 9"/><path d="M6 10c1.8 2.6 4.3 4.6 7 5.7"/><path d="M13.5 21l4.2-10 4.3 10"/><path d="M15.3 17h5.6"/></svg>
       Транскрипция
@@ -522,7 +546,7 @@
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
   </button>
   <div class="sh-title">Практика</div>
-  <div class="sh-sub">Выбери отрезок — минуты и секунды. «Конец» ставит самый конец записи.</div>
+  <div class="sh-sub">Выбери отрезок — минуты и секунды. «Начало» и «конец» ставят края записи.</div>
   <div class="tp-row">
     <div class="tp-label">От</div>
     <div class="time-picker">
@@ -531,6 +555,7 @@
       <input type="number" id="prSS" inputmode="numeric" min="0" max="59" value="0">
     </div>
     <button class="tp-now" id="prSNow">сейчас</button>
+    <button class="tp-now" id="prSStart">начало</button>
   </div>
   <div class="tp-row">
     <div class="tp-label">До</div>
@@ -585,6 +610,28 @@
   <textarea class="ta" id="trAllInput" rows="6"></textarea>
   <div style="font-size:12.5px;color:var(--ink2);margin-top:9px" id="trAllCount"></div>
   <button class="btn primary" id="trAllApply">Применить</button>
+</div>
+
+<div class="sheet" id="shSpeed">
+  <button class="sheet-x" data-close>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+  </button>
+  <div class="sh-title">Скорость</div>
+  <div class="sh-sub">От 0,1× до 2×. Можно двигать ползунок или вписать точное число.</div>
+  <div class="sp-big"><span id="spdVal">1.00</span><small>×</small></div>
+  <input type="range" id="spdRange" min="10" max="200" step="1" value="100">
+  <div class="preset-row" id="spdPresets">
+    <button class="preset" data-v="0.5">0,5×</button>
+    <button class="preset" data-v="0.75">0,75×</button>
+    <button class="preset" data-v="1">1×</button>
+    <button class="preset" data-v="1.25">1,25×</button>
+    <button class="preset" data-v="1.5">1,5×</button>
+    <button class="preset" data-v="2">2×</button>
+  </div>
+  <div class="speed-row">
+    <input class="ti" id="spdInput" inputmode="decimal" placeholder="1.65">
+    <button class="btn" id="spdApply" style="flex:0 0 auto;width:auto;padding:13px 20px;margin:0">Применить</button>
+  </div>
 </div>
 
 <div class="sheet" id="shNotes">
@@ -681,11 +728,12 @@ function hideToast(){ $('toast').classList.remove('show'); if(toastTimer){clearT
 
 /* ---------------- state ---------------- */
 let lib = loadLS('pa.lib', []);
-let settings = Object.assign({seekBack:5, seekFwd:5}, loadLS('pa.settings', {}));
+let settings = Object.assign({seekBack:5, seekFwd:5, speed:1}, loadLS('pa.settings', {}));
 let cur = null;           // current track
 let media = null;         // active HTMLMediaElement
 let curBg = {text:null, media:null};
 let practice = null;      // {start,end,loop}
+let repeatAll = false;    // loop the whole track
 let pickingWord = false;
 let posSaveT = 0;
 
@@ -863,7 +911,7 @@ function openPlayer(id){
   const tr=lib.find(t=>t.id===id); if(!tr) return;
   cur=tr;
   detachMedia();
-  practice=null; updatePracticeChip();
+  practice=null; repeatAll=false; updatePracticeChip();
   media = tr.kind==='video' ? videoEl : audioEl;
   $('videoWrap').style.display = tr.kind==='video' ? 'flex' : 'none';
   $('trackName').textContent = tr.name;
@@ -878,17 +926,19 @@ function openPlayer(id){
   media.onended=onEnded;
   media.onloadedmetadata=()=>{
     if(isFinite(media.duration)){
-      $('tDur').textContent=fmt(media.duration);
+      updateTimes();
       if(!tr.duration){ tr.duration=media.duration; store('pa.lib',lib); }
     }
     const pos=loadLS('pa.pos.'+tr.id, 0);
     if(pos>3 && media.duration && pos < media.duration-3){ media.currentTime=pos; }
+    media.playbackRate=settings.speed||1;
     updateProgress();
   };
   media.ontimeupdate=onTimeUpdate;
   media.onerror=()=>{ toast('Не удалось открыть файл'); };
   media.src=tr.path;
   try{ media.load(); }catch(e){}
+  media.playbackRate=settings.speed||1;
 
   applyBg(normalizeBg(loadLS('pa.bg.'+tr.id, null)));
   $('scrPlayer').classList.remove('zen','editing','picking');
@@ -897,7 +947,7 @@ function openPlayer(id){
 function closePlayer(){
   savePos();
   if(media) media.pause();
-  practice=null; updatePracticeChip();
+  practice=null; repeatAll=false; updatePracticeChip();
   $('scrPlayer').classList.remove('open','zen','editing','picking');
   closePops(); closeSheets();
   const bgv=$('bgLayer').querySelector('video'); if(bgv) bgv.pause();
@@ -941,6 +991,11 @@ function onEnded(){
     play();
     return;
   }
+  if(!practice && repeatAll && media){
+    media.currentTime=0;
+    play();
+    return;
+  }
   if(practice){ practice=null; updatePracticeChip(); }
   maybeKeepAwake();
  
@@ -949,7 +1004,9 @@ function onTimeUpdate(){
   updateProgress();
   if(practice && media){
     if(media.currentTime >= practice.end - 0.05){
-      if(practice.loop){ media.currentTime = practice.start; if(media.paused) play(); }
+      // rewind only: if it was paused (e.g. the user seeked to the edge by
+      // hand), it stays paused instead of starting on its own
+      if(practice.loop){ media.currentTime = practice.start; }
       else { media.pause(); practice=null; updatePracticeChip(); }
     }
   }
@@ -957,15 +1014,26 @@ function onTimeUpdate(){
   if(now-posSaveT>3000){ posSaveT=now; savePos(); }
  
 }
+/* While practising, the bar covers only the chosen segment: dragging and the
+   seek buttons stop at its edges instead of leaving it. */
+function seekLo(){ return practice ? practice.start : 0; }
+function seekHi(){
+  if(practice) return practice.end;
+  return media && isFinite(media.duration) ? media.duration : 0;
+}
 function setBarRatio(r){
   r=clamp(r,0,1);
   $('barFill').style.width=(r*100)+'%';
   $('barKnob').style.left=(r*100)+'%';
 }
+function updateTimes(){
+  $('tDur').textContent=fmt(seekHi());
+}
 function updateProgress(){
   if(!media || !isFinite(media.duration) || media.duration===0) return;
   if(!dragging){
-    setBarRatio(media.currentTime/media.duration);
+    const lo=seekLo(), hi=seekHi(), span=hi-lo;
+    setBarRatio(span>0 ? (media.currentTime-lo)/span : 0);
     $('tCur').textContent=fmt(media.currentTime);
   }
 }
@@ -975,9 +1043,11 @@ function seekFromEvent(e){
   if(!media || !isFinite(media.duration) || media.duration===0) return;
   const r=bar.getBoundingClientRect();
   const ratio=clamp((e.clientX-r.left)/r.width,0,1);
+  const lo=seekLo(), hi=seekHi();
+  const t=lo+ratio*(hi-lo);
   setBarRatio(ratio);
-  $('tCur').textContent=fmt(ratio*media.duration);
-  media.currentTime=ratio*media.duration;
+  $('tCur').textContent=fmt(t);
+  media.currentTime=t;
 }
 bar.addEventListener('pointerdown', e=>{
   dragging=true;
@@ -996,7 +1066,7 @@ function updateBadges(){
 function doSeek(dir, silent){
   if(!media || !isFinite(media.duration)) return;
   const step = dir<0 ? settings.seekBack : settings.seekFwd;
-  media.currentTime = clamp(media.currentTime + dir*step, 0, media.duration);
+  media.currentTime = clamp(media.currentTime + dir*step, seekLo(), seekHi());
   updateProgress();
   if(!silent){
     hap('light');
@@ -1470,6 +1540,7 @@ function openPractice(){
   openSheet('shPractice');
 }
 $('prSNow').addEventListener('click', ()=>{ hap('light'); writeTime('prSM','prSS', curT()); savePracticeFields(); });
+$('prSStart').addEventListener('click', ()=>{ hap('light'); writeTime('prSM','prSS', 0); savePracticeFields(); });
 $('prENow').addEventListener('click', ()=>{ hap('light'); writeTime('prEM','prES', curT()); savePracticeFields(); });
 $('prEEnd').addEventListener('click', ()=>{
   hap('light');
@@ -1499,13 +1570,73 @@ $('prStart').addEventListener('click', ()=>{
 });
 function updatePracticeChip(){
   const c=$('pChip');
-  if(!practice){ c.style.display='none'; return; }
-  $('pChipText').textContent=fmt(practice.start)+' – '+fmt(practice.end)+(practice.loop?' ∞':'');
-  c.style.display='flex';
+  if(practice){
+    $('pChipText').textContent=fmt(practice.start)+' – '+fmt(practice.end)+(practice.loop?' ∞':'');
+    c.style.display='flex';
+  } else if(repeatAll){
+    $('pChipText').textContent='∞ весь трек';
+    c.style.display='flex';
+  } else {
+    c.style.display='none';
+  }
+  updateTimes();
+  updateProgress();
+  $('miRepeatState').textContent = repeatAll ? 'вкл' : 'выкл';
+  $('miRepeatState').classList.toggle('on', repeatAll);
 }
 $('pChipStop').addEventListener('click', ()=>{
-  hap('medium'); practice=null; updatePracticeChip();
-  if(media) media.pause();
+  hap('medium');
+  if(practice){ practice=null; if(media) media.pause(); }
+  else repeatAll=false;
+  updatePracticeChip();
+});
+
+/* ---------------- repeat the whole track ---------------- */
+$('miRepeatAll').addEventListener('click', ()=>{
+  hap('medium'); closePops();
+  repeatAll=!repeatAll;
+  if(repeatAll && practice){ practice=null; }
+  updatePracticeChip();
+  toast(repeatAll ? 'Бесконечный повтор включён' : 'Бесконечный повтор выключен');
+});
+
+/* ---------------- playback speed ---------------- */
+function applySpeed(v, save){
+  v=clamp(Math.round(v*100)/100, 0.1, 2);
+  settings.speed=v;
+  if(save) store('pa.settings', settings);
+  if(media) media.playbackRate=v;
+  const label=(Math.round(v*100)%100===0) ? v.toFixed(0)+'×' : String(v).replace('.',',')+'×';
+  $('miSpeedState').textContent=label;
+  $('miSpeedState').classList.toggle('on', v!==1);
+  $('spdVal').textContent=v.toFixed(2);
+  $('spdRange').value=Math.round(v*100);
+  [...$('spdPresets').children].forEach(b=>b.classList.toggle('on', parseFloat(b.dataset.v)===v));
+  return v;
+}
+function openSpeed(){
+  applySpeed(settings.speed||1, false);
+  $('spdInput').value='';
+  openSheet('shSpeed');
+}
+$('miSpeed').addEventListener('click', ()=>{ hap('light'); closePops(); openSpeed(); });
+let lastSpd=null;
+$('spdRange').addEventListener('input', ()=>{
+  const v=parseInt($('spdRange').value,10)/100;
+  if(v===lastSpd) return;
+  lastSpd=v; hap('light'); applySpeed(v, true);
+});
+$('spdPresets').addEventListener('click', e=>{
+  const b=e.target.closest('.preset'); if(!b) return;
+  hap('medium'); applySpeed(parseFloat(b.dataset.v), true);
+});
+$('spdApply').addEventListener('click', ()=>{
+  const raw=$('spdInput').value.trim().replace(',','.');
+  const v=parseFloat(raw);
+  if(!isFinite(v)){ toast('Впиши число, например 1.65'); return; }
+  if(v<0.1||v>2){ toast('Скорость — от 0,1 до 2'); return; }
+  hap('medium'); applySpeed(v, true); $('spdInput').value='';
+  toast('Скорость '+String(applySpeed(v,true)).replace('.',',')+'×');
 });
 
 /* practice history */
@@ -1697,6 +1828,7 @@ if(location.hash==='#demo' && !lib.length){
 
 renderLib();
 updateBadges();
+applySpeed(settings.speed||1, false);
 </script>
 </body>
 </html>
