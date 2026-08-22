@@ -28,6 +28,7 @@ import org.json.JSONObject;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
@@ -289,6 +290,39 @@ public class MainActivity extends Activity {
                 } catch (Throwable t) {
                     js("window.onExportFailed && window.onExportFailed('"
                             + esc(t.getMessage()) + "')");
+                }
+            }).start();
+        }
+
+        /**
+         * Rewrites the track itself: keep = true leaves only [start, end],
+         * keep = false removes that range and joins what is left.
+         */
+        @JavascriptInterface
+        public void trimTrack(String path, double startSec, double endSec, boolean keep, String name) {
+            new Thread(() -> {
+                File src = null;
+                try {
+                    String p = path.startsWith("file://") ? Uri.parse(path).getPath() : path;
+                    src = new File(p);
+                    File dir = new File(getFilesDir(), "media");
+                    File out = AudioExport.edit(p, (long) (startSec * 1000), (long) (endSec * 1000),
+                            keep, dir, "cut_" + UUID.randomUUID().toString().substring(0, 8));
+                    if (!out.exists() || out.length() < 1024) {
+                        if (out.exists()) out.delete();
+                        throw new IOException("empty result");
+                    }
+                    // the edit succeeded, so the previous file is no longer needed
+                    if (src.getCanonicalPath().startsWith(getFilesDir().getCanonicalPath())) {
+                        src.delete();
+                    }
+                    JSONObject o = new JSONObject();
+                    o.put("path", "file://" + out.getAbsolutePath());
+                    o.put("mime", out.getName().endsWith(".m4a") ? "audio/mp4" : "audio/wav");
+                    o.put("size", out.length());
+                    js("window.onTrimDone && window.onTrimDone(" + o + ")");
+                } catch (Throwable t) {
+                    js("window.onTrimFailed && window.onTrimFailed('" + esc(t.getMessage()) + "')");
                 }
             }).start();
         }

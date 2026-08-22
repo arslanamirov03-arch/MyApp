@@ -188,6 +188,21 @@
   .mi-state{flex:0 0 auto;font-size:12.5px;font-weight:800;color:var(--ink2);
     background:#F4F0E7;border-radius:99px;padding:4px 10px;font-variant-numeric:tabular-nums;}
   .mi-state.on{background:var(--accent-soft);color:var(--accent);}
+  /* full-screen text writing */
+  #textFull{position:fixed;inset:0;z-index:70;background:var(--bg);
+    display:flex;flex-direction:column;
+    padding:calc(var(--sat) + 14px) 16px calc(var(--sab) + 16px);
+    opacity:0;transform:translateY(18px);pointer-events:none;
+    transition:opacity .2s var(--ease),transform .24s var(--ease);}
+  #textFull.show{opacity:1;transform:translateY(0);pointer-events:auto;}
+  .tf-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+  .tf-title{font-family:Georgia,serif;font-size:24px;}
+  #tfDone{width:54px;height:54px;}
+  #tfArea{flex:1;width:100%;border:1.5px solid var(--line);border-radius:22px;
+    background:var(--surface);padding:16px;font-size:17px;line-height:1.5;
+    outline:none;resize:none;box-shadow:var(--sh-card);}
+  #tfArea:focus{border-color:var(--accent);}
+
   /* a menu item that only works while practising */
   .pop-item.off{opacity:.4;}
   .pop-item.off svg{color:var(--ink2);}
@@ -445,6 +460,10 @@
       <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
       Заметки
     </button>
+    <button class="pop-item" id="miTrim">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M8.1 8.1L20 20"/><path d="M8.1 15.9L20 4"/></svg>
+      Отрезок
+    </button>
     <button class="pop-item" id="miExport">
       <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><path d="M12 15V3"/></svg>
       Скачать отрезок
@@ -472,7 +491,13 @@
   <!-- background & text editor -->
   <div id="bgEditor">
     <div class="ed-handle"></div>
-    <textarea class="ta" id="bgTextInput" rows="2" placeholder="Напиши текст: слова, цитату, что угодно…"></textarea>
+    <div style="position:relative">
+      <textarea class="ta" id="bgTextInput" rows="2" placeholder="Напиши текст: слова, цитату, что угодно…"></textarea>
+      <button class="fbtn" id="btnTextBig" aria-label="Развернуть"
+              style="position:absolute;right:8px;bottom:8px;width:38px;height:38px">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
+      </button>
+    </div>
     <button class="btn" id="bgSaveText" style="margin-top:9px">Показать текст</button>
 
     <div class="ed-label">РАЗМЕР ТЕКСТА — <b id="bgTextSizeVal">24</b></div>
@@ -732,11 +757,56 @@
   <button class="btn ghost" data-close>Отмена</button>
 </div>
 
+<div class="sheet" id="shTrim">
+  <button class="sheet-x" data-close>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+  </button>
+  <div class="sh-title">Отрезок</div>
+  <div class="sh-sub">Меняет саму запись. Выбери, что сделать с отрезком.</div>
+  <div class="seg-row" id="trimModeRow" style="margin-bottom:14px">
+    <button class="seg on" data-mode="cut">Удалить</button>
+    <button class="seg" data-mode="keep">Сократить</button>
+  </div>
+  <div class="tp-row">
+    <div class="tp-label">От</div>
+    <div class="time-picker">
+      <input type="number" id="tmSM" inputmode="numeric" min="0" max="599" value="0">
+      <span class="colon">:</span>
+      <input type="number" id="tmSS" inputmode="numeric" min="0" max="59" value="0">
+    </div>
+    <button class="tp-now" id="tmSNow">сейчас</button>
+    <button class="tp-now" id="tmSStart">начало</button>
+  </div>
+  <div class="tp-row">
+    <div class="tp-label">До</div>
+    <div class="time-picker">
+      <input type="number" id="tmEM" inputmode="numeric" min="0" max="599" value="0">
+      <span class="colon">:</span>
+      <input type="number" id="tmES" inputmode="numeric" min="0" max="59" value="10">
+    </div>
+    <button class="tp-now" id="tmENow">сейчас</button>
+    <button class="tp-now" id="tmEEnd">конец</button>
+  </div>
+  <div style="font-size:12.5px;color:var(--ink2);line-height:1.45;margin:4px 2px 0" id="tmHint"></div>
+  <button class="btn primary" id="tmApply">Применить</button>
+</div>
+
 <div class="sheet" id="shConfirm">
   <div class="sh-title">Удалить?</div>
   <div class="sh-sub" id="cfText" style="margin-top:6px"></div>
   <button class="btn danger" id="cfYes">Удалить</button>
   <button class="btn ghost" data-close>Отмена</button>
+</div>
+
+<!-- full-screen text writing -->
+<div id="textFull">
+  <div class="tf-head">
+    <div class="tf-title">Текст</div>
+    <button class="fbtn accent" id="tfDone" aria-label="Сохранить">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+    </button>
+  </div>
+  <textarea id="tfArea" placeholder="Пиши здесь…"></textarea>
 </div>
 
 <div id="toast"></div>
@@ -773,6 +843,8 @@ function hideToast(){ $('toast').classList.remove('show'); if(toastTimer){clearT
 /* ---------------- state ---------------- */
 let lib = loadLS('pa.lib', []);
 let settings = Object.assign({seekBack:5, seekFwd:5, speed:1, breakSec:0}, loadLS('pa.settings', {}));
+const TEXT_STYLE = {size:24, margin:34, align:'center', font:'serif', color:'default'};
+function textStyle(){ return Object.assign({}, TEXT_STYLE, settings.textStyle||{}); }
 let cur = null;           // current track
 let media = null;         // active HTMLMediaElement
 let curBg = {text:null, media:null};
@@ -891,13 +963,21 @@ $('rnSave').addEventListener('click', ()=>{
   if(v){ tr.name=v; store('pa.lib',lib); renderLib(); if(cur&&cur.id===tr.id) $('trackName').textContent=v; }
   hap('light'); closeSheets();
 });
+let confirmFn=null;
+function askConfirm(title, text, btnText, fn){
+  $('shConfirm').querySelector('.sh-title').textContent=title;
+  $('cfText').textContent=text;
+  $('cfYes').textContent=btnText;
+  confirmFn=fn;
+  openSheet('shConfirm');
+}
 $('cmDelete').addEventListener('click', ()=>{
   hap('light'); closePops();
   const tr=lib.find(t=>t.id===cardMenuId); if(!tr) return;
-  $('cfText').textContent='«'+tr.name+'» будет удалено из приложения.';
-  openSheet('shConfirm');
+  askConfirm('Удалить?', '«'+tr.name+'» будет удалено из приложения.', 'Удалить', null);
 });
 $('cfYes').addEventListener('click', ()=>{
+  if(confirmFn){ const f=confirmFn; confirmFn=null; closeSheets(); f(); return; }
   const tr=lib.find(t=>t.id===cardMenuId); if(!tr){ closeSheets(); return; }
   if(hasPA()){
     try{ PA.deleteFile(tr.path); }catch(e){}
@@ -1220,6 +1300,111 @@ $('miTrans').addEventListener('click', ()=>{ hap('light'); closePops(); openTran
 $('miBg').addEventListener('click', ()=>{ hap('light'); closePops(); openBgEditor(); });
 $('miNotes').addEventListener('click', ()=>{ hap('light'); closePops(); openNotes(); });
 $('miExport').addEventListener('click', ()=>{ hap('light'); closePops(); openExport(); });
+$('miTrim').addEventListener('click', ()=>{ hap('light'); closePops(); openTrim(); });
+
+/* ---------------- trimming the recording itself ---------------- */
+let trimMode='cut';
+function openTrim(){
+  if(!cur || !media) return;
+  const t=Math.floor(media.currentTime||0), d=durT();
+  writeTime('tmSM','tmSS', t);
+  writeTime('tmEM','tmES', d ? Math.min(d, t+10) : t+10);
+  setTrimMode(trimMode);
+  openSheet('shTrim');
+}
+function setTrimMode(m){
+  trimMode=m;
+  [...$('trimModeRow').children].forEach(b=>b.classList.toggle('on', b.dataset.mode===m));
+  $('tmHint').textContent = m==='cut'
+    ? 'Этот кусок вырежется, а края склеятся. Запись станет короче.'
+    : 'Останется только этот кусок, всё остальное пропадёт.';
+}
+$('trimModeRow').addEventListener('click', e=>{
+  const b=e.target.closest('.seg'); if(!b) return;
+  hap('light'); setTrimMode(b.dataset.mode);
+});
+$('tmSNow').addEventListener('click', ()=>{ hap('light'); writeTime('tmSM','tmSS', Math.floor(media?media.currentTime:0)); });
+$('tmSStart').addEventListener('click', ()=>{ hap('light'); writeTime('tmSM','tmSS', 0); });
+$('tmENow').addEventListener('click', ()=>{ hap('light'); writeTime('tmEM','tmES', Math.floor(media?media.currentTime:0)); });
+$('tmEEnd').addEventListener('click', ()=>{
+  hap('light');
+  const d=durT();
+  if(!d){ toast('Длительность ещё не известна'); return; }
+  writeTime('tmEM','tmES', d);
+});
+$('tmApply').addEventListener('click', ()=>{
+  if(!cur || !media) return;
+  const s=readTime('tmSM','tmSS'), e=readTime('tmEM','tmES');
+  const d=durT();
+  if(e<=s){ toast('«До» должно быть позже, чем «От»'); return; }
+  if(d && s>=d){ toast('Начало позже конца записи'); return; }
+  if(trimMode==='keep' && d && s<=0 && e>=d){ toast('Это вся запись — резать нечего'); return; }
+  if(trimMode==='cut' && d && s<=0 && e>=d){ toast('Так удалится вся запись'); return; }
+  if(!hasPA()){ toast('Обрезка доступна в приложении'); return; }
+  const len=fmt(e-s);
+  let text = trimMode==='cut'
+    ? 'Из «'+cur.name+'» вырежется '+len+' (с '+fmt(s)+' по '+fmt(e)+'). Отменить это будет нельзя.'
+    : 'От «'+cur.name+'» останется только '+len+' (с '+fmt(s)+' по '+fmt(e)+'). Отменить это будет нельзя.';
+  if(cur.kind==='video') text+=' Останется только звук — картинка не сохранится.';
+  if(getNotes().length) text+=' Времена заметок сместятся.';
+  askConfirm(
+    trimMode==='cut' ? 'Удалить кусок?' : 'Сократить запись?',
+    text,
+    trimMode==='cut' ? 'Удалить' : 'Сократить',
+    ()=>runTrim(s, e, trimMode==='keep')
+  );
+});
+let trimTarget=null;
+function runTrim(s, e, keep){
+  trimTarget={id:cur.id, keep:keep, s:s, e:e};
+  if(media) media.pause();
+  practice=null; repeatAll=false; updatePracticeChip();
+  toast('Обрабатываю…', true);
+  try{ PA.trimTrack(cur.path, s, e, keep, cur.name); }
+  catch(err){ hideToast(); toast('Не получилось обрезать'); trimTarget=null; }
+}
+window.onTrimDone = function(res){
+  hideToast();
+  const t=trimTarget; trimTarget=null;
+  if(!t || !res){ toast('Не получилось обрезать'); return; }
+  const tr=lib.find(x=>x.id===t.id);
+  if(!tr){ toast('Запись не найдена'); return; }
+  tr.path=res.path;
+  tr.mime=res.mime;
+  tr.kind='audio';        // the edit always produces an audio file
+  tr.duration=0;
+  store('pa.lib', lib);
+  localStorage.removeItem('pa.pos.'+tr.id);
+  probeDuration(tr);
+  renderLib();
+  hap('medium');
+  if($('scrPlayer').classList.contains('open') && cur && cur.id===tr.id) openPlayer(tr.id);
+  toast(t.keep ? 'Запись сокращена' : 'Кусок удалён');
+};
+window.onTrimFailed = function(msg){
+  hideToast(); trimTarget=null;
+  hap('heavy');
+  toast('Не получилось обрезать: '+(msg||'ошибка'));
+};
+
+/* ---------------- full-screen text writing ---------------- */
+$('btnTextBig').addEventListener('click', ()=>{
+  hap('light');
+  $('tfArea').value=$('bgTextInput').value;
+  $('textFull').classList.add('show');
+  setTimeout(()=>$('tfArea').focus(), 250);
+});
+function closeTextFull(save){
+  if(save){
+    $('bgTextInput').value=$('tfArea').value;
+    if(curBg.text){
+      curBg.text.value=$('tfArea').value;
+      saveCurBg(); refreshTextBg();
+    }
+  }
+  $('textFull').classList.remove('show');
+}
+$('tfDone').addEventListener('click', ()=>{ hap('medium'); closeTextFull(true); });
 
 /* ---------------- background model ---------------- */
 function normalizeBg(raw){
@@ -1547,14 +1732,15 @@ function getSeg(rowId, attr, dflt){
 function isEditing(){ return $('scrPlayer').classList.contains('editing'); }
 function openBgEditor(){
   const t=curBg.text;
+  const st=textStyle();   // last used look, for a text that does not exist yet
   $('bgTextInput').value = t ? t.value : '';
-  const ts = t && t.size ? t.size : 24;
+  const ts = t && t.size ? t.size : st.size;
   $('bgTextSize').value=ts; $('bgTextSizeVal').textContent=ts;
-  const mg = t && t.margin!=null ? t.margin : 34;
+  const mg = t && t.margin!=null ? t.margin : st.margin;
   $('bgMargin').value=mg; $('bgMarginVal').textContent=mg;
-  setSeg('alignRow','align', t && t.align ? t.align : 'center');
-  setSeg('fontRow','font', t && t.font ? t.font : 'serif');
-  setSeg('colorRow','color', t && t.color ? t.color : 'default');
+  setSeg('alignRow','align', t && t.align ? t.align : st.align);
+  setSeg('fontRow','font', t && t.font ? t.font : st.font);
+  setSeg('colorRow','color', t && t.color ? t.color : st.color);
   $('bgClearText').style.display = t ? 'flex' : 'none';
   const md=curBg.media;
   $('bgMediaSizeWrap').style.display = md ? 'block' : 'none';
@@ -1587,6 +1773,11 @@ $('bgTextInput').addEventListener('input', ()=>{
     saveCurBg(); refreshTextBg();
   }
 });
+/* the look chosen here becomes the default for the next text */
+function rememberTextStyle(key, value){
+  settings.textStyle=Object.assign({}, settings.textStyle, {[key]:value});
+  store('pa.settings', settings);
+}
 function liveTextControl(id, valId, key, suffix){
   let last=null;
   $(id).addEventListener('input', ()=>{
@@ -1595,6 +1786,7 @@ function liveTextControl(id, valId, key, suffix){
     last=v;
     $(valId).textContent=v+(suffix||'');
     hap('light');
+    rememberTextStyle(key, v);
     if(curBg.text){ curBg.text[key]=v; saveCurBg(); refreshTextBg(); }
   });
 }
@@ -1605,6 +1797,7 @@ function segRowHandler(rowId, attr, key){
     const b=e.target.closest('[data-'+attr+']'); if(!b) return;
     hap('light');
     setSeg(rowId, attr, b.dataset[attr]);
+    rememberTextStyle(key, b.dataset[attr]);
     if(curBg.text){ curBg.text[key]=b.dataset[attr]; saveCurBg(); refreshTextBg(); }
   });
 }
@@ -2010,6 +2203,7 @@ document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',
 
 /* ---------------- system back ---------------- */
 window.handleBack = function(){
+  if($('textFull').classList.contains('show')){ closeTextFull(true); return true; }
   if(anyPopOpen()){ closePops(); return true; }
   if(anySheetOpen()){ closeSheets(); return true; }
   if(pickingWord){ stopPicking(); return true; }

@@ -21,6 +21,15 @@ class AudioExport {
 
     static File extract(String srcPath, long startMs, long endMs, File outDir, String baseName)
             throws IOException {
+        return edit(srcPath, startMs, endMs, true, outDir, baseName);
+    }
+
+    /**
+     * keep = true  → only [startMs, endMs] survives.
+     * keep = false → that range is removed and the two remaining parts are joined.
+     */
+    static File edit(String srcPath, long startMs, long endMs, boolean keep,
+                     File outDir, String baseName) throws IOException {
         outDir.mkdirs();
         String safe = baseName.replaceAll("[^\\p{L}\\p{N} _-]", "").trim();
         if (safe.isEmpty()) safe = "audio";
@@ -46,7 +55,7 @@ class AudioExport {
             String mime = format.getString(MediaFormat.KEY_MIME);
             if (MediaFormat.MIMETYPE_AUDIO_AAC.equals(mime)) {
                 File out = new File(outDir, safe + ".m4a");
-                if (copyAac(extractor, format, startMs, endMs, out)) return out;
+                if (copyAac(extractor, format, startMs, endMs, keep, out)) return out;
                 // fall through to WAV if the muxer refused the format
                 extractor.release();
                 extractor = new MediaExtractor();
@@ -55,7 +64,7 @@ class AudioExport {
                 format = extractor.getTrackFormat(track);
             }
             File out = new File(outDir, safe + ".wav");
-            decodeToWav(extractor, format, startMs, endMs, out);
+            decodeToWav(extractor, format, startMs, endMs, keep, out);
             return out;
         } finally {
             try {
@@ -65,31 +74,47 @@ class AudioExport {
         }
     }
 
-    /** Sample-accurate copy of compressed AAC frames into an MP4 container. */
+    /**
+     * Sample-accurate copy of compressed AAC frames into an MP4 container.
+     * AAC frames are independent, so dropping a range and shifting the
+     * timestamps of what follows joins the two parts without re-encoding.
+     */
     private static boolean copyAac(MediaExtractor extractor, MediaFormat format,
-                                   long startMs, long endMs, File out) {
+                                   long startMs, long endMs, boolean keep, File out) {
         MediaMuxer muxer = null;
         try {
             muxer = new MediaMuxer(out.getAbsolutePath(), MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
             int outTrack = muxer.addTrack(format);
             muxer.start();
 
-            extractor.seekTo(startMs * 1000L, MediaExtractor.SEEK_TO_CLOSEST_SYNC);
+            long startUs = startMs * 1000L;
+            long endUs = endMs * 1000L;
+            extractor.seekTo(keep ? startUs : 0, MediaExtractor.SEEK_TO_CLOSEST_SYNC);
             ByteBuffer buf = ByteBuffer.allocate(512 * 1024);
             MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
-            long endUs = endMs * 1000L;
             long firstUs = -1;
+            long removedUs = endUs - startUs;
             boolean wrote = false;
 
             while (true) {
                 int size = extractor.readSampleData(buf, 0);
                 if (size < 0) break;
                 long ptsUs = extractor.getSampleTime();
-                if (ptsUs > endUs) break;
-                if (firstUs < 0) firstUs = ptsUs;
+                long outPts;
+                if (keep) {
+                    if (ptsUs > endUs) break;
+                    if (firstUs < 0) firstUs = ptsUs;
+                    outPts = ptsUs - firstUs;
+                } else {
+                    if (ptsUs >= startUs && ptsUs <= endUs) {   // dropped range
+                        extractor.advance();
+                        continue;
+                    }
+                    outPts = ptsUs < startUs ? ptsUs : ptsUs - removedUs;
+                }
                 info.offset = 0;
                 info.size = size;
-                info.presentationTimeUs = ptsUs - firstUs;
+                info.presentationTimeUs = outPts;
                 info.flags = extractor.getSampleFlags();
                 muxer.writeSampleData(outTrack, buf, info);
                 wrote = true;
@@ -110,9 +135,10 @@ class AudioExport {
         }
     }
 
-    /** Decodes the range to 16-bit PCM and writes a WAV file. */
+    /** Decodes to 16-bit PCM and writes a WAV file: either only the range, or everything but it. */
     private static void decodeToWav(MediaExtractor extractor, MediaFormat format,
-                                    long startMs, long endMs, File out) throws IOException {
+                                    long startMs, long endMs, boolean keep, File out)
+            throws IOException {
         String mime = format.getString(MediaFormat.KEY_MIME);
         MediaCodec codec = MediaCodec.createDecoderByType(mime);
         codec.configure(format, null, null, 0);
@@ -123,9 +149,9 @@ class AudioExport {
         int channels = format.containsKey(MediaFormat.KEY_CHANNEL_COUNT)
                 ? format.getInteger(MediaFormat.KEY_CHANNEL_COUNT) : 2;
 
-        extractor.seekTo(startMs * 1000L, MediaExtractor.SEEK_TO_CLOSEST_SYNC);
         long startUs = startMs * 1000L;
         long endUs = endMs * 1000L;
+        extractor.seekTo(keep ? startUs : 0, MediaExtractor.SEEK_TO_CLOSEST_SYNC);
 
         OutputStream os = new FileOutputStream(out);
         writeWavHeader(os, sampleRate, channels, 0);
@@ -142,7 +168,7 @@ class AudioExport {
                         ByteBuffer in = codec.getInputBuffer(inIdx);
                         int size = in == null ? -1 : extractor.readSampleData(in, 0);
                         long ptsUs = extractor.getSampleTime();
-                        if (size < 0 || ptsUs > endUs) {
+                        if (size < 0 || (keep && ptsUs > endUs)) {
                             codec.queueInputBuffer(inIdx, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
                             inputDone = true;
                         } else {
@@ -155,8 +181,9 @@ class AudioExport {
                 int outIdx = codec.dequeueOutputBuffer(info, 10000);
                 if (outIdx >= 0) {
                     if ((info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) outputDone = true;
-                    if (info.size > 0 && info.presentationTimeUs >= startUs
-                            && info.presentationTimeUs <= endUs) {
+                    boolean inRange = info.presentationTimeUs >= startUs
+                            && info.presentationTimeUs <= endUs;
+                    if (info.size > 0 && (keep == inRange)) {
                         ByteBuffer outBuf = codec.getOutputBuffer(outIdx);
                         if (outBuf != null) {
                             byte[] chunk = new byte[info.size];
