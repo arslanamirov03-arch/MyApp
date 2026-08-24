@@ -750,6 +750,13 @@
   <button class="btn" id="karPrompt" style="margin-top:4px">Показать запрос для ИИ</button>
   <textarea class="ta" id="karInput" rows="5" placeholder="0.00 Der&#10;0.42 Kaffee&#10;0.95 schmeckt"></textarea>
   <div style="font-size:12.5px;color:var(--ink2);margin-top:8px" id="karCount"></div>
+  <div class="ed-label" style="margin-top:14px">ГДЕ ИСКАТЬ СЛОВА</div>
+  <div class="seg-row" id="karScopeRow">
+    <button class="seg on" data-scope="all">Весь текст</button>
+    <button class="seg" data-scope="sentence">Предложение</button>
+    <button class="seg" data-scope="word">Со слова</button>
+  </div>
+  <div style="font-size:12px;color:var(--ink2);line-height:1.4;margin:8px 2px 0" id="karScopeHint"></div>
   <div class="ed-label" style="margin-top:14px">ЧТО ПОДСВЕЧИВАТЬ</div>
   <div class="seg-row" id="karUnitRow">
     <button class="seg on" data-unit="word">Слово</button>
@@ -1780,8 +1787,18 @@ function stopPicking(){
   closePops();
   refreshTextBg();
 }
-$('btnPickClose').addEventListener('click', ()=>{ hap('light'); stopPicking(); });
-$('btnPickDone').addEventListener('click', ()=>{ hap('medium'); closePops(); stopPicking(); });
+$('btnPickClose').addEventListener('click', ()=>{
+  hap('light');
+  const back=karPicking; karPicking=null;
+  stopPicking();
+  if(back) reopenKaraoke();
+});
+$('btnPickDone').addEventListener('click', ()=>{
+  hap('medium'); closePops();
+  const back=karPicking; karPicking=null;
+  stopPicking();
+  if(back) reopenKaraoke();
+});
 
 let wordIdx=-1;
 $('bgLayer').addEventListener('click', e=>{
@@ -1798,7 +1815,18 @@ $('bgLayer').addEventListener('click', e=>{
     }
     const a=Math.min(rangeStart,i), b=Math.max(rangeStart,i);
     stopPicking();
+    if(karPicking){ karPicking=null; karScope={a:a, b:b}; reopenKaraoke(); return; }
     openTransSheet(a,b);
+    return;
+  }
+  if(pickingWord && w && karPicking){
+    e.stopPropagation();
+    hap('medium');
+    const i=parseInt(w.dataset.i,10);
+    karPicking=null;
+    stopPicking();
+    karScope={a:i, b:textWords().length-1};
+    reopenKaraoke();
     return;
   }
   if(pickingWord && w){
@@ -2372,19 +2400,45 @@ function parseClock(str){
   parts.forEach(p=>{ sec=sec*60+(isFinite(p)?p:0); });
   return sec;
 }
-function karIndexAt(t){
+/* Each mark is bound to a real word of the text, matched by the word itself,
+   so a mark that says 4s highlights the word that is spoken at 4s even when
+   the AI listed fewer or more words than the text has. */
+function normWord(w){
+  return String(w||'').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,'');
+}
+function alignKaraoke(items, words, a, b){
+  const out=[];
+  let cursor=a, skipped=0;
+  items.forEach(it=>{
+    const target=normWord(it.w);
+    if(!target) return;
+    let found=-1;
+    for(let k=cursor;k<=b && k<words.length;k++){
+      if(normWord(words[k])===target){ found=k; break; }
+    }
+    if(found<0){
+      for(let k=cursor;k<=b && k<words.length;k++){
+        const w=normWord(words[k]);
+        if(w && (w.indexOf(target)===0 || target.indexOf(w)===0)){ found=k; break; }
+      }
+    }
+    if(found<0){ skipped++; return; }
+    out.push({i:found, t:it.t, e:it.e});
+    cursor=found+1;
+  });
+  return {items:out, skipped:skipped};
+}
+function karItemAt(t){
   const k=getKar();
-  if(!k || !k.items.length) return -1;
+  if(!k || !k.items || !k.items.length) return null;
   let lo=-1;
   for(let i=0;i<k.items.length;i++){
-    const it=k.items[i];
-    if(t+0.001 >= it.t) lo=i; else break;
+    if(t+0.001 >= k.items[i].t) lo=i; else break;
   }
-  if(lo>=0){
-    const it=k.items[lo];
-    if(it.e!=null && t > it.e+0.15) return -1;   // gap between phrases
-  }
-  return lo;
+  if(lo<0) return null;
+  const it=k.items[lo];
+  if(it.e!=null && t > it.e+0.15) return null;    // silence between phrases
+  return it;
 }
 let karLast=-2;
 function updateKaraoke(force){
@@ -2395,7 +2449,8 @@ function updateKaraoke(force){
     if(karLast!==-2){ karLast=-2; box.querySelectorAll('.w').forEach(clearKarWord); }
     return;
   }
-  const idx = media ? karIndexAt(media.currentTime) : -1;
+  const it = media ? karItemAt(media.currentTime) : null;
+  const idx = it ? it.i : -1;
   if(!force && idx===karLast) return;
   karLast=idx;
   const col=KAR_COLORS[k.color||'amber'];
@@ -2434,18 +2489,23 @@ function sentenceBounds(words, idx){
   }
   return [from,to];
 }
-$('miKaraoke').addEventListener('click', ()=>{
-  hap('light'); closePops();
+let karPicking=null;
+function openKaraokeSheet(keepScope){
   if(!curBg.text){ toast('Сначала добавь текст в «Фон и текст»'); return; }
   const k=getKar();
   $('karOn').checked = !!(k && k.on);
   $('karInput').value = k && k.raw ? k.raw : '';
+  if(!keepScope) karScope = k && k.scope ? k.scope : null;
+  setSeg('karScopeRow','scope', karScope ? (karScope.b>karScope.a ? 'sentence' : 'word') : 'all');
   setSeg('karUnitRow','unit', k && k.unit ? k.unit : 'word');
   setSeg('karStyleRow','style', k && k.style ? k.style : 'fill');
   setSeg('karColorRow','kcolor', k && k.color ? k.color : 'amber');
+  updateKarScopeHint();
   updateKarCount();
   openSheet('shKaraoke');
-});
+}
+function reopenKaraoke(){ setTimeout(()=>openKaraokeSheet(true), 260); }
+$('miKaraoke').addEventListener('click', ()=>{ hap('light'); closePops(); openKaraokeSheet(false); });
 function updateKarCount(){
   const items=parseKaraoke($('karInput').value);
   const need=wordCount(curBg.text ? curBg.text.value : '');
@@ -2463,6 +2523,36 @@ $('karPrompt').addEventListener('click', ()=>{
   updateKarCount();
   toast('Скопируй это в ИИ, а ответ вставь сюда же');
 });
+let karScope=null;   // {a,b} — часть текста, к которой привязываются метки
+function updateKarScopeHint(){
+  const sc=getSeg('karScopeRow','scope','all');
+  const words=textWords();
+  if(sc==='all'){
+    karScope=null;
+    $('karScopeHint').textContent='Метки ищутся по всему тексту ('+words.length+' слов).';
+    return;
+  }
+  if(karScope){
+    const quote=words.slice(karScope.a, karScope.b+1).join(' ');
+    $('karScopeHint').textContent='Выбрано: «'+(quote.length>50?quote.slice(0,50)+'…':quote)+'»';
+  } else {
+    $('karScopeHint').textContent = sc==='sentence'
+      ? 'Нажми «Выбрать в тексте» и укажи первое и последнее слово.'
+      : 'Нажми «Выбрать в тексте» и укажи слово, с которого начинать.';
+  }
+}
+$('karScopeRow').addEventListener('click', e=>{
+  const b=e.target.closest('.seg'); if(!b) return;
+  hap('light');
+  setSeg('karScopeRow','scope', b.dataset.scope);
+  karScope=null;
+  updateKarScopeHint();
+  if(b.dataset.scope!=='all'){
+    closeSheets();
+    karPicking=b.dataset.scope;
+    startPicking(b.dataset.scope==='sentence' ? 'range' : 'word');
+  }
+});
 segRowHandler2('karUnitRow','unit');
 segRowHandler2('karStyleRow','style');
 segRowHandler2('karColorRow','kcolor');
@@ -2474,9 +2564,19 @@ function segRowHandler2(rowId, attr){
 }
 $('karApply').addEventListener('click', ()=>{
   const raw=$('karInput').value;
-  const items=parseKaraoke(raw);
-  if($('karOn').checked && !items.length){ toast('Не нашёл ни одной метки времени'); return; }
-  setKar({on:$('karOn').checked, raw:raw, items:items,
+  const marks=parseKaraoke(raw);
+  if($('karOn').checked && !marks.length){ toast('Не нашёл ни одной метки времени'); return; }
+  const words=textWords();
+  const a = karScope ? karScope.a : 0;
+  const b = karScope ? karScope.b : words.length-1;
+  const res=alignKaraoke(marks, words, a, b);
+  if($('karOn').checked && !res.items.length){
+    hap('heavy');
+    toast('Слова из меток не найдены в тексте — проверь, тот ли это текст');
+    return;
+  }
+  setKar({on:$('karOn').checked, raw:raw, items:res.items,
+          scope:karScope, matched:res.items.length, total:marks.length,
           unit:getSeg('karUnitRow','unit','word'),
           style:getSeg('karStyleRow','style','fill'),
           color:getSeg('karColorRow','kcolor','amber')});
@@ -2485,7 +2585,10 @@ $('karApply').addEventListener('click', ()=>{
   updateKaraoke(true);
   updateFeatureStates();
   hap('medium'); closeSheets();
-  toast($('karOn').checked ? 'Подсветка включена' : 'Подсветка сохранена');
+  if(!$('karOn').checked){ toast('Подсветка сохранена'); return; }
+  toast(res.skipped
+    ? 'Подсветка включена · привязано '+res.items.length+' из '+marks.length+' меток'
+    : 'Подсветка включена · все '+res.items.length+' меток на месте');
 });
 $('karClear').addEventListener('click', ()=>{
   setKar(null); karLast=-2;
