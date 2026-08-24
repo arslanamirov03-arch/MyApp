@@ -40,6 +40,7 @@ public class MainActivity extends Activity {
     private static final int REQ_BG = 12;
 
     private WebView web;
+    private volatile int hapticLevel = 50;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -223,20 +224,31 @@ public class MainActivity extends Activity {
                 Vibrator v = (Vibrator) getSystemService(VIBRATOR_SERVICE);
                 if (v == null || !v.hasVibrator()) return;
                 long ms;
-                int amp;
+                int base;
                 if ("heavy".equals(type)) {
                     ms = 45;
-                    amp = VibrationEffect.DEFAULT_AMPLITUDE;
+                    base = 255;
                 } else if ("medium".equals(type)) {
                     ms = 25;
-                    amp = VibrationEffect.DEFAULT_AMPLITUDE;
+                    base = 180;
                 } else {
                     ms = 12;
-                    amp = 90;
+                    base = 110;
                 }
+                // hapticLevel is 1..100, where 50 keeps the stock feel
+                double k = hapticLevel / 50.0;
+                int amp = (int) Math.round(base * k);
+                amp = Math.max(1, Math.min(255, amp));
+                ms = Math.max(6, Math.min(120, Math.round(ms * (0.6 + 0.8 * k))));
                 v.vibrate(VibrationEffect.createOneShot(ms, amp));
             } catch (Exception ignored) {
             }
+        }
+
+        /** Scales every haptic tap; 1 is barely there, 100 is the strongest. */
+        @JavascriptInterface
+        public void setHapticStrength(int level) {
+            hapticLevel = Math.max(1, Math.min(100, level));
         }
 
         @JavascriptInterface
