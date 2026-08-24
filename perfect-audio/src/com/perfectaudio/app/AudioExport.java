@@ -25,6 +25,122 @@ class AudioExport {
     }
 
     /**
+     * Same as extract, but the caller picks the container: "m4a" (AAC, small and
+     * accepted almost everywhere) or "wav" (uncompressed).
+     */
+    static File extractAs(String srcPath, long startMs, long endMs, File outDir,
+                          String baseName, String format) throws IOException {
+        File wav = null;
+        try {
+            if ("m4a".equals(format)) {
+                File direct = edit(srcPath, startMs, endMs, true, outDir, baseName);
+                if (direct.getName().endsWith(".m4a")) return direct;   // copied without re-encoding
+                wav = direct;
+                File out = new File(outDir, stripExt(direct.getName()) + ".m4a");
+                encodeWavToM4a(wav, out);
+                return out;
+            }
+            return edit(srcPath, startMs, endMs, true, outDir, baseName);
+        } finally {
+            if (wav != null && wav.exists()) wav.delete();
+        }
+    }
+
+    private static String stripExt(String n) {
+        int i = n.lastIndexOf('.');
+        return i > 0 ? n.substring(0, i) : n;
+    }
+
+    /** Encodes a 16-bit PCM WAV into AAC inside an MP4 container. */
+    private static void encodeWavToM4a(File wav, File out) throws IOException {
+        RandomAccessFile raf = new RandomAccessFile(wav, "r");
+        MediaCodec enc = null;
+        MediaMuxer muxer = null;
+        try {
+            byte[] head = new byte[44];
+            raf.readFully(head);
+            int channels = le16(head, 22);
+            int sampleRate = le32(head, 24);
+            if (channels < 1 || channels > 2) channels = 2;
+            if (sampleRate < 8000) sampleRate = 44100;
+
+            MediaFormat fmt = MediaFormat.createAudioFormat(
+                    MediaFormat.MIMETYPE_AUDIO_AAC, sampleRate, channels);
+            fmt.setInteger(MediaFormat.KEY_AAC_PROFILE,
+                    android.media.MediaCodecInfo.CodecProfileLevel.AACObjectLC);
+            fmt.setInteger(MediaFormat.KEY_BIT_RATE, channels > 1 ? 128000 : 96000);
+            fmt.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 32 * 1024);
+
+            enc = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_AAC);
+            enc.configure(fmt, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
+            enc.start();
+
+            muxer = new MediaMuxer(out.getAbsolutePath(), MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
+            int track = -1;
+            boolean muxing = false;
+
+            MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
+            byte[] chunk = new byte[8192];
+            long totalRead = 0;
+            boolean inputDone = false, outputDone = false;
+            final int bytesPerSec = sampleRate * channels * 2;
+
+            while (!outputDone) {
+                if (!inputDone) {
+                    int inIdx = enc.dequeueInputBuffer(10000);
+                    if (inIdx >= 0) {
+                        ByteBuffer in = enc.getInputBuffer(inIdx);
+                        int n = in == null ? -1 : raf.read(chunk, 0, Math.min(chunk.length, in.capacity()));
+                        long ptsUs = bytesPerSec > 0 ? totalRead * 1000000L / bytesPerSec : 0;
+                        if (n <= 0) {
+                            enc.queueInputBuffer(inIdx, 0, 0, ptsUs, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
+                            inputDone = true;
+                        } else {
+                            in.clear();
+                            in.put(chunk, 0, n);
+                            enc.queueInputBuffer(inIdx, 0, n, ptsUs, 0);
+                            totalRead += n;
+                        }
+                    }
+                }
+                int outIdx = enc.dequeueOutputBuffer(info, 10000);
+                if (outIdx == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                    track = muxer.addTrack(enc.getOutputFormat());
+                    muxer.start();
+                    muxing = true;
+                } else if (outIdx >= 0) {
+                    ByteBuffer outBuf = enc.getOutputBuffer(outIdx);
+                    if ((info.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) info.size = 0;
+                    if (info.size > 0 && muxing && outBuf != null) {
+                        outBuf.position(info.offset);
+                        outBuf.limit(info.offset + info.size);
+                        muxer.writeSampleData(track, outBuf, info);
+                    }
+                    enc.releaseOutputBuffer(outIdx, false);
+                    if ((info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) outputDone = true;
+                }
+            }
+            if (muxing) muxer.stop();
+        } catch (Exception e) {
+            if (out.exists()) out.delete();
+            throw new IOException("encode failed: " + e.getMessage());
+        } finally {
+            try { raf.close(); } catch (Exception ignored) {}
+            if (enc != null) { try { enc.stop(); enc.release(); } catch (Exception ignored) {} }
+            if (muxer != null) { try { muxer.release(); } catch (Exception ignored) {} }
+        }
+    }
+
+    private static int le16(byte[] b, int off) {
+        return (b[off] & 0xff) | ((b[off + 1] & 0xff) << 8);
+    }
+
+    private static int le32(byte[] b, int off) {
+        return (b[off] & 0xff) | ((b[off + 1] & 0xff) << 8)
+                | ((b[off + 2] & 0xff) << 16) | ((b[off + 3] & 0xff) << 24);
+    }
+
+    /**
      * keep = true  → only [startMs, endMs] survives.
      * keep = false → that range is removed and the two remaining parts are joined.
      */

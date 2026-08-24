@@ -171,7 +171,7 @@
   #pickBar .hint{flex:1;background:var(--surface);border:1px solid var(--line);
     box-shadow:var(--sh-card);border-radius:999px;padding:11px 18px;
     font-size:13.5px;font-weight:600;text-align:center;}
-  #btnPickClose{width:50px;height:50px;flex:0 0 auto;}
+  #btnPickClose,#btnPickDone{width:50px;height:50px;flex:0 0 auto;}
 
   /* ---------- popovers ---------- */
   .pop{position:fixed;z-index:40;background:var(--surface);border:1px solid var(--line);
@@ -284,7 +284,8 @@
   .time-picker input:focus{border-color:var(--accent);}
   .time-picker .colon{font-size:21px;font-weight:700;color:var(--ink2);}
   .time-picker .colon.dot{font-size:19px;}
-  .tp-row{display:flex;align-items:center;gap:6px;margin-bottom:12px;}
+  .tp-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:12px;}
+  .tp-btns{display:flex;gap:6px;margin-left:auto;}
   .tp-label{flex:0 0 32px;font-size:13.5px;font-weight:700;color:var(--ink2);}
   .tp-now{flex:0 0 auto;padding:9px 11px;border-radius:12px;background:#F4F1E8;
     border:1px solid var(--line);font-size:12.5px;font-weight:700;
@@ -449,6 +450,9 @@
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
     </button>
     <div class="hint" id="pickHint">Нажми на любое слово</div>
+    <button class="fbtn accent" id="btnPickDone" aria-label="Готово">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+    </button>
   </div>
 
   <!-- more popover -->
@@ -634,9 +638,11 @@
       <span class="colon dot">.</span>
       <input type="number" class="ms" id="prSMS" inputmode="numeric" min="0" max="999" value="0">
     </div>
-    <button class="tp-now" id="prSNow">сейчас</button>
-    <button class="tp-now" id="prSStart">начало</button>
-  </div>
+    <div class="tp-btns">
+      <button class="tp-now" id="prSNow">сейчас</button>
+      <button class="tp-now" id="prSStart">начало</button>
+    </div>
+    </div>
   <div class="tp-row">
     <div class="tp-label">До</div>
     <div class="time-picker">
@@ -646,9 +652,11 @@
       <span class="colon dot">.</span>
       <input type="number" class="ms" id="prEMS" inputmode="numeric" min="0" max="999" value="0">
     </div>
-    <button class="tp-now" id="prENow">сейчас</button>
-    <button class="tp-now" id="prEEnd">конец</button>
-  </div>
+    <div class="tp-btns">
+      <button class="tp-now" id="prENow">сейчас</button>
+      <button class="tp-now" id="prEEnd">конец</button>
+    </div>
+    </div>
   <div class="switch-row">
     <span>Бесконечный повтор</span>
     <label class="switch">
@@ -873,9 +881,11 @@
       <span class="colon dot">.</span>
       <input type="number" class="ms" id="exSMS" inputmode="numeric" min="0" max="999" value="0">
     </div>
-    <button class="tp-now" id="exSNow">сейчас</button>
-    <button class="tp-now" id="exSStart">начало</button>
-  </div>
+    <div class="tp-btns">
+      <button class="tp-now" id="exSNow">сейчас</button>
+      <button class="tp-now" id="exSStart">начало</button>
+    </div>
+    </div>
   <div class="tp-row">
     <div class="tp-label">До</div>
     <div class="time-picker">
@@ -885,9 +895,17 @@
       <span class="colon dot">.</span>
       <input type="number" class="ms" id="exEMS" inputmode="numeric" min="0" max="999" value="0">
     </div>
-    <button class="tp-now" id="exENow">сейчас</button>
-    <button class="tp-now" id="exEEnd">конец</button>
+    <div class="tp-btns">
+      <button class="tp-now" id="exENow">сейчас</button>
+      <button class="tp-now" id="exEEnd">конец</button>
+    </div>
+    </div>
+  <div class="ed-label">ФОРМАТ</div>
+  <div class="seg-row" id="exFormatRow">
+    <button class="seg on" data-fmt="m4a">M4A</button>
+    <button class="seg" data-fmt="wav">WAV</button>
   </div>
+  <div style="font-size:12px;color:var(--ink2);line-height:1.4;margin:8px 2px 0" id="exFmtHint"></div>
   <button class="btn primary" id="exStart">Скачать</button>
   <button class="btn" id="exShare" style="display:none">Отправить</button>
 </div>
@@ -919,9 +937,11 @@
       <span class="colon dot">.</span>
       <input type="number" class="ms" id="tmSMS" inputmode="numeric" min="0" max="999" value="0">
     </div>
-    <button class="tp-now" id="tmSNow">сейчас</button>
-    <button class="tp-now" id="tmSStart">начало</button>
-  </div>
+    <div class="tp-btns">
+      <button class="tp-now" id="tmSNow">сейчас</button>
+      <button class="tp-now" id="tmSStart">начало</button>
+    </div>
+    </div>
   <div class="tp-row">
     <div class="tp-label">До</div>
     <div class="time-picker">
@@ -931,9 +951,11 @@
       <span class="colon dot">.</span>
       <input type="number" class="ms" id="tmEMS" inputmode="numeric" min="0" max="999" value="0">
     </div>
-    <button class="tp-now" id="tmENow">сейчас</button>
-    <button class="tp-now" id="tmEEnd">конец</button>
-  </div>
+    <div class="tp-btns">
+      <button class="tp-now" id="tmENow">сейчас</button>
+      <button class="tp-now" id="tmEEnd">конец</button>
+    </div>
+    </div>
   <div style="font-size:12.5px;color:var(--ink2);line-height:1.45;margin:4px 2px 0" id="tmHint"></div>
   <button class="btn primary" id="tmApply">Применить</button>
 </div>
@@ -1759,6 +1781,7 @@ function stopPicking(){
   refreshTextBg();
 }
 $('btnPickClose').addEventListener('click', ()=>{ hap('light'); stopPicking(); });
+$('btnPickDone').addEventListener('click', ()=>{ hap('medium'); closePops(); stopPicking(); });
 
 let wordIdx=-1;
 $('bgLayer').addEventListener('click', e=>{
@@ -2590,6 +2613,8 @@ function openExport(s, e){
   }
   writeTime('exSM','exSS', s);
   writeTime('exEM','exES', e);
+  setSeg('exFormatRow','fmt', settings.exportFormat || 'm4a');
+  updateFmtHint();
   $('exShare').style.display = lastExport ? 'flex' : 'none';
   $('exStart').textContent='Скачать';
   $('exStart').removeAttribute('disabled');
@@ -2616,7 +2641,7 @@ $('exStart').addEventListener('click', ()=>{
   $('exStart').setAttribute('disabled','');
   hap('medium');
   const name = cur.name + ' ' + fmt(s).replace(/:/g,'-') + '_' + fmt(e).replace(/:/g,'-');
-  try{ PA.exportClip(cur.path, s, e, name); }
+  try{ PA.exportClip(cur.path, s, e, name, settings.exportFormat || 'm4a'); }
   catch(err){ exporting=false; $('exStart').textContent='Скачать'; $('exStart').removeAttribute('disabled'); toast('Не получилось'); }
 });
 window.onExportDone = function(info){
@@ -2637,6 +2662,20 @@ window.onExportFailed = function(msg){
   hap('heavy');
   toast('Не получилось вырезать отрезок');
 };
+function updateFmtHint(){
+  const f=getSeg('exFormatRow','fmt','m4a');
+  $('exFmtHint').textContent = f==='m4a'
+    ? 'M4A — сжатый звук, файл небольшой. Принимают мессенджеры, почта и плееры — везде, где берут MP3.'
+    : 'WAV — без сжатия, максимальное качество, но файл в разы больше.';
+}
+$('exFormatRow').addEventListener('click', e=>{
+  const b=e.target.closest('.seg'); if(!b) return;
+  hap('light');
+  setSeg('exFormatRow','fmt', b.dataset.fmt);
+  settings.exportFormat=b.dataset.fmt;
+  store('pa.settings', settings);
+  updateFmtHint();
+});
 $('exShare').addEventListener('click', ()=>{
   if(!lastExport || !hasPA()) return;
   hap('light');

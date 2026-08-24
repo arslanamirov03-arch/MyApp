@@ -287,12 +287,12 @@ public class MainActivity extends Activity {
 
         /** Cuts [startSec, endSec] out of the track and saves it. */
         @JavascriptInterface
-        public void exportClip(String path, double startSec, double endSec, String name) {
+        public void exportClip(String path, double startSec, double endSec, String name, String format) {
             new Thread(() -> {
                 try {
                     String p = path.startsWith("file://") ? Uri.parse(path).getPath() : path;
-                    File out = AudioExport.extract(p, (long) (startSec * 1000), (long) (endSec * 1000),
-                            new File(getFilesDir(), "export"), name);
+                    File out = AudioExport.extractAs(p, (long) (startSec * 1000), (long) (endSec * 1000),
+                            new File(getFilesDir(), "export"), name, format);
                     String savedTo = saveToDownloads(out);
                     JSONObject o = new JSONObject();
                     o.put("name", out.getName());
