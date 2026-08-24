@@ -747,9 +747,14 @@
       <span class="knob-bg"><span class="knob-dot"></span></span>
     </label>
   </div>
-  <button class="btn" id="karPrompt" style="margin-top:4px">Показать запрос для ИИ</button>
+  <button class="btn" id="karPrompt" style="margin-top:4px">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="3"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>
+    Скопировать запрос для ИИ
+  </button>
   <textarea class="ta" id="karInput" rows="5" placeholder="0.00 Der&#10;0.42 Kaffee&#10;0.95 schmeckt"></textarea>
   <div style="font-size:12.5px;color:var(--ink2);margin-top:8px" id="karCount"></div>
+  <div id="karError" style="display:none;margin-top:10px;padding:11px 13px;border-radius:14px;
+       background:#FBEAE6;color:#9C3A26;font-size:13px;line-height:1.45;"></div>
   <div class="ed-label" style="margin-top:14px">ГДЕ ИСКАТЬ СЛОВА</div>
   <div class="seg-row" id="karScopeRow">
     <button class="seg on" data-scope="all">Весь текст</button>
@@ -2406,27 +2411,28 @@ function parseClock(str){
 function normWord(w){
   return String(w||'').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,'');
 }
-function alignKaraoke(items, words, a, b){
-  const out=[];
-  let cursor=a, skipped=0;
-  items.forEach(it=>{
-    const target=normWord(it.w);
-    if(!target) return;
-    let found=-1;
-    for(let k=cursor;k<=b && k<words.length;k++){
-      if(normWord(words[k])===target){ found=k; break; }
+/* Strict: the marks must be the same words, in the same order, as the text
+   in the chosen range. Then mark N is word N and the time written next to it
+   is exactly when that word lights up. */
+function alignKaraoke(marks, words, a, b){
+  const need = b - a + 1;
+  if(marks.length !== need){
+    return {error:'count', got:marks.length, need:need};
+  }
+  for(let i=0;i<need;i++){
+    const want=normWord(words[a+i]), got=normWord(marks[i].w);
+    if(want!==got){
+      return {error:'word', at:i+1, expect:words[a+i], got:marks[i].w};
     }
-    if(found<0){
-      for(let k=cursor;k<=b && k<words.length;k++){
-        const w=normWord(words[k]);
-        if(w && (w.indexOf(target)===0 || target.indexOf(w)===0)){ found=k; break; }
-      }
+  }
+  let prev=-1;
+  for(let i=0;i<need;i++){
+    if(!isFinite(marks[i].t) || marks[i].t < prev){
+      return {error:'time', at:i+1, word:marks[i].w};
     }
-    if(found<0){ skipped++; return; }
-    out.push({i:found, t:it.t, e:it.e});
-    cursor=found+1;
-  });
-  return {items:out, skipped:skipped};
+    prev=marks[i].t;
+  }
+  return {items: marks.map((m,i)=>({i:a+i, t:m.t, e:m.e}))};
 }
 function karItemAt(t){
   const k=getKar();
@@ -2502,6 +2508,7 @@ function openKaraokeSheet(keepScope){
   setSeg('karColorRow','kcolor', k && k.color ? k.color : 'amber');
   updateKarScopeHint();
   updateKarCount();
+  clearKarError();
   openSheet('shKaraoke');
 }
 function reopenKaraoke(){ setTimeout(()=>openKaraokeSheet(true), 260); }
@@ -2511,17 +2518,36 @@ function updateKarCount(){
   const need=wordCount(curBg.text ? curBg.text.value : '');
   const el=$('karCount');
   if(!items.length){ el.textContent='Строк пока нет. В тексте слов: '+need; el.style.color='var(--ink2)'; return; }
-  el.textContent='Распознано меток: '+items.length+' · слов в тексте: '+need;
-  el.style.color = items.length===need ? '#3E8E5A' : 'var(--ink2)';
+  const scopeNeed = karScope ? (karScope.b-karScope.a+1) : need;
+  el.textContent='Распознано меток: '+items.length+' · нужно: '+scopeNeed;
+  el.style.color = items.length===scopeNeed ? '#3E8E5A' : '#C14434';
 }
 $('karInput').addEventListener('input', updateKarCount);
+function buildKarPrompt(){
+  const words=textWords();
+  const a = karScope ? karScope.a : 0;
+  const b = karScope ? karScope.b : words.length-1;
+  const part = words.slice(a, b+1).join(' ');
+  return 'Послушай аудио и укажи время начала каждого слова.\n\n'+
+    'ОБЯЗАТЕЛЬНЫЕ ПРАВИЛА:\n'+
+    '1. Используй РОВНО эти слова, в этом же порядке, ничего не пропуская и не добавляя '+
+    '('+(b-a+1)+' слов):\n'+part+'\n\n'+
+    '2. Одна строка — одно слово, в формате: время пробел слово\n'+
+    '3. Время — секунды от начала записи, например 12.480 или 184.65. '+
+    'Можно и 1:42.456 — оба формата подходят.\n'+
+    '4. Ровно '+(b-a+1)+' строк, без нумерации, заголовков и пояснений.\n\n'+
+    'Пример ответа:\n0.000 '+(words[a]||'Слово')+'\n0.420 '+(words[a+1]||'Слово')+'';
+}
 $('karPrompt').addEventListener('click', ()=>{
-  hap('light');
-  $('karInput').value='Расшифруй это аудио и выпиши каждое слово с его временем начала.\n'+
-    'Формат строго построчно: секунды.миллисекунды пробел слово\n'+
-    'Например:\n0.00 Der\n0.42 Kaffee\n0.95 schmeckt';
-  updateKarCount();
-  toast('Скопируй это в ИИ, а ответ вставь сюда же');
+  hap('medium');
+  const text=buildKarPrompt();
+  let ok=false;
+  if(hasPA()){ try{ ok=PA.copyText(text); }catch(e){} }
+  if(!ok && navigator.clipboard){
+    try{ navigator.clipboard.writeText(text); ok=true; }catch(e){}
+  }
+  if(ok) toast('Запрос скопирован — вставь его в ИИ вместе с аудио');
+  else { $('karInput').value=text; toast('Не вышло скопировать — запрос вставлен в поле'); }
 });
 let karScope=null;   // {a,b} — часть текста, к которой привязываются метки
 function updateKarScopeHint(){
@@ -2570,11 +2596,12 @@ $('karApply').addEventListener('click', ()=>{
   const a = karScope ? karScope.a : 0;
   const b = karScope ? karScope.b : words.length-1;
   const res=alignKaraoke(marks, words, a, b);
-  if($('karOn').checked && !res.items.length){
+  if(res.error){
     hap('heavy');
-    toast('Слова из меток не найдены в тексте — проверь, тот ли это текст');
+    showKarError(res, words, a, b);
     return;
   }
+  clearKarError();
   setKar({on:$('karOn').checked, raw:raw, items:res.items,
           scope:karScope, matched:res.items.length, total:marks.length,
           unit:getSeg('karUnitRow','unit','word'),
@@ -2586,10 +2613,32 @@ $('karApply').addEventListener('click', ()=>{
   updateFeatureStates();
   hap('medium'); closeSheets();
   if(!$('karOn').checked){ toast('Подсветка сохранена'); return; }
-  toast(res.skipped
-    ? 'Подсветка включена · привязано '+res.items.length+' из '+marks.length+' меток'
-    : 'Подсветка включена · все '+res.items.length+' меток на месте');
+  toast('Подсветка включена · '+res.items.length+' слов совпали точно');
 });
+function clearKarError(){ $('karError').style.display='none'; }
+function showKarError(res, words, a, b){
+  const el=$('karError');
+  const need=b-a+1;
+  let html='';
+  if(res.error==='count'){
+    const diff=Math.abs(res.got-need);
+    html = res.got<need
+      ? '<b>Не хватает '+diff+' '+plural(diff,'метки','меток','меток')+'.</b><br>'+
+        'В тексте '+need+' '+plural(need,'слово','слова','слов')+', а в списке '+res.got+'. '+
+        'Каждое слово должно быть отдельной строкой.'
+      : '<b>Лишние метки: '+diff+'.</b><br>'+
+        'В тексте '+need+' '+plural(need,'слово','слова','слов')+', а в списке '+res.got+'.';
+  } else if(res.error==='word'){
+    html='<b>Слово №'+res.at+' не совпадает.</b><br>'+
+      'В тексте: «'+esc(res.expect)+'», в списке: «'+esc(res.got)+'».<br>'+
+      'Слова должны идти в том же порядке, что и в тексте.';
+  } else {
+    html='<b>Непонятное время у слова №'+res.at+' («'+esc(res.word)+'»).</b><br>'+
+      'Время должно только расти: 12.480 или 1:42.456.';
+  }
+  el.innerHTML=html;
+  el.style.display='block';
+}
 $('karClear').addEventListener('click', ()=>{
   setKar(null); karLast=-2;
   refreshTextBg(); updateFeatureStates();

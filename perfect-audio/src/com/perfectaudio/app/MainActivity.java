@@ -245,6 +245,20 @@ public class MainActivity extends Activity {
             }
         }
 
+        /** Puts text on the clipboard so it can be pasted into an AI chat. */
+        @JavascriptInterface
+        public boolean copyText(String text) {
+            try {
+                android.content.ClipboardManager cm =
+                        (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                if (cm == null) return false;
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("Perfect Audio", text));
+                return true;
+            } catch (Exception e) {
+                return false;
+            }
+        }
+
         /** Scales every haptic tap; 1 is barely there, 100 is the strongest. */
         @JavascriptInterface
         public void setHapticStrength(int level) {
