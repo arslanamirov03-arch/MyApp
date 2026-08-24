@@ -203,11 +203,7 @@
     outline:none;resize:none;box-shadow:var(--sh-card);}
   #tfArea:focus{border-color:var(--accent);}
 
-  /* karaoke highlight + translation bubble */
-  .seg.dot{flex:0 0 44px;height:38px;border-radius:13px;padding:0;}
-  .seg.dot.on{box-shadow:0 0 0 2.5px var(--accent),0 2px 6px rgba(61,57,41,.14);border-color:transparent;}
-  .w.kar-fill{border-radius:6px;padding:0 2px;margin:0 -2px;}
-  .w.kar-underline{box-shadow:inset 0 -3px 0 0 currentColor;}
+  /* translation bubble */
   #hapLevelWrap.off{opacity:.4;pointer-events:none;}
   #transPop{position:fixed;z-index:48;max-width:min(84vw,340px);
     background:var(--ink);color:#FBFAF6;border-radius:16px;
@@ -480,11 +476,6 @@
       <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h9M9 3v2c0 4-2.2 7.3-5 9"/><path d="M6 10c1.8 2.6 4.3 4.6 7 5.7"/><path d="M13.5 21l4.2-10 4.3 10"/><path d="M15.3 17h5.6"/></svg>
       Транскрипция
     </button>
-    <button class="pop-item" id="miKaraoke">
-      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h11M3 10h7"/><rect x="3" y="14.5" width="13" height="5.5" rx="2.4" fill="currentColor" stroke="none" opacity=".28"/><path d="M3 17.2h13"/><path d="M19 4l1.2 3.3L23 8.5l-2.8 1.2L19 13l-1.2-3.3L15 8.5l2.8-1.2z"/></svg>
-      <span style="flex:1;text-align:left">Подсветка слов</span>
-      <span class="mi-state" id="miKarState">выкл</span>
-    </button>
     <button class="pop-item" id="miTranslate">
       <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h9M7.5 3v2c0 3.6-1.8 6.4-4 8"/><path d="M4.5 9.5c1.5 2.2 3.6 3.9 6 4.8"/><path d="M12.5 21l4-9.5L21 21"/><path d="M14 17.5h5.2"/></svg>
       <span style="flex:1;text-align:left">Перевод</span>
@@ -732,59 +723,6 @@
   </div>
   <button class="btn primary" id="brApply">Сохранить</button>
   <button class="btn ghost" id="brOff">Без перерыва</button>
-</div>
-
-<div class="sheet" id="shKaraoke">
-  <button class="sheet-x" data-close>
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
-  </button>
-  <div class="sh-title">Подсветка слов</div>
-  <div class="sh-sub">Вставь список «время — слово» от ИИ, и слова будут подсвечиваться в такт звуку.</div>
-  <div class="switch-row" style="margin:2px 2px 10px">
-    <span>Включить подсветку</span>
-    <label class="switch">
-      <input type="checkbox" id="karOn">
-      <span class="knob-bg"><span class="knob-dot"></span></span>
-    </label>
-  </div>
-  <button class="btn" id="karPrompt" style="margin-top:4px">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="3"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>
-    Скопировать запрос для ИИ
-  </button>
-  <textarea class="ta" id="karInput" rows="5" placeholder="0.00 Der&#10;0.42 Kaffee&#10;0.95 schmeckt"></textarea>
-  <div style="font-size:12.5px;color:var(--ink2);margin-top:8px" id="karCount"></div>
-  <div id="karError" style="display:none;margin-top:10px;padding:11px 13px;border-radius:14px;
-       background:#FBEAE6;color:#9C3A26;font-size:13px;line-height:1.45;"></div>
-  <div class="ed-label" style="margin-top:14px">ГДЕ ИСКАТЬ СЛОВА</div>
-  <div class="seg-row" id="karScopeRow">
-    <button class="seg on" data-scope="all">Весь текст</button>
-    <button class="seg" data-scope="sentence">Предложение</button>
-    <button class="seg" data-scope="word">Со слова</button>
-  </div>
-  <div style="font-size:12px;color:var(--ink2);line-height:1.4;margin:8px 2px 0" id="karScopeHint"></div>
-  <div class="ed-label" style="margin-top:14px">ЧТО ПОДСВЕЧИВАТЬ</div>
-  <div class="seg-row" id="karUnitRow">
-    <button class="seg on" data-unit="word">Слово</button>
-    <button class="seg" data-unit="sentence">Предложение</button>
-    <button class="seg" data-unit="all">Весь текст</button>
-  </div>
-  <div class="ed-label">СТИЛЬ</div>
-  <div class="seg-row" id="karStyleRow">
-    <button class="seg on" data-style="fill">Заливка</button>
-    <button class="seg" data-style="underline">Подчёркивание</button>
-    <button class="seg" data-style="bold">Цвет букв</button>
-  </div>
-  <div class="ed-label">ЦВЕТ</div>
-  <div class="seg-row" id="karColorRow" style="flex-wrap:wrap">
-    <button class="seg dot on" data-kcolor="amber" style="background:#F4C542"></button>
-    <button class="seg dot" data-kcolor="green" style="background:#8CC58C"></button>
-    <button class="seg dot" data-kcolor="blue" style="background:#8FB8DE"></button>
-    <button class="seg dot" data-kcolor="pink" style="background:#EFA8C0"></button>
-    <button class="seg dot" data-kcolor="violet" style="background:#B9A6E0"></button>
-    <button class="seg dot" data-kcolor="accent" style="background:#D97757"></button>
-  </div>
-  <button class="btn primary" id="karApply">Применить</button>
-  <button class="btn ghost" id="karClear">Убрать подсветку</button>
 </div>
 
 <div class="sheet" id="shTranslate">
@@ -1255,10 +1193,7 @@ function openPlayer(id){
   media.playbackRate=settings.speed||1;
 
   applyBg(normalizeBg(loadLS('pa.bg.'+tr.id, null)));
-  karLast=-2;
   updateFeatureStates();
-  startKaraokeWatch();
-  updateKaraoke(true);
   $('scrPlayer').classList.remove('zen','editing','picking');
   $('scrPlayer').classList.add('open');
 }
@@ -1267,7 +1202,7 @@ function closePlayer(){
   if(media) media.pause();
   practice=null; repeatAll=false; updatePracticeChip();
   $('scrPlayer').classList.remove('open','zen','editing','picking');
-  stopKaraokeWatch(); hideTransPop();
+  hideTransPop();
   closePops(); closeSheets();
   const bgv=$('bgLayer').querySelector('video'); if(bgv) bgv.pause();
   setTimeout(()=>{ if(!$('scrPlayer').classList.contains('open')){ detachMedia(); clearBgLayer(); cur=null; } }, 320);
@@ -1323,7 +1258,6 @@ function onEnded(){
 function onTimeUpdate(){
   updateProgress();
   checkPracticeEnd();
-  updateKaraoke(false);
   const now=Date.now();
   if(now-posSaveT>3000){ posSaveT=now; savePos(); }
 
@@ -1331,14 +1265,6 @@ function onTimeUpdate(){
 /* The segment must play through to exactly the chosen second. "timeupdate"
    only fires about four times a second, so a small timer watches the edge
    while practising and the check never fires before practice.end. */
-let karTimer=null;
-function startKaraokeWatch(){
-  if(karTimer) return;
-  karTimer=setInterval(()=>{
-    if(media && !media.paused) updateKaraoke(false);
-  }, 60);
-}
-function stopKaraokeWatch(){ if(karTimer){ clearInterval(karTimer); karTimer=null; } }
 function checkPracticeEnd(){
   if(!practice || !media || media.paused) return;
   if(media.currentTime >= practice.end){
@@ -1727,7 +1653,6 @@ function wordCount(text){
   return n;
 }
 function refreshTextBg(){
-  karLast=-2;
   if(!curBg.text) return;
   const w=$('bgLayer').querySelector('.bg-text');
   if(!w) return;
@@ -1743,9 +1668,8 @@ function refreshTextBg(){
   box.style.color = col || 'var(--ink)';
 
   const tr=getTr();
-  const k=getKar();
   const needWords = pickingWord || Object.keys(tr).length>0
-    || settings.translateOn===true || !!(k && k.on);
+    || settings.translateOn===true;
   box.innerHTML='';
   if(!needWords){
     box.textContent=t.value;
@@ -1792,18 +1716,8 @@ function stopPicking(){
   closePops();
   refreshTextBg();
 }
-$('btnPickClose').addEventListener('click', ()=>{
-  hap('light');
-  const back=karPicking; karPicking=null;
-  stopPicking();
-  if(back) reopenKaraoke();
-});
-$('btnPickDone').addEventListener('click', ()=>{
-  hap('medium'); closePops();
-  const back=karPicking; karPicking=null;
-  stopPicking();
-  if(back) reopenKaraoke();
-});
+$('btnPickClose').addEventListener('click', ()=>{ hap('light'); stopPicking(); });
+$('btnPickDone').addEventListener('click', ()=>{ hap('medium'); closePops(); stopPicking(); });
 
 let wordIdx=-1;
 $('bgLayer').addEventListener('click', e=>{
@@ -1820,18 +1734,7 @@ $('bgLayer').addEventListener('click', e=>{
     }
     const a=Math.min(rangeStart,i), b=Math.max(rangeStart,i);
     stopPicking();
-    if(karPicking){ karPicking=null; karScope={a:a, b:b}; reopenKaraoke(); return; }
     openTransSheet(a,b);
-    return;
-  }
-  if(pickingWord && w && karPicking){
-    e.stopPropagation();
-    hap('medium');
-    const i=parseInt(w.dataset.i,10);
-    karPicking=null;
-    stopPicking();
-    karScope={a:i, b:textWords().length-1};
-    reopenKaraoke();
     return;
   }
   if(pickingWord && w){
@@ -2382,269 +2285,6 @@ $('hapPresets').addEventListener('click', e=>{
   hap('medium');
 });
 
-/* ---------------- karaoke highlight ---------------- */
-const KAR_COLORS={amber:'#F4C542', green:'#8CC58C', blue:'#8FB8DE',
-                  pink:'#EFA8C0', violet:'#B9A6E0', accent:'#D97757'};
-function getKar(){ return cur ? loadLS('pa.kar.'+cur.id, null) : null; }
-function setKar(o){ if(cur){ if(o) store('pa.kar.'+cur.id, o); else localStorage.removeItem('pa.kar.'+cur.id); } }
-/* Accepts «0.42 Wort», «[0:00.42] Wort», «0.42-0.80 Wort» — one per line. */
-function parseKaraoke(text){
-  const out=[];
-  String(text||'').split(/\r?\n/).forEach(line=>{
-    const m=line.match(/^\s*[\[\(]?\s*(\d+(?::\d+)*(?:[.,]\d+)?)\s*(?:[-–—>]+\s*(\d+(?::\d+)*(?:[.,]\d+)?))?\s*[\]\)]?\s*[:\-–—]?\s*(.+)$/);
-    if(!m) return;
-    const w=m[3].trim();
-    if(!w) return;
-    out.push({t:parseClock(m[1]), e:m[2]?parseClock(m[2]):null, w:w});
-  });
-  return out;
-}
-function parseClock(str){
-  const parts=String(str).replace(',','.').split(':').map(parseFloat);
-  let sec=0;
-  parts.forEach(p=>{ sec=sec*60+(isFinite(p)?p:0); });
-  return sec;
-}
-/* Each mark is bound to a real word of the text, matched by the word itself,
-   so a mark that says 4s highlights the word that is spoken at 4s even when
-   the AI listed fewer or more words than the text has. */
-function normWord(w){
-  return String(w||'').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,'');
-}
-/* Strict: the marks must be the same words, in the same order, as the text
-   in the chosen range. Then mark N is word N and the time written next to it
-   is exactly when that word lights up. */
-function alignKaraoke(marks, words, a, b){
-  const need = b - a + 1;
-  if(marks.length !== need){
-    return {error:'count', got:marks.length, need:need};
-  }
-  for(let i=0;i<need;i++){
-    const want=normWord(words[a+i]), got=normWord(marks[i].w);
-    if(want!==got){
-      return {error:'word', at:i+1, expect:words[a+i], got:marks[i].w};
-    }
-  }
-  let prev=-1;
-  for(let i=0;i<need;i++){
-    if(!isFinite(marks[i].t) || marks[i].t < prev){
-      return {error:'time', at:i+1, word:marks[i].w};
-    }
-    prev=marks[i].t;
-  }
-  return {items: marks.map((m,i)=>({i:a+i, t:m.t, e:m.e}))};
-}
-function karItemAt(t){
-  const k=getKar();
-  if(!k || !k.items || !k.items.length) return null;
-  let lo=-1;
-  for(let i=0;i<k.items.length;i++){
-    if(t+0.001 >= k.items[i].t) lo=i; else break;
-  }
-  if(lo<0) return null;
-  const it=k.items[lo];
-  if(it.e!=null && t > it.e+0.15) return null;    // silence between phrases
-  return it;
-}
-let karLast=-2;
-function updateKaraoke(force){
-  const k=getKar();
-  const box=$('bgLayer').querySelector('.txt');
-  if(!box) return;
-  if(!k || !k.on){
-    if(karLast!==-2){ karLast=-2; box.querySelectorAll('.w').forEach(clearKarWord); }
-    return;
-  }
-  const it = media ? karItemAt(media.currentTime) : null;
-  const idx = it ? it.i : -1;
-  if(!force && idx===karLast) return;
-  karLast=idx;
-  const col=KAR_COLORS[k.color||'amber'];
-  const words=[...box.querySelectorAll('.w')];
-  let from=idx, to=idx;
-  if(idx>=0){
-    if(k.unit==='all'){ from=0; to=idx; }
-    else if(k.unit==='sentence'){
-      const b=sentenceBounds(words, idx);
-      from=b[0]; to=b[1];
-    }
-  }
-  words.forEach((el,i)=>{
-    const on = idx>=0 && i>=from && i<=to;
-    if(!on){ clearKarWord(el); return; }
-    el.classList.add('kar-'+(k.style||'fill'));
-    if(k.style==='underline'){ el.style.color=col; el.style.background=''; }
-    else if(k.style==='bold'){ el.style.color=col; el.style.fontWeight='700'; el.style.background=''; }
-    else { el.style.background=col; el.style.color='#3D3929'; }
-  });
-}
-function clearKarWord(el){
-  el.classList.remove('kar-fill','kar-underline','kar-bold');
-  el.style.background=''; el.style.color=''; el.style.fontWeight='';
-}
-function sentenceBounds(words, idx){
-  let from=0, to=words.length-1;
-  for(let i=idx;i>=0;i--){
-    const txt=words[i].childNodes[0] ? words[i].childNodes[0].textContent : '';
-    if(i<idx && /[.!?…]$/.test(txt)){ from=i+1; break; }
-    if(i===0) from=0;
-  }
-  for(let i=idx;i<words.length;i++){
-    const txt=words[i].childNodes[0] ? words[i].childNodes[0].textContent : '';
-    if(/[.!?…]$/.test(txt)){ to=i; break; }
-  }
-  return [from,to];
-}
-let karPicking=null;
-function openKaraokeSheet(keepScope){
-  if(!curBg.text){ toast('Сначала добавь текст в «Фон и текст»'); return; }
-  const k=getKar();
-  $('karOn').checked = !!(k && k.on);
-  $('karInput').value = k && k.raw ? k.raw : '';
-  if(!keepScope) karScope = k && k.scope ? k.scope : null;
-  setSeg('karScopeRow','scope', karScope ? (karScope.b>karScope.a ? 'sentence' : 'word') : 'all');
-  setSeg('karUnitRow','unit', k && k.unit ? k.unit : 'word');
-  setSeg('karStyleRow','style', k && k.style ? k.style : 'fill');
-  setSeg('karColorRow','kcolor', k && k.color ? k.color : 'amber');
-  updateKarScopeHint();
-  updateKarCount();
-  clearKarError();
-  openSheet('shKaraoke');
-}
-function reopenKaraoke(){ setTimeout(()=>openKaraokeSheet(true), 260); }
-$('miKaraoke').addEventListener('click', ()=>{ hap('light'); closePops(); openKaraokeSheet(false); });
-function updateKarCount(){
-  const items=parseKaraoke($('karInput').value);
-  const need=wordCount(curBg.text ? curBg.text.value : '');
-  const el=$('karCount');
-  if(!items.length){ el.textContent='Строк пока нет. В тексте слов: '+need; el.style.color='var(--ink2)'; return; }
-  const scopeNeed = karScope ? (karScope.b-karScope.a+1) : need;
-  el.textContent='Распознано меток: '+items.length+' · нужно: '+scopeNeed;
-  el.style.color = items.length===scopeNeed ? '#3E8E5A' : '#C14434';
-}
-$('karInput').addEventListener('input', updateKarCount);
-function buildKarPrompt(){
-  const words=textWords();
-  const a = karScope ? karScope.a : 0;
-  const b = karScope ? karScope.b : words.length-1;
-  const part = words.slice(a, b+1).join(' ');
-  return 'Послушай аудио и укажи время начала каждого слова.\n\n'+
-    'ОБЯЗАТЕЛЬНЫЕ ПРАВИЛА:\n'+
-    '1. Используй РОВНО эти слова, в этом же порядке, ничего не пропуская и не добавляя '+
-    '('+(b-a+1)+' слов):\n'+part+'\n\n'+
-    '2. Одна строка — одно слово, в формате: время пробел слово\n'+
-    '3. Время — секунды от начала записи, например 12.480 или 184.65. '+
-    'Можно и 1:42.456 — оба формата подходят.\n'+
-    '4. Ровно '+(b-a+1)+' строк, без нумерации, заголовков и пояснений.\n\n'+
-    'Пример ответа:\n0.000 '+(words[a]||'Слово')+'\n0.420 '+(words[a+1]||'Слово')+'';
-}
-$('karPrompt').addEventListener('click', ()=>{
-  hap('medium');
-  const text=buildKarPrompt();
-  let ok=false;
-  if(hasPA()){ try{ ok=PA.copyText(text); }catch(e){} }
-  if(!ok && navigator.clipboard){
-    try{ navigator.clipboard.writeText(text); ok=true; }catch(e){}
-  }
-  if(ok) toast('Запрос скопирован — вставь его в ИИ вместе с аудио');
-  else { $('karInput').value=text; toast('Не вышло скопировать — запрос вставлен в поле'); }
-});
-let karScope=null;   // {a,b} — часть текста, к которой привязываются метки
-function updateKarScopeHint(){
-  const sc=getSeg('karScopeRow','scope','all');
-  const words=textWords();
-  if(sc==='all'){
-    karScope=null;
-    $('karScopeHint').textContent='Метки ищутся по всему тексту ('+words.length+' слов).';
-    return;
-  }
-  if(karScope){
-    const quote=words.slice(karScope.a, karScope.b+1).join(' ');
-    $('karScopeHint').textContent='Выбрано: «'+(quote.length>50?quote.slice(0,50)+'…':quote)+'»';
-  } else {
-    $('karScopeHint').textContent = sc==='sentence'
-      ? 'Нажми «Выбрать в тексте» и укажи первое и последнее слово.'
-      : 'Нажми «Выбрать в тексте» и укажи слово, с которого начинать.';
-  }
-}
-$('karScopeRow').addEventListener('click', e=>{
-  const b=e.target.closest('.seg'); if(!b) return;
-  hap('light');
-  setSeg('karScopeRow','scope', b.dataset.scope);
-  karScope=null;
-  updateKarScopeHint();
-  if(b.dataset.scope!=='all'){
-    closeSheets();
-    karPicking=b.dataset.scope;
-    startPicking(b.dataset.scope==='sentence' ? 'range' : 'word');
-  }
-});
-segRowHandler2('karUnitRow','unit');
-segRowHandler2('karStyleRow','style');
-segRowHandler2('karColorRow','kcolor');
-function segRowHandler2(rowId, attr){
-  $(rowId).addEventListener('click', e=>{
-    const b=e.target.closest('[data-'+attr+']'); if(!b) return;
-    hap('light'); setSeg(rowId, attr, b.dataset[attr]);
-  });
-}
-$('karApply').addEventListener('click', ()=>{
-  const raw=$('karInput').value;
-  const marks=parseKaraoke(raw);
-  if($('karOn').checked && !marks.length){ toast('Не нашёл ни одной метки времени'); return; }
-  const words=textWords();
-  const a = karScope ? karScope.a : 0;
-  const b = karScope ? karScope.b : words.length-1;
-  const res=alignKaraoke(marks, words, a, b);
-  if(res.error){
-    hap('heavy');
-    showKarError(res, words, a, b);
-    return;
-  }
-  clearKarError();
-  setKar({on:$('karOn').checked, raw:raw, items:res.items,
-          scope:karScope, matched:res.items.length, total:marks.length,
-          unit:getSeg('karUnitRow','unit','word'),
-          style:getSeg('karStyleRow','style','fill'),
-          color:getSeg('karColorRow','kcolor','amber')});
-  karLast=-2;
-  refreshTextBg();
-  updateKaraoke(true);
-  updateFeatureStates();
-  hap('medium'); closeSheets();
-  if(!$('karOn').checked){ toast('Подсветка сохранена'); return; }
-  toast('Подсветка включена · '+res.items.length+' слов совпали точно');
-});
-function clearKarError(){ $('karError').style.display='none'; }
-function showKarError(res, words, a, b){
-  const el=$('karError');
-  const need=b-a+1;
-  let html='';
-  if(res.error==='count'){
-    const diff=Math.abs(res.got-need);
-    html = res.got<need
-      ? '<b>Не хватает '+diff+' '+plural(diff,'метки','меток','меток')+'.</b><br>'+
-        'В тексте '+need+' '+plural(need,'слово','слова','слов')+', а в списке '+res.got+'. '+
-        'Каждое слово должно быть отдельной строкой.'
-      : '<b>Лишние метки: '+diff+'.</b><br>'+
-        'В тексте '+need+' '+plural(need,'слово','слова','слов')+', а в списке '+res.got+'.';
-  } else if(res.error==='word'){
-    html='<b>Слово №'+res.at+' не совпадает.</b><br>'+
-      'В тексте: «'+esc(res.expect)+'», в списке: «'+esc(res.got)+'».<br>'+
-      'Слова должны идти в том же порядке, что и в тексте.';
-  } else {
-    html='<b>Непонятное время у слова №'+res.at+' («'+esc(res.word)+'»).</b><br>'+
-      'Время должно только расти: 12.480 или 1:42.456.';
-  }
-  el.innerHTML=html;
-  el.style.display='block';
-}
-$('karClear').addEventListener('click', ()=>{
-  setKar(null); karLast=-2;
-  refreshTextBg(); updateFeatureStates();
-  hap('light'); closeSheets(); toast('Подсветка убрана');
-});
-
 /* ---------------- translation ---------------- */
 function getTw(){ return cur ? loadLS('pa.tw.'+cur.id, {}) : {}; }
 function setTw(o){ if(cur) store('pa.tw.'+cur.id, o); }
@@ -2687,9 +2327,6 @@ function showTransPop(text, el){
 let transPopT=null;
 function hideTransPop(){ $('transPop').classList.remove('show'); clearTimeout(transPopT); }
 function updateFeatureStates(){
-  const k=getKar();
-  $('miKarState').textContent = k && k.on ? 'вкл' : 'выкл';
-  $('miKarState').classList.toggle('on', !!(k && k.on));
   $('miTransState').textContent = settings.translateOn ? 'вкл' : 'выкл';
   $('miTransState').classList.toggle('on', settings.translateOn===true);
 }
