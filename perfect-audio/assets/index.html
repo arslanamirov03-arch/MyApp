@@ -1,0 +1,2612 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Perfect Audio</title>
+<style>
+  :root{
+    --vidh:32vh;
+    --bg:#FAF9F5;
+    --surface:#FFFFFF;
+    --ink:#3D3929;
+    --ink2:#8A8778;
+    --accent:#D97757;
+    --accent-soft:#F7EBE4;
+    --line:rgba(61,57,41,.08);
+    --sh-btn:0 1px 2px rgba(61,57,41,.05),0 5px 12px rgba(61,57,41,.10),0 14px 30px rgba(61,57,41,.10);
+    --sh-btn-press:0 1px 2px rgba(61,57,41,.08),0 3px 7px rgba(61,57,41,.10);
+    --sh-card:0 1px 2px rgba(61,57,41,.04),0 6px 18px rgba(61,57,41,.08);
+    --sh-pop:0 4px 14px rgba(61,57,41,.12),0 20px 50px rgba(61,57,41,.22);
+    --ease:cubic-bezier(.25,.9,.3,1);
+    --sat:env(safe-area-inset-top,0px);
+    --sab:env(safe-area-inset-bottom,0px);
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    background:var(--bg);color:var(--ink);
+    font-family:-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;
+    touch-action:manipulation;
+    overflow:hidden;
+  }
+  input,textarea{user-select:text;-webkit-user-select:text;font-family:inherit;color:var(--ink);}
+  button{font-family:inherit;border:none;background:none;color:var(--ink);cursor:pointer;}
+  svg{display:block;}
+
+  /* ---------- floating 3D buttons ---------- */
+  .fbtn{
+    display:flex;align-items:center;justify-content:center;
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:999px;
+    box-shadow:var(--sh-btn);
+    transition:transform .13s var(--ease),box-shadow .13s var(--ease);
+    position:relative;
+  }
+  .fbtn:active{transform:translateY(2px) scale(.965);box-shadow:var(--sh-btn-press);}
+  .fbtn.accent{background:var(--accent);color:#fff;border-color:rgba(0,0,0,.04);
+    box-shadow:0 1px 2px rgba(61,57,41,.06),0 6px 14px rgba(217,119,87,.35),0 16px 34px rgba(217,119,87,.28);}
+  .fbtn.accent:active{box-shadow:0 1px 2px rgba(61,57,41,.08),0 3px 8px rgba(217,119,87,.30);}
+
+  /* ---------- screens ---------- */
+  .screen{position:fixed;inset:0;background:var(--bg);
+    transition:transform .26s var(--ease),opacity .26s var(--ease);}
+  #scrPlayer{transform:translateX(104%);z-index:10;background:var(--bg);}
+  #scrPlayer.open{transform:translateX(0);}
+
+  /* ---------- library ---------- */
+  .lib-head{padding:calc(var(--sat) + 26px) 24px 6px;}
+  .lib-title{font-family:Georgia,'Times New Roman',serif;font-size:32px;letter-spacing:-.4px;}
+  .lib-sub{color:var(--ink2);font-size:14px;margin-top:5px;}
+  .lib-list{position:absolute;top:calc(var(--sat) + 106px);bottom:0;left:0;right:0;
+    overflow-y:auto;padding:12px 18px calc(var(--sab) + 120px);
+    -webkit-overflow-scrolling:touch;}
+  .card{
+    display:flex;align-items:center;gap:13px;
+    background:var(--surface);border:1px solid var(--line);
+    border-radius:22px;padding:13px 14px;margin-bottom:12px;
+    box-shadow:var(--sh-card);
+    transition:transform .13s var(--ease),box-shadow .13s var(--ease);
+  }
+  .card:active{transform:scale(.977);}
+  .card-ic{flex:0 0 46px;height:46px;border-radius:16px;background:var(--accent-soft);
+    display:flex;align-items:center;justify-content:center;color:var(--accent);}
+  .card-body{flex:1;min-width:0;}
+  .card-name{font-size:15.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .card-meta{font-size:12.5px;color:var(--ink2);margin-top:3px;}
+  .card-menu{flex:0 0 38px;height:38px;border-radius:999px;display:flex;align-items:center;justify-content:center;
+    color:var(--ink2);transition:background .12s;}
+  .card-menu:active{background:#F1EEE5;}
+  .empty{position:absolute;top:38%;left:0;right:0;transform:translateY(-50%);
+    text-align:center;padding:0 40px;color:var(--ink2);}
+  .empty-ic{width:86px;height:86px;margin:0 auto 18px;border-radius:30px;background:var(--surface);
+    border:1px solid var(--line);box-shadow:var(--sh-card);
+    display:flex;align-items:center;justify-content:center;color:var(--accent);}
+  .empty-t{font-family:Georgia,serif;font-size:20px;color:var(--ink);margin-bottom:8px;}
+  .empty-s{font-size:14px;line-height:1.55;}
+  #btnAdd{position:fixed;right:22px;bottom:calc(var(--sab) + 26px);width:64px;height:64px;z-index:5;}
+
+  /* ---------- player background ---------- */
+  .bg-layer{position:absolute;inset:0;overflow:hidden;background:var(--bg);}
+  .bg-media{position:absolute;inset:0;overflow:hidden;}
+  .bg-media img,.bg-media video{width:100%;height:100%;object-fit:cover;}
+  /* text starts below the top buttons and scrolls; short text is centered
+     (margin:auto collapses once the content overflows, so nothing is clipped) */
+  #btnVideoToggle{position:absolute;top:calc(var(--sat) + 16px);right:16px;
+    width:48px;height:48px;z-index:6;display:none;}
+  #scrPlayer.zen #btnVideoToggle,#scrPlayer.editing #btnVideoToggle,
+  #scrPlayer.picking #btnVideoToggle{transform:translateY(-200px);opacity:0;pointer-events:none;}
+  .bg-text{position:absolute;inset:0;display:flex;flex-direction:column;
+    overflow-y:auto;-webkit-overflow-scrolling:touch;
+    padding:calc(var(--sat) + 92px) 34px 250px;}
+  .bg-text .txt{display:block;width:100%;margin:auto;
+    font-family:Georgia,serif;font-size:24px;line-height:1.55;text-align:center;
+    white-space:pre-wrap;word-break:break-word;color:var(--ink);}
+  /* one word plus its pronunciation underneath */
+  .w{display:inline-block;text-align:center;border-radius:7px;
+    transition:background .14s,transform .12s var(--ease);}
+  .w .tr{display:block;font-size:.62em;line-height:1.2;color:var(--accent);
+    font-family:-apple-system,'Segoe UI',Roboto,sans-serif;margin-top:1px;}
+  #scrPlayer.picking .w{background:rgba(217,119,87,.10);cursor:pointer;}
+  #scrPlayer.picking .w:active{background:var(--accent);color:#fff;transform:scale(.94);}
+  #scrPlayer.picking .w:active .tr{color:#fff;}
+  #scrPlayer.picking .w.w-sel{background:var(--accent);color:#fff;}
+  #scrPlayer.picking .w.w-sel .tr{color:#fff;}
+
+  /* ---------- player controls ---------- */
+  #btnPlayerBack,.track-chip,.p-chip,.progress-zone,.controls,#btnVideoToggle{
+    transition:transform .34s var(--ease),opacity .26s var(--ease);}
+  #scrPlayer.zen #btnPlayerBack,#scrPlayer.editing #btnPlayerBack,#scrPlayer.picking #btnPlayerBack,
+  #scrPlayer.zen .track-chip,#scrPlayer.editing .track-chip,#scrPlayer.picking .track-chip,
+  #scrPlayer.zen .p-chip,#scrPlayer.editing .p-chip,#scrPlayer.picking .p-chip{
+    transform:translateY(-200px);opacity:0;pointer-events:none;}
+  #scrPlayer.zen .progress-zone,#scrPlayer.editing .progress-zone,#scrPlayer.picking .progress-zone,
+  #scrPlayer.zen .controls,#scrPlayer.editing .controls,#scrPlayer.picking .controls{
+    transform:translateY(300px);opacity:0;pointer-events:none;}
+
+  #btnPlayerBack{position:absolute;top:calc(var(--sat) + 16px);left:16px;width:52px;height:52px;z-index:6;}
+  .track-chip{position:absolute;top:calc(var(--sat) + 24px);left:80px;right:80px;z-index:5;
+    display:flex;justify-content:center;pointer-events:none;}
+  .track-chip span{background:var(--surface);border:1px solid var(--line);box-shadow:var(--sh-card);
+    border-radius:999px;padding:9px 18px;font-size:13.5px;font-weight:600;
+    max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  #videoWrap{position:absolute;left:16px;right:16px;top:calc(var(--sat) + 86px);
+    bottom:206px;display:none;align-items:center;justify-content:center;z-index:2;
+    transition:opacity .2s var(--ease);}
+  /* with text underneath the video sits at the top and the text scrolls below it */
+  #scrPlayer.vidtop #videoWrap{left:0;right:0;top:0;bottom:auto;
+    height:calc(var(--sat) + 86px + var(--vidh));
+    padding:calc(var(--sat) + 86px) 16px 8px;background:var(--bg);
+    align-items:flex-start;}
+  /* hidden video keeps playing, so it is shrunk instead of display:none */
+  #scrPlayer.vidoff #videoWrap{left:0;top:0;width:1px;height:1px;padding:0;
+    opacity:0;pointer-events:none;overflow:hidden;background:none;}
+  #scrPlayer.vidtop .bg-text{padding-top:calc(var(--sat) + 100px + var(--vidh));}
+  #videoWrap video{max-width:100%;max-height:100%;border-radius:24px;background:#000;
+    box-shadow:0 10px 34px rgba(61,57,41,.25);}
+  .p-chip{position:absolute;top:calc(var(--sat) + 78px);left:0;right:0;z-index:5;
+    display:flex;justify-content:center;}
+  .p-chip .inner{display:flex;align-items:center;gap:8px;background:var(--accent);color:#fff;
+    border-radius:999px;padding:7px 8px 7px 16px;font-size:13px;font-weight:600;
+    box-shadow:0 6px 16px rgba(217,119,87,.4);}
+  .p-chip button{width:26px;height:26px;border-radius:999px;background:rgba(255,255,255,.25);
+    color:#fff;display:flex;align-items:center;justify-content:center;}
+  .progress-zone{position:absolute;left:20px;right:20px;bottom:calc(var(--sab) + 108px);z-index:4;
+    background:var(--surface);border:1px solid var(--line);border-radius:20px;
+    padding:11px 16px 14px;box-shadow:var(--sh-card);}
+  .time-row{display:flex;justify-content:space-between;font-size:11.5px;color:var(--ink2);
+    font-variant-numeric:tabular-nums;margin-bottom:8px;}
+  .bar{height:22px;display:flex;align-items:center;touch-action:none;}
+  .bar-track{position:relative;height:6px;width:100%;border-radius:99px;background:#EDEAE0;}
+  .bar-fill{position:absolute;left:0;top:0;bottom:0;width:0%;border-radius:99px;background:var(--accent);}
+  .bar-knob{position:absolute;top:50%;width:16px;height:16px;border-radius:99px;background:#fff;
+    border:1px solid var(--line);box-shadow:0 2px 6px rgba(61,57,41,.25);
+    transform:translate(-50%,-50%);left:0%;}
+  .controls{position:absolute;left:0;right:0;bottom:calc(var(--sab) + 22px);z-index:4;
+    display:flex;align-items:center;justify-content:center;gap:13px;}
+  .ctl{width:58px;height:58px;}
+  .ctl.big{width:76px;height:76px;}
+  .step-badge{position:absolute;bottom:-5px;left:50%;transform:translateX(-50%);
+    background:var(--accent);color:#fff;font-size:10px;font-weight:700;
+    border-radius:99px;padding:1.5px 7px;box-shadow:0 2px 6px rgba(61,57,41,.2);
+    pointer-events:none;white-space:nowrap;}
+  .step-badge.pulse{animation:pulse .3s var(--ease);}
+  @keyframes pulse{50%{transform:translateX(-50%) scale(1.35);}}
+
+  /* word-picking header */
+  #pickBar{position:fixed;top:0;left:0;right:0;z-index:44;
+    padding:calc(var(--sat) + 14px) 16px 14px;
+    display:flex;align-items:center;gap:12px;
+    background:linear-gradient(to bottom,rgba(250,249,245,.97),rgba(250,249,245,.0));
+    transform:translateY(-140%);transition:transform .3s var(--ease);pointer-events:none;}
+  #scrPlayer.picking #pickBar{transform:translateY(0);pointer-events:auto;}
+  #pickBar .hint{flex:1;background:var(--surface);border:1px solid var(--line);
+    box-shadow:var(--sh-card);border-radius:999px;padding:11px 18px;
+    font-size:13.5px;font-weight:600;text-align:center;}
+  #btnPickClose,#btnPickDone{width:50px;height:50px;flex:0 0 auto;}
+
+  /* ---------- popovers ---------- */
+  .pop{position:fixed;z-index:40;background:var(--surface);border:1px solid var(--line);
+    border-radius:20px;box-shadow:var(--sh-pop);padding:8px;
+    opacity:0;transform:scale(.55) translateY(14px);pointer-events:none;
+    transition:transform .17s var(--ease),opacity .14s var(--ease);}
+  .pop.show{opacity:1;transform:scale(1) translateY(0);pointer-events:auto;}
+  .pop-item{display:flex;align-items:center;gap:12px;width:100%;
+    padding:12px 14px;border-radius:14px;font-size:15px;font-weight:600;text-align:left;
+    transition:background .12s;white-space:nowrap;}
+  .pop-item:active{background:#F4F0E7;}
+  .pop-item svg{color:var(--accent);flex:0 0 auto;}
+  .pop-item.danger,.pop-item.danger svg{color:#C14434;}
+  .mi-state{flex:0 0 auto;font-size:12.5px;font-weight:800;color:var(--ink2);
+    background:#F4F0E7;border-radius:99px;padding:4px 10px;font-variant-numeric:tabular-nums;}
+  .mi-state.on{background:var(--accent-soft);color:var(--accent);}
+  /* full-screen text writing */
+  #textFull{position:fixed;inset:0;z-index:70;background:var(--bg);
+    display:flex;flex-direction:column;
+    padding:calc(var(--sat) + 14px) 16px calc(var(--sab) + 16px);
+    opacity:0;transform:translateY(18px);pointer-events:none;
+    transition:opacity .2s var(--ease),transform .24s var(--ease);}
+  #textFull.show{opacity:1;transform:translateY(0);pointer-events:auto;}
+  .tf-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+  .tf-title{font-family:Georgia,serif;font-size:24px;}
+  #tfDone{width:54px;height:54px;}
+  #tfArea{flex:1;width:100%;border:1.5px solid var(--line);border-radius:22px;
+    background:var(--surface);padding:16px;font-size:17px;line-height:1.5;
+    outline:none;resize:none;box-shadow:var(--sh-card);}
+  #tfArea:focus{border-color:var(--accent);}
+
+  /* translation bubble */
+  #hapLevelWrap.off{opacity:.4;pointer-events:none;}
+  #transPop{position:fixed;z-index:48;max-width:min(84vw,340px);
+    background:var(--ink);color:#FBFAF6;border-radius:16px;
+    padding:10px 15px;font-size:15px;font-weight:600;line-height:1.35;
+    box-shadow:0 6px 22px rgba(61,57,41,.3);
+    opacity:0;transform:translateY(6px) scale(.9);pointer-events:none;
+    transition:opacity .15s var(--ease),transform .18s var(--ease);
+    text-align:center;}
+  #transPop.show{opacity:1;transform:translateY(0) scale(1);}
+  #transPop:after{content:'';position:absolute;bottom:-6px;left:50%;margin-left:-6px;
+    border:6px solid transparent;border-top-color:var(--ink);border-bottom:none;}
+  .w.tw-sel{background:var(--accent);color:#fff;border-radius:6px;}
+
+  /* a menu item that only works while practising */
+  .pop-item.off{opacity:.4;}
+  .pop-item.off svg{color:var(--ink2);}
+  .pop-item.off:active{background:none;}
+  .sp-big{font-family:Georgia,serif;font-size:40px;text-align:center;margin:2px 0 4px;
+    font-variant-numeric:tabular-nums;}
+  .sp-big small{font-size:20px;color:var(--ink2);}
+  .speed-row{display:flex;gap:8px;align-items:center;margin-top:12px;}
+  .speed-row input.ti{flex:1;text-align:center;font-size:18px;font-variant-numeric:tabular-nums;}
+  .preset-row{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px;}
+  .preset{flex:1;min-width:58px;padding:10px 4px;border-radius:13px;background:#F6F3EA;
+    border:1.5px solid var(--line);font-size:14px;font-weight:700;
+    box-shadow:0 2px 6px rgba(61,57,41,.06);transition:transform .12s var(--ease);}
+  .preset:active{transform:translateY(1px) scale(.96);}
+  .preset.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);}
+  #stepPop{padding:18px 18px 14px;width:min(320px,calc(100vw - 28px));}
+  .sp-title{font-size:13px;color:var(--ink2);font-weight:600;}
+  .sp-val{font-family:Georgia,serif;font-size:34px;margin:6px 0 2px;}
+  .sp-val small{font-size:17px;color:var(--ink2);}
+  .sp-hint{font-size:12px;color:var(--ink2);margin-top:8px;line-height:1.4;}
+  #wordPop{padding:14px;width:min(300px,calc(100vw - 28px));}
+  #wordPop .wp-word{font-family:Georgia,serif;font-size:20px;text-align:center;margin-bottom:10px;
+    word-break:break-word;}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:34px;background:transparent;margin-top:4px;}
+  input[type=range]::-webkit-slider-runnable-track{height:8px;border-radius:99px;background:#EDEAE0;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;margin-top:-9px;
+    border-radius:99px;background:var(--accent);border:3px solid #fff;
+    box-shadow:0 3px 8px rgba(61,57,41,.3);}
+
+  /* ---------- sheets ---------- */
+  #overlay{position:fixed;inset:0;background:rgba(61,57,41,.30);z-index:50;
+    opacity:0;pointer-events:none;transition:opacity .18s var(--ease);}
+  #overlay.show{opacity:1;pointer-events:auto;}
+  .sheet{position:fixed;left:50%;top:50%;z-index:60;width:min(92vw,410px);
+    max-height:calc(100vh - 70px);overflow-y:auto;-webkit-overflow-scrolling:touch;
+    background:var(--surface);border-radius:28px;padding:22px 20px 20px;
+    box-shadow:var(--sh-pop);
+    opacity:0;transform:translate(-50%,-50%) scale(.93);pointer-events:none;
+    transition:transform .18s var(--ease),opacity .15s var(--ease);}
+  .sheet.show{opacity:1;transform:translate(-50%,-50%) scale(1);pointer-events:auto;}
+  .sh-title{font-family:Georgia,serif;font-size:22px;margin-bottom:4px;}
+  .sh-sub{font-size:13px;color:var(--ink2);line-height:1.45;margin-bottom:16px;}
+  .btn{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;
+    padding:14px;border-radius:17px;font-size:15.5px;font-weight:700;
+    background:#F4F1E8;color:var(--ink);
+    box-shadow:0 1px 2px rgba(61,57,41,.05),0 4px 10px rgba(61,57,41,.07);
+    border:1px solid var(--line);
+    transition:transform .13s var(--ease),box-shadow .13s var(--ease);margin-top:10px;}
+  .btn:active{transform:translateY(2px) scale(.98);box-shadow:var(--sh-btn-press);}
+  .btn.primary{background:var(--accent);color:#fff;
+    box-shadow:0 1px 2px rgba(61,57,41,.06),0 6px 14px rgba(217,119,87,.35);}
+  .btn.danger{background:#C14434;color:#fff;}
+  .btn.ghost{background:var(--surface);}
+  .btn.small{padding:11px;font-size:14px;}
+  .btn[disabled]{opacity:.5;pointer-events:none;}
+  .time-picker{display:flex;align-items:center;justify-content:center;gap:6px;}
+  .time-picker input{width:52px;padding:12px 2px;text-align:center;font-size:21px;
+    font-variant-numeric:tabular-nums;border:1.5px solid var(--line);border-radius:15px;
+    background:#FBFAF6;outline:none;}
+  .time-picker input.ms{width:56px;font-size:16px;padding:14px 2px;color:var(--ink2);}
+  .time-picker input:focus{border-color:var(--accent);}
+  .time-picker .colon{font-size:21px;font-weight:700;color:var(--ink2);}
+  .time-picker .colon.dot{font-size:19px;}
+  .tp-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:12px;}
+  .tp-btns{display:flex;gap:6px;margin-left:auto;}
+  .tp-label{flex:0 0 32px;font-size:13.5px;font-weight:700;color:var(--ink2);}
+  .tp-now{flex:0 0 auto;padding:9px 11px;border-radius:12px;background:#F4F1E8;
+    border:1px solid var(--line);font-size:12.5px;font-weight:700;
+    box-shadow:0 2px 6px rgba(61,57,41,.07);}
+  .tp-now:active{transform:translateY(1px);}
+  .switch-row{display:flex;align-items:center;justify-content:space-between;
+    margin:16px 2px 4px;font-size:15px;font-weight:600;}
+  .switch{position:relative;width:54px;height:32px;flex:0 0 auto;}
+  .switch input{opacity:0;width:0;height:0;}
+  .knob-bg{position:absolute;inset:0;border-radius:99px;background:#E8E4D8;transition:background .16s;}
+  .knob-dot{position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:99px;background:#fff;
+    box-shadow:0 2px 5px rgba(61,57,41,.25);transition:transform .16s var(--ease);}
+  .switch input:checked + .knob-bg{background:var(--accent);}
+  .switch input:checked + .knob-bg .knob-dot{transform:translateX(22px);}
+  textarea.ta, input.ti{width:100%;border:1.5px solid var(--line);border-radius:16px;
+    background:#FBFAF6;padding:13px 14px;font-size:15px;outline:none;resize:none;}
+  textarea.ta:focus,input.ti:focus{border-color:var(--accent);}
+  .row-item{display:flex;align-items:center;gap:10px;background:#FBFAF6;
+    border:1px solid var(--line);border-radius:16px;padding:10px 12px;margin-bottom:9px;}
+  .row-time{flex:0 0 auto;background:var(--accent-soft);color:var(--accent);
+    font-weight:800;font-size:12.5px;font-variant-numeric:tabular-nums;
+    border-radius:99px;padding:6px 11px;box-shadow:0 2px 5px rgba(61,57,41,.08);}
+  .row-time:active{transform:translateY(1px);}
+  .row-text{flex:1;font-size:14px;line-height:1.4;word-break:break-word;
+    user-select:text;-webkit-user-select:text;}
+  .row-x{flex:0 0 30px;height:30px;border-radius:99px;color:var(--ink2);
+    display:flex;align-items:center;justify-content:center;}
+  .row-x:active{background:#F1EEE5;}
+  .list-box{max-height:30vh;overflow-y:auto;margin-bottom:6px;-webkit-overflow-scrolling:touch;}
+  .list-empty{text-align:center;color:var(--ink2);font-size:13.5px;padding:12px 0 14px;}
+  .add-note-grid{display:flex;gap:8px;align-items:center;margin-bottom:10px;}
+  .add-note-grid input.nt{width:58px;padding:10px 2px;text-align:center;font-size:18px;
+    border:1.5px solid var(--line);border-radius:13px;background:#FBFAF6;outline:none;
+    font-variant-numeric:tabular-nums;}
+  .sheet-x{position:absolute;top:14px;right:14px;width:38px;height:38px;border-radius:99px;
+    display:flex;align-items:center;justify-content:center;color:var(--ink2);}
+  .sheet-x:active{background:#F1EEE5;}
+  .divider{height:1px;background:var(--line);margin:18px 0 4px;}
+  .sec-title{font-size:12px;font-weight:800;color:var(--ink2);letter-spacing:.4px;margin-top:14px;}
+
+  /* ---------- background editor ---------- */
+  #bgEditor{position:fixed;left:0;right:0;bottom:0;z-index:45;background:var(--surface);
+    border:1px solid var(--line);border-bottom:none;border-radius:28px 28px 0 0;
+    box-shadow:0 -12px 44px rgba(61,57,41,.2);
+    padding:14px 20px calc(var(--sab) + 20px);max-height:64vh;
+    overflow-y:auto;-webkit-overflow-scrolling:touch;
+    transform:translateY(106%);transition:transform .32s var(--ease);}
+  #scrPlayer.editing #bgEditor{transform:translateY(0);}
+  .ed-handle{width:44px;height:5px;border-radius:99px;background:#E7E3D7;margin:0 auto 12px;}
+  #btnBgDone{position:fixed;top:calc(var(--sat) + 16px);right:16px;width:54px;height:54px;z-index:46;
+    opacity:0;transform:scale(.4);pointer-events:none;
+    transition:transform .26s var(--ease),opacity .2s var(--ease);}
+  #scrPlayer.editing #btnBgDone{opacity:1;transform:scale(1);pointer-events:auto;}
+  #btnBgCancel{position:fixed;top:calc(var(--sat) + 16px);left:16px;width:54px;height:54px;z-index:46;
+    opacity:0;transform:scale(.4);pointer-events:none;
+    transition:transform .26s var(--ease),opacity .2s var(--ease);}
+  #scrPlayer.editing #btnBgCancel{opacity:1;transform:scale(1);pointer-events:auto;}
+  .ed-label{font-size:12px;font-weight:800;color:var(--ink2);margin-top:16px;letter-spacing:.4px;}
+  .ed-label b{color:var(--accent);font-variant-numeric:tabular-nums;}
+  .seg-row{display:flex;gap:8px;margin-top:9px;flex-wrap:wrap;}
+  .seg{flex:1;min-width:0;display:flex;align-items:center;justify-content:center;
+    padding:11px 4px;border-radius:14px;background:#F6F3EA;border:1.5px solid var(--line);
+    font-size:15px;font-weight:700;color:var(--ink);
+    box-shadow:0 2px 6px rgba(61,57,41,.06);
+    transition:transform .12s var(--ease),background .15s,border-color .15s,color .15s;}
+  .seg:active{transform:translateY(1px) scale(.96);}
+  .seg.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);}
+  .color-row{display:flex;gap:9px;margin-top:9px;flex-wrap:wrap;}
+  .sw{width:38px;height:38px;border-radius:99px;border:2.5px solid transparent;
+    box-shadow:0 2px 7px rgba(61,57,41,.18);flex:0 0 auto;position:relative;
+    transition:transform .12s var(--ease);}
+  .sw:active{transform:scale(.9);}
+  .sw.on{border-color:var(--accent);transform:scale(1.06);}
+  .sw.on::after{content:'';position:absolute;inset:-6px;border-radius:99px;
+    border:1.5px solid var(--accent-soft);}
+  .sw.std{background:var(--surface);color:var(--ink);display:flex;align-items:center;
+    justify-content:center;font-size:10px;font-weight:800;border:2.5px solid var(--line);}
+  .sw.std.on{border-color:var(--accent);}
+
+  /* ---------- toast ---------- */
+  #toast{position:fixed;left:50%;bottom:calc(var(--sab) + 110px);transform:translateX(-50%) translateY(14px);
+    z-index:90;background:var(--ink);color:#FBFAF6;font-size:14px;font-weight:600;
+    padding:11px 20px;border-radius:99px;box-shadow:var(--sh-pop);
+    opacity:0;pointer-events:none;transition:opacity .18s,transform .18s var(--ease);
+    max-width:84vw;text-align:center;line-height:1.4;}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+
+<!-- ============ LIBRARY ============ -->
+<div class="screen" id="scrLib">
+  <div class="lib-head">
+    <div class="lib-title">Perfect Audio</div>
+    <div class="lib-sub" id="libSub">Твоя коллекция</div>
+  </div>
+  <div class="empty" id="libEmpty">
+    <div class="empty-ic">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+    </div>
+    <div class="empty-t">Пока пусто</div>
+    <div class="empty-s">Нажми на оранжевую кнопку внизу и добавь свои аудио или видео</div>
+  </div>
+  <div class="lib-list" id="libList"></div>
+  <button class="fbtn accent" id="btnAdd" aria-label="Добавить">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+  </button>
+</div>
+
+<!-- ============ PLAYER ============ -->
+<div class="screen" id="scrPlayer">
+  <div class="bg-layer" id="bgLayer"></div>
+
+  <button class="fbtn" id="btnPlayerBack" aria-label="Назад">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+  </button>
+  <div class="track-chip"><span id="trackName"></span></div>
+
+  <div class="p-chip" id="pChip" style="display:none">
+    <div class="inner">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+      <span id="pChipText"></span>
+      <button id="pChipStop" aria-label="Стоп">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div id="videoWrap"><video id="videoEl" playsinline></video></div>
+  <button class="fbtn" id="btnVideoToggle" aria-label="Скрыть видео">
+    <svg id="icVideoOn" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="14" height="14" rx="3.5"/><path d="M16 10.5L22 7v10l-6-3.5z"/></svg>
+    <svg id="icVideoOff" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M2 2l20 20"/><path d="M6 5h6a3.5 3.5 0 0 1 3.5 3.5v1"/><path d="M15.5 15.5A3.5 3.5 0 0 1 12 19H5.5A3.5 3.5 0 0 1 2 15.5v-7c0-.8.3-1.6.8-2.2"/><path d="M22 7v10l-4.5-2.6"/></svg>
+  </button>
+
+  <div class="progress-zone">
+    <div class="time-row"><span id="tCur">0:00</span><span id="tDur">0:00</span></div>
+    <div class="bar" id="bar">
+      <div class="bar-track">
+        <div class="bar-fill" id="barFill"></div>
+        <div class="bar-knob" id="barKnob"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="fbtn ctl" id="btnRew" aria-label="Назад на несколько секунд">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+      <span class="step-badge" id="badgeRew">5с</span>
+    </button>
+    <button class="fbtn accent ctl big" id="btnPlay" aria-label="Играть / пауза">
+      <svg id="icPlay" width="32" height="32" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round" style="margin-left:4px"><path d="M6 4.5v15l13-7.5z"/></svg>
+      <svg id="icPause" width="30" height="30" viewBox="0 0 24 24" fill="currentColor" style="display:none"><rect x="5.5" y="4" width="4.6" height="16" rx="2.2"/><rect x="13.9" y="4" width="4.6" height="16" rx="2.2"/></svg>
+    </button>
+    <button class="fbtn ctl" id="btnFwd" aria-label="Вперёд на несколько секунд">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.13-9.36L23 10"/></svg>
+      <span class="step-badge" id="badgeFwd">5с</span>
+    </button>
+    <button class="fbtn ctl" id="btnMore" aria-label="Дополнительно">
+      <svg width="25" height="25" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M12 2.6l2.1 6.4 6.6 2.1-6.6 2.1L12 19.6l-2.1-6.4-6.6-2.1 6.6-2.1z"/><path d="M19.5 15.5l.9 2.6 2.6.9-2.6.9-.9 2.6-.9-2.6-2.6-.9 2.6-.9z" stroke-width="1"/></svg>
+    </button>
+  </div>
+
+  <!-- word picking header -->
+  <div id="pickBar">
+    <button class="fbtn" id="btnPickClose" aria-label="Отмена">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+    </button>
+    <div class="hint" id="pickHint">Нажми на любое слово</div>
+    <button class="fbtn accent" id="btnPickDone" aria-label="Готово">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+    </button>
+  </div>
+
+  <!-- more popover -->
+  <div class="pop" id="morePop">
+    <button class="pop-item" id="miPractice">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+      Практика
+    </button>
+    <button class="pop-item" id="miRepeatAll">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 8.5a3.5 3.5 0 1 0 0 7c2.5 0 3.3-2 5.5-3.5s3-3.5 5.5-3.5a3.5 3.5 0 1 1 0 7c-2.5 0-3.3-2-5.5-3.5S9 8.5 6.5 8.5z"/></svg>
+      <span style="flex:1;text-align:left">Бесконечно</span>
+      <span class="mi-state" id="miRepeatState">выкл</span>
+    </button>
+    <button class="pop-item" id="miBreak">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M10 9v6M14 9v6"/></svg>
+      <span style="flex:1;text-align:left">Перерыв</span>
+      <span class="mi-state" id="miBreakState">выкл</span>
+    </button>
+    <button class="pop-item" id="miSpeed">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20a8 8 0 1 1 8-8"/><path d="M12 12l4.5-3.5"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/></svg>
+      <span style="flex:1;text-align:left">Скорость</span>
+      <span class="mi-state" id="miSpeedState">1×</span>
+    </button>
+    <button class="pop-item" id="miTrans">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h9M9 3v2c0 4-2.2 7.3-5 9"/><path d="M6 10c1.8 2.6 4.3 4.6 7 5.7"/><path d="M13.5 21l4.2-10 4.3 10"/><path d="M15.3 17h5.6"/></svg>
+      Транскрипция
+    </button>
+    <button class="pop-item" id="miTranslate">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h9M7.5 3v2c0 3.6-1.8 6.4-4 8"/><path d="M4.5 9.5c1.5 2.2 3.6 3.9 6 4.8"/><path d="M12.5 21l4-9.5L21 21"/><path d="M14 17.5h5.2"/></svg>
+      <span style="flex:1;text-align:left">Перевод</span>
+      <span class="mi-state" id="miTransState">выкл</span>
+    </button>
+    <button class="pop-item" id="miHaptic">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2.5" width="8" height="19" rx="2.6"/><path d="M4.5 9v6M2 10.5v3M19.5 9v6M22 10.5v3"/></svg>
+      <span style="flex:1;text-align:left">Вибрация</span>
+      <span class="mi-state" id="miHapticState">вкл</span>
+    </button>
+    <button class="pop-item" id="miBg">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+      Фон и текст
+    </button>
+    <button class="pop-item" id="miNotes">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+      Заметки
+    </button>
+    <button class="pop-item" id="miTrim">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M8.1 8.1L20 20"/><path d="M8.1 15.9L20 4"/></svg>
+      Отрезок
+    </button>
+    <button class="pop-item" id="miExport">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><path d="M12 15V3"/></svg>
+      Скачать отрезок
+    </button>
+  </div>
+
+  <!-- seek-step popover -->
+  <div class="pop" id="stepPop">
+    <div class="sp-title" id="spTitle">Перемотка назад</div>
+    <div class="sp-val"><span id="spVal">5</span> <small>сек</small></div>
+    <input type="range" id="spRange" min="1" max="60" step="1" value="5">
+    <div class="sp-hint">Столько секунд будет перематываться при каждом нажатии</div>
+  </div>
+
+  <!-- single-word transcription popover -->
+  <div class="pop" id="wordPop">
+    <div class="wp-word" id="wpWord"></div>
+    <input class="ti" id="wpInput" placeholder="Как это звучит…">
+    <div style="display:flex;gap:8px">
+      <button class="btn small" id="wpDelete" style="flex:1">Убрать</button>
+      <button class="btn small primary" id="wpSave" style="flex:1.4">Сохранить</button>
+    </div>
+  </div>
+
+  <!-- background & text editor -->
+  <div id="bgEditor">
+    <div class="ed-handle"></div>
+    <div style="position:relative">
+      <textarea class="ta" id="bgTextInput" rows="2" placeholder="Напиши текст: слова, цитату, что угодно…"></textarea>
+      <button class="fbtn" id="btnTextBig" aria-label="Развернуть"
+              style="position:absolute;right:8px;bottom:8px;width:38px;height:38px">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
+      </button>
+    </div>
+    <button class="btn" id="bgSaveText" style="margin-top:9px">Показать текст</button>
+
+    <div class="ed-label">РАЗМЕР ТЕКСТА — <b id="bgTextSizeVal">24</b></div>
+    <input type="range" id="bgTextSize" min="6" max="60" step="1" value="24">
+
+    <div class="ed-label">ПОЛЯ — <b id="bgMarginVal">34</b></div>
+    <input type="range" id="bgMargin" min="0" max="60" step="1" value="34">
+
+    <div class="ed-label">ВЫРАВНИВАНИЕ</div>
+    <div class="seg-row" id="alignRow">
+      <button class="seg" data-align="left" aria-label="По левому краю">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 6h18M3 11h11M3 16h15M3 21h8"/></svg>
+      </button>
+      <button class="seg" data-align="center" aria-label="По центру">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 6h18M6.5 11h11M4.5 16h15M8 21h8"/></svg>
+      </button>
+      <button class="seg" data-align="right" aria-label="По правому краю">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 6h18M10 11h11M6 16h15M13 21h8"/></svg>
+      </button>
+      <button class="seg" data-align="justify" aria-label="По ширине">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 6h18M3 11h18M3 16h18M3 21h18"/></svg>
+      </button>
+    </div>
+
+    <div class="ed-label">ШРИФТ</div>
+    <div class="seg-row" id="fontRow">
+      <button class="seg" data-font="serif" style="font-family:Georgia,serif">Аа</button>
+      <button class="seg" data-font="sans-serif" style="font-family:sans-serif">Аа</button>
+      <button class="seg" data-font="sans-serif-light" style="font-family:sans-serif-light,sans-serif;font-weight:300">Аа</button>
+      <button class="seg" data-font="cursive" style="font-family:cursive">Аа</button>
+      <button class="seg" data-font="casual" style="font-family:casual,'Comic Sans MS',cursive">Аа</button>
+      <button class="seg" data-font="monospace" style="font-family:monospace">Аа</button>
+    </div>
+
+    <div class="ed-label">ЦВЕТ ТЕКСТА</div>
+    <div class="color-row" id="colorRow">
+      <button class="sw std" data-color="default">Aa</button>
+      <button class="sw" data-color="amber" style="background:#C98A00"></button>
+      <button class="sw" data-color="green" style="background:#3E8E5A"></button>
+      <button class="sw" data-color="blue" style="background:#3A6FA8"></button>
+      <button class="sw" data-color="red" style="background:#C14434"></button>
+      <button class="sw" data-color="purple" style="background:#7A5EA8"></button>
+      <button class="sw" data-color="gray" style="background:#8A8778"></button>
+      <button class="sw" data-color="black" style="background:#1A1A1A"></button>
+      <button class="sw" data-color="white" style="background:#FFFFFF;border-color:var(--line)"></button>
+    </div>
+    <button class="btn ghost small" id="bgClearText" style="margin-top:12px">Убрать текст</button>
+
+    <div class="divider"></div>
+    <button class="btn primary" id="bgPick">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+      Фото или видео из галереи
+    </button>
+    <div id="bgMediaSizeWrap" style="display:none">
+      <div class="ed-label">РАЗМЕР ФОТО И ВИДЕО — <b id="bgMediaSizeVal">100%</b></div>
+      <input type="range" id="bgMediaSize" min="10" max="100" step="1" value="100">
+      <button class="btn ghost small" id="bgClearMedia" style="margin-top:12px">Убрать фото или видео</button>
+    </div>
+  </div>
+  <button class="fbtn accent" id="btnBgDone" aria-label="Готово">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+  </button>
+  <button class="fbtn" id="btnBgCancel" aria-label="Отменить изменения">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+  </button>
+</div>
+
+<!-- library card menu -->
+<div class="pop" id="cardPop">
+  <button class="pop-item" id="cmRename">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+    Переименовать
+  </button>
+  <button class="pop-item danger" id="cmDelete">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+    Удалить
+  </button>
+</div>
+
+<!-- ============ SHEETS ============ -->
+<div id="overlay"></div>
+
+<div class="sheet" id="shPractice">
+  <button class="sheet-x" data-close>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+  </button>
+  <div class="sh-title">Практика</div>
+  <div class="sh-sub">Выбери отрезок — минуты и секунды. «Начало» и «конец» ставят края записи.</div>
+  <div class="tp-row">
+    <div class="tp-label">От</div>
+    <div class="time-picker">
+      <input type="number" id="prSM" inputmode="numeric" min="0" max="599" value="0">
+      <span class="colon">:</span>
+      <input type="number" id="prSS" inputmode="numeric" min="0" max="59" value="0">
+      <span class="colon dot">.</span>
+      <input type="number" class="ms" id="prSMS" inputmode="numeric" min="0" max="999" value="0">
+    </div>
+    <div class="tp-btns">
+      <button class="tp-now" id="prSNow">сейчас</button>
+      <button class="tp-now" id="prSStart">начало</button>
+    </div>
+    </div>
+  <div class="tp-row">
+    <div class="tp-label">До</div>
+    <div class="time-picker">
+      <input type="number" id="prEM" inputmode="numeric" min="0" max="599" value="0">
+      <span class="colon">:</span>
+      <input type="number" id="prES" inputmode="numeric" min="0" max="59" value="10">
+      <span class="colon dot">.</span>
+      <input type="number" class="ms" id="prEMS" inputmode="numeric" min="0" max="999" value="0">
+    </div>
+    <div class="tp-btns">
+      <button class="tp-now" id="prENow">сейчас</button>
+      <button class="tp-now" id="prEEnd">конец</button>
+    </div>
+    </div>
+  <div class="switch-row">
+    <span>Бесконечный повтор</span>
+    <label class="switch">
+      <input type="checkbox" id="prLoop" checked>
+      <span class="knob-bg"><span class="knob-dot"></span></span>
+    </label>
+  </div>
+  <button class="btn primary" id="prStart">Слушать отрезок</button>
+  <div style="display:flex;gap:8px">
+    <button class="btn small" id="prSave" style="flex:1">В историю</button>
+    <button class="btn small" id="prDownload" style="flex:1">Скачать</button>
+  </div>
+
+  <div class="sec-title">ИСТОРИЯ</div>
+  <div class="list-box" id="prHistory" style="margin-top:9px"></div>
+</div>
+
+<div class="sheet" id="shTransMenu">
+  <button class="sheet-x" data-close>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+  </button>
+  <div class="sh-title">Транскрипция</div>
+  <div class="sh-sub">Подпиши, как слова звучат — подпись появится под каждым словом.</div>
+  <button class="btn primary" id="trWordMode">
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V5h16v2"/><path d="M9 19h6"/><path d="M12 5v14"/></svg>
+    Слово
+  </button>
+  <button class="btn" id="trSentMode">
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h18M3 14h11"/><path d="M6 4v8M18 10v8"/></svg>
+    Предложение
+  </button>
+  <button class="btn" id="trAllMode">
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h13"/></svg>
+    Весь текст
+  </button>
+  <button class="btn ghost" id="trClear">Убрать все транскрипции</button>
+</div>
+
+<div class="sheet" id="shTransAll">
+  <button class="sheet-x" data-close>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+  </button>
+  <div class="sh-title" id="trAllTitle">Весь текст</div>
+  <div class="sh-sub" id="trAllSub">Вставь транскрипции через пробел — по одной на каждое слово. Поставь дефис «-», если слово нужно пропустить.</div>
+  <textarea class="ta" id="trAllInput" rows="6"></textarea>
+  <div style="font-size:12.5px;color:var(--ink2);margin-top:9px" id="trAllCount"></div>
+  <button class="btn primary" id="trAllApply">Применить</button>
+</div>
+
+<div class="sheet" id="shBreak">
+  <button class="sheet-x" data-close>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+  </button>
+  <div class="sh-title">Перерыв</div>
+  <div class="sh-sub">Тишина между повторами практики. Часы, минуты и секунды.</div>
+  <div class="time-picker" style="margin-bottom:4px">
+    <input type="number" id="brH" inputmode="numeric" min="0" max="23" value="0">
+    <span class="colon">:</span>
+    <input type="number" id="brM" inputmode="numeric" min="0" max="59" value="0">
+    <span class="colon">:</span>
+    <input type="number" id="brS" inputmode="numeric" min="0" max="59" value="5">
+  </div>
+  <div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--ink2);
+              font-weight:700;padding:0 14px;margin-bottom:6px">
+    <span>часы</span><span>минуты</span><span>секунды</span>
+  </div>
+  <div class="preset-row" id="brPresets">
+    <button class="preset" data-v="2">2с</button>
+    <button class="preset" data-v="3">3с</button>
+    <button class="preset" data-v="5">5с</button>
+    <button class="preset" data-v="10">10с</button>
+    <button class="preset" data-v="30">30с</button>
+  </div>
+  <button class="btn primary" id="brApply">Сохранить</button>
+  <button class="btn ghost" id="brOff">Без перерыва</button>
+</div>
+
+<div class="sheet" id="shTranslate">
+  <button class="sheet-x" data-close>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+  </button>
+  <div class="sh-title">Перевод</div>
+  <div class="sh-sub">Нажми на слово — перевод всплывёт над ним. Удерживай и веди до другого слова, чтобы увидеть перевод фразы.</div>
+  <div class="switch-row" style="margin:2px 2px 12px">
+    <span>Показывать перевод</span>
+    <label class="switch">
+      <input type="checkbox" id="twOn">
+      <span class="knob-bg"><span class="knob-dot"></span></span>
+    </label>
+  </div>
+  <button class="btn primary" id="twWordMode">
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V5h16v2"/><path d="M9 19h6"/><path d="M12 5v14"/></svg>
+    Слово
+  </button>
+  <button class="btn" id="twSentMode">
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h18M3 14h11"/><path d="M6 4v8M18 10v8"/></svg>
+    Предложение
+  </button>
+  <button class="btn" id="twAllMode">
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h13"/></svg>
+    Весь текст
+  </button>
+  <button class="btn ghost" id="twClear">Убрать все переводы</button>
+</div>
+
+<div class="sheet" id="shHaptic">
+  <button class="sheet-x" data-close>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+  </button>
+  <div class="sh-title">Вибрация</div>
+  <div class="sh-sub">Короткий отклик при нажатиях.</div>
+  <div class="switch-row" style="margin:2px 2px 6px">
+    <span>Вибрация</span>
+    <label class="switch">
+      <input type="checkbox" id="hapOn" checked>
+      <span class="knob-bg"><span class="knob-dot"></span></span>
+    </label>
+  </div>
+  <div id="hapLevelWrap">
+    <div class="ed-label">СИЛА — <b id="hapLevelVal">50</b></div>
+    <input type="range" id="hapLevel" min="1" max="100" step="1" value="50">
+    <div class="preset-row" id="hapPresets">
+      <button class="preset" data-v="20">Слабая</button>
+      <button class="preset on" data-v="50">Средняя</button>
+      <button class="preset" data-v="85">Сильная</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet" id="shSpeed">
+  <button class="sheet-x" data-close>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+  </button>
+  <div class="sh-title">Скорость</div>
+  <div class="sh-sub">От 0,1× до 2×. Можно двигать ползунок или вписать точное число.</div>
+  <div class="sp-big"><span id="spdVal">1.00</span><small>×</small></div>
+  <input type="range" id="spdRange" min="10" max="200" step="1" value="100">
+  <div class="preset-row" id="spdPresets">
+    <button class="preset" data-v="0.5">0,5×</button>
+    <button class="preset" data-v="0.75">0,75×</button>
+    <button class="preset" data-v="1">1×</button>
+    <button class="preset" data-v="1.25">1,25×</button>
+    <button class="preset" data-v="1.5">1,5×</button>
+    <button class="preset" data-v="2">2×</button>
+  </div>
+  <div class="speed-row">
+    <input class="ti" id="spdInput" inputmode="decimal" placeholder="1.65">
+    <button class="btn" id="spdApply" style="flex:0 0 auto;width:auto;padding:13px 20px;margin:0">Применить</button>
+  </div>
+</div>
+
+<div class="sheet" id="shNotes">
+  <button class="sheet-x" data-close>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+  </button>
+  <div class="sh-title">Заметки</div>
+  <div class="sh-sub">Отметь время и запиши, что там происходит. Нажми на время — и перемотается туда.</div>
+  <div class="list-box" id="notesList"></div>
+  <div class="add-note-grid">
+    <input class="nt" type="number" id="ntM" inputmode="numeric" min="0" max="599" value="0">
+    <span style="font-weight:700;color:var(--ink2)">:</span>
+    <input class="nt" type="number" id="ntS" inputmode="numeric" min="0" max="59" value="0">
+    <button class="tp-now" id="ntNow">сейчас</button>
+  </div>
+  <input class="ti" id="ntText" placeholder="Текст заметки…">
+  <button class="btn primary" id="ntAdd">Добавить заметку</button>
+</div>
+
+<div class="sheet" id="shExport">
+  <button class="sheet-x" data-close>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+  </button>
+  <div class="sh-title">Скачать отрезок</div>
+  <div class="sh-sub">Отрезок сохранится в «Загрузки», и его можно сразу отправить.</div>
+  <div class="tp-row">
+    <div class="tp-label">От</div>
+    <div class="time-picker">
+      <input type="number" id="exSM" inputmode="numeric" min="0" max="599" value="0">
+      <span class="colon">:</span>
+      <input type="number" id="exSS" inputmode="numeric" min="0" max="59" value="0">
+      <span class="colon dot">.</span>
+      <input type="number" class="ms" id="exSMS" inputmode="numeric" min="0" max="999" value="0">
+    </div>
+    <div class="tp-btns">
+      <button class="tp-now" id="exSNow">сейчас</button>
+      <button class="tp-now" id="exSStart">начало</button>
+    </div>
+    </div>
+  <div class="tp-row">
+    <div class="tp-label">До</div>
+    <div class="time-picker">
+      <input type="number" id="exEM" inputmode="numeric" min="0" max="599" value="0">
+      <span class="colon">:</span>
+      <input type="number" id="exES" inputmode="numeric" min="0" max="59" value="10">
+      <span class="colon dot">.</span>
+      <input type="number" class="ms" id="exEMS" inputmode="numeric" min="0" max="999" value="0">
+    </div>
+    <div class="tp-btns">
+      <button class="tp-now" id="exENow">сейчас</button>
+      <button class="tp-now" id="exEEnd">конец</button>
+    </div>
+    </div>
+  <div class="ed-label">ФОРМАТ</div>
+  <div class="seg-row" id="exFormatRow">
+    <button class="seg on" data-fmt="m4a">M4A</button>
+    <button class="seg" data-fmt="wav">WAV</button>
+  </div>
+  <div style="font-size:12px;color:var(--ink2);line-height:1.4;margin:8px 2px 0" id="exFmtHint"></div>
+  <button class="btn primary" id="exStart">Скачать</button>
+  <button class="btn" id="exShare" style="display:none">Отправить</button>
+</div>
+
+<div class="sheet" id="shRename">
+  <div class="sh-title">Переименовать</div>
+  <div style="height:10px"></div>
+  <input class="ti" id="rnInput" placeholder="Название">
+  <button class="btn primary" id="rnSave">Сохранить</button>
+  <button class="btn ghost" data-close>Отмена</button>
+</div>
+
+<div class="sheet" id="shTrim">
+  <button class="sheet-x" data-close>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+  </button>
+  <div class="sh-title">Отрезок</div>
+  <div class="sh-sub">Меняет саму запись. Выбери, что сделать с отрезком.</div>
+  <div class="seg-row" id="trimModeRow" style="margin-bottom:14px">
+    <button class="seg on" data-mode="cut">Удалить</button>
+    <button class="seg" data-mode="keep">Сократить</button>
+  </div>
+  <div class="tp-row">
+    <div class="tp-label">От</div>
+    <div class="time-picker">
+      <input type="number" id="tmSM" inputmode="numeric" min="0" max="599" value="0">
+      <span class="colon">:</span>
+      <input type="number" id="tmSS" inputmode="numeric" min="0" max="59" value="0">
+      <span class="colon dot">.</span>
+      <input type="number" class="ms" id="tmSMS" inputmode="numeric" min="0" max="999" value="0">
+    </div>
+    <div class="tp-btns">
+      <button class="tp-now" id="tmSNow">сейчас</button>
+      <button class="tp-now" id="tmSStart">начало</button>
+    </div>
+    </div>
+  <div class="tp-row">
+    <div class="tp-label">До</div>
+    <div class="time-picker">
+      <input type="number" id="tmEM" inputmode="numeric" min="0" max="599" value="0">
+      <span class="colon">:</span>
+      <input type="number" id="tmES" inputmode="numeric" min="0" max="59" value="10">
+      <span class="colon dot">.</span>
+      <input type="number" class="ms" id="tmEMS" inputmode="numeric" min="0" max="999" value="0">
+    </div>
+    <div class="tp-btns">
+      <button class="tp-now" id="tmENow">сейчас</button>
+      <button class="tp-now" id="tmEEnd">конец</button>
+    </div>
+    </div>
+  <div style="font-size:12.5px;color:var(--ink2);line-height:1.45;margin:4px 2px 0" id="tmHint"></div>
+  <button class="btn primary" id="tmApply">Применить</button>
+</div>
+
+<div class="sheet" id="shConfirm">
+  <div class="sh-title">Удалить?</div>
+  <div class="sh-sub" id="cfText" style="margin-top:6px"></div>
+  <button class="btn danger" id="cfYes">Удалить</button>
+  <button class="btn ghost" data-close>Отмена</button>
+</div>
+
+<!-- full-screen text writing -->
+<div id="textFull">
+  <div class="tf-head">
+    <div class="tf-title">Текст</div>
+    <button class="fbtn accent" id="tfDone" aria-label="Сохранить">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+    </button>
+  </div>
+  <textarea id="tfArea" placeholder="Пиши здесь…"></textarea>
+</div>
+
+<div id="transPop"></div>
+<div id="toast"></div>
+<audio id="audioEl"></audio>
+
+<script>
+'use strict';
+/* ---------------- helpers ---------------- */
+const $ = id => document.getElementById(id);
+const HOLD_MS = 450;                // hold seek button this long -> step adjuster
+const hasPA = () => typeof window.PA !== 'undefined';
+function hap(t){
+  if(settings.hapticOn===false) return;
+  try{ if(hasPA()) PA.haptic(t||'light'); }catch(e){}
+}
+function store(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+function loadLS(k,d){ try{ const v=localStorage.getItem(k); return v==null?d:JSON.parse(v); }catch(e){ return d; } }
+function uid(){ return Math.random().toString(36).slice(2,10); }
+function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+function fmt(sec){
+  if(!isFinite(sec)||sec<0) sec=0;
+  sec = Math.floor(sec);
+  const h=Math.floor(sec/3600), m=Math.floor(sec%3600/60), s=sec%60;
+  return h>0 ? h+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')
+             : m+':'+String(s).padStart(2,'0');
+}
+function esc(s){ const d=document.createElement('div'); d.textContent=s==null?'':String(s); return d.innerHTML; }
+
+let toastTimer=null;
+function toast(msg, sticky){
+  const t=$('toast'); t.textContent=msg; t.classList.add('show');
+  if(toastTimer){ clearTimeout(toastTimer); toastTimer=null; }
+  if(!sticky) toastTimer=setTimeout(()=>t.classList.remove('show'), 2400);
+}
+function hideToast(){ $('toast').classList.remove('show'); if(toastTimer){clearTimeout(toastTimer);toastTimer=null;} }
+
+/* ---------------- state ---------------- */
+let lib = loadLS('pa.lib', []);
+let settings = Object.assign({seekBack:5, seekFwd:5, speed:1, breakSec:0}, loadLS('pa.settings', {}));
+const TEXT_STYLE = {size:24, margin:34, align:'center', font:'serif', color:'default'};
+function textStyle(){ return Object.assign({}, TEXT_STYLE, settings.textStyle||{}); }
+let cur = null;           // current track
+let media = null;         // active HTMLMediaElement
+let curBg = {text:null, media:null};
+let practice = null;      // {start,end,loop}
+let repeatAll = false;    // loop the whole track
+let pickingWord = false;
+let pickMode = 'word';    // 'word' | 'range'
+let rangeStart = -1;
+let transRange = null;    // {a,b} while transcribing a sentence
+let transTarget = 'tr';   // 'tr' = transcription, 'tw' = translation
+let posSaveT = 0;
+
+const COLORS = {
+  default:null, amber:'#C98A00', green:'#3E8E5A', blue:'#3A6FA8', red:'#C14434',
+  purple:'#7A5EA8', gray:'#8A8778', black:'#1A1A1A', white:'#FFFFFF'
+};
+
+/* ---------------- library ---------------- */
+function kindIcon(kind){
+  return kind==='video'
+    ? '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="4"/><path d="M10 9.5l5 2.5-5 2.5z" fill="currentColor" stroke="none"/></svg>'
+    : '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>';
+}
+function plural(n,a,b,c){
+  const m10=n%10, m100=n%100;
+  if(m10===1&&m100!==11) return a;
+  if(m10>=2&&m10<=4&&(m100<10||m100>=20)) return b;
+  return c;
+}
+function renderLib(){
+  const list=$('libList');
+  list.innerHTML='';
+  $('libEmpty').style.display = lib.length ? 'none' : 'block';
+  $('libSub').textContent = lib.length
+    ? lib.length + ' ' + plural(lib.length,'запись','записи','записей')
+    : 'Твоя коллекция';
+  lib.forEach(tr=>{
+    const el=document.createElement('div');
+    el.className='card';
+    el.innerHTML =
+      '<div class="card-ic">'+kindIcon(tr.kind)+'</div>'+
+      '<div class="card-body"><div class="card-name">'+esc(tr.name)+'</div>'+
+      '<div class="card-meta">'+(tr.kind==='video'?'Видео':'Аудио')+(tr.duration?' · '+fmt(tr.duration):'')+'</div></div>'+
+      '<button class="card-menu" aria-label="Меню">'+
+      '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>';
+    el.addEventListener('click', e=>{
+      if(e.target.closest('.card-menu')){ e.stopPropagation(); hap('light'); openCardMenu(e.target.closest('.card-menu'), tr.id); return; }
+      hap('light'); openPlayer(tr.id);
+    });
+    list.appendChild(el);
+  });
+}
+function probeDuration(tr){
+  try{
+    const el=document.createElement(tr.kind==='video'?'video':'audio');
+    el.preload='metadata';
+    el.src=tr.path;
+    el.onloadedmetadata=()=>{
+      tr.duration = isFinite(el.duration)?el.duration:0;
+      el.removeAttribute('src'); el.load();
+      store('pa.lib', lib); renderLib();
+    };
+  }catch(e){}
+}
+
+window.onImportStart = function(n){ toast('Добавляю…', true); };
+window.onMediaPicked = function(arr){
+  hideToast();
+  if(!arr || !arr.length){ toast('Ничего не добавлено'); return; }
+  arr.forEach(f=>{
+    const kind = (f.mime||'').indexOf('video')===0 ? 'video' : 'audio';
+    let name = f.name||'Без названия';
+    const dot = name.lastIndexOf('.');
+    if(dot>0) name = name.slice(0,dot);
+    const tr = {id:uid(), name:name, path:f.path, mime:f.mime, kind:kind, duration:0, added:Date.now()};
+    lib.unshift(tr);
+    probeDuration(tr);
+  });
+  store('pa.lib', lib);
+  renderLib();
+  hap('medium');
+  toast('Добавлено: '+arr.length);
+};
+window.onBackgroundPicked = function(f){
+  hideToast();
+  if(!f || !cur){ toast('Не получилось выбрать фон'); return; }
+  const kind = (f.mime||'').indexOf('video')===0 ? 'video' : 'image';
+  // kept until the editor is confirmed, so cancelling can bring it back
+  if(curBg.media && curBg.media.path && !bgOldMedia) bgOldMedia=curBg.media.path;
+  curBg.media = {kind:kind, path:f.path, size:100};
+  saveCurBg();
+  applyBg(curBg);
+  $('bgMediaSizeWrap').style.display='block';
+  $('bgMediaSize').value=100;
+  $('bgMediaSizeVal').textContent='100%';
+  hap('medium');
+  toast('Фон обновлён');
+};
+
+$('btnAdd').addEventListener('click', ()=>{
+  hap('medium');
+  if(hasPA()) PA.pickMedia();
+  else toast('Выбор файлов доступен в приложении');
+});
+
+/* ---------------- card menu ---------------- */
+let cardMenuId=null;
+function openCardMenu(btn, id){ cardMenuId=id; showPopAt($('cardPop'), btn); }
+$('cmRename').addEventListener('click', ()=>{
+  hap('light'); closePops();
+  const tr=lib.find(t=>t.id===cardMenuId); if(!tr) return;
+  $('rnInput').value=tr.name;
+  openSheet('shRename');
+});
+$('rnSave').addEventListener('click', ()=>{
+  const tr=lib.find(t=>t.id===cardMenuId); if(!tr){ closeSheets(); return; }
+  const v=$('rnInput').value.trim();
+  if(v){ tr.name=v; store('pa.lib',lib); renderLib(); if(cur&&cur.id===tr.id) $('trackName').textContent=v; }
+  hap('light'); closeSheets();
+});
+let confirmFn=null;
+function askConfirm(title, text, btnText, fn){
+  $('shConfirm').querySelector('.sh-title').textContent=title;
+  $('cfText').textContent=text;
+  $('cfYes').textContent=btnText;
+  confirmFn=fn;
+  openSheet('shConfirm');
+}
+$('cmDelete').addEventListener('click', ()=>{
+  hap('light'); closePops();
+  const tr=lib.find(t=>t.id===cardMenuId); if(!tr) return;
+  askConfirm('Удалить?', '«'+tr.name+'» будет удалено из приложения.', 'Удалить', null);
+});
+$('cfYes').addEventListener('click', ()=>{
+  if(confirmFn){ const f=confirmFn; confirmFn=null; closeSheets(); f(); return; }
+  const tr=lib.find(t=>t.id===cardMenuId); if(!tr){ closeSheets(); return; }
+  if(hasPA()){
+    try{ PA.deleteFile(tr.path); }catch(e){}
+    const bg=normalizeBg(loadLS('pa.bg.'+tr.id,null));
+    if(bg.media && bg.media.path){ try{ PA.deleteFile(bg.media.path); }catch(e){} }
+  }
+  ['pa.bg.','pa.notes.','pa.pos.','pa.tr.','pa.pr.','pa.phist.'].forEach(p=>localStorage.removeItem(p+tr.id));
+  lib=lib.filter(t=>t.id!==tr.id);
+  store('pa.lib',lib);
+  renderLib();
+  hap('heavy'); closeSheets(); toast('Удалено');
+});
+
+/* ---------------- popover positioning ---------------- */
+const pops=[...document.querySelectorAll('.pop')];
+function showPopAt(pop, anchorBtn){
+  closePops();
+  const r=anchorBtn.getBoundingClientRect();
+  pop.style.visibility='hidden';
+  pop.classList.add('show');
+  const pw=pop.offsetWidth, ph=pop.offsetHeight;
+  let left = r.left + r.width/2 - pw/2;
+  left = clamp(left, 12, window.innerWidth - pw - 12);
+  let top = r.top - ph - 12;
+  if(top < 12) top = Math.min(r.bottom + 12, window.innerHeight - ph - 12);
+  pop.style.left=left+'px';
+  pop.style.top=top+'px';
+  const ox = clamp(r.left + r.width/2 - left, 16, pw-16);
+  pop.style.transformOrigin = ox+'px '+(top < r.top ? ph+'px' : '0px');
+  pop.classList.remove('show');
+  pop.style.visibility='';
+  requestAnimationFrame(()=>pop.classList.add('show'));
+}
+function closePops(){ pops.forEach(p=>p.classList.remove('show')); }
+function anyPopOpen(){ return pops.some(p=>p.classList.contains('show')); }
+let popJustClosed=0;
+document.addEventListener('pointerdown', e=>{
+  if(!anyPopOpen()) return;
+  if(e.target.closest('.pop')) return;
+  if(e.target.closest('#btnMore')||e.target.closest('#btnRew')||e.target.closest('#btnFwd')||
+     e.target.closest('.card-menu')||e.target.closest('.w')) return;
+  closePops();
+  popJustClosed=Date.now();
+}, true);
+
+/* ---------------- player ---------------- */
+const audioEl=$('audioEl'), videoEl=$('videoEl');
+
+function detachMedia(){
+  if(!media) return;
+  media.onplay=media.onpause=media.ontimeupdate=media.onended=media.onloadedmetadata=media.onerror=null;
+  media.pause();
+  media.removeAttribute('src');
+  try{ media.load(); }catch(e){}
+  media=null;
+}
+function openPlayer(id){
+  const tr=lib.find(t=>t.id===id); if(!tr) return;
+  cur=tr;
+  detachMedia();
+  practice=null; repeatAll=false; updatePracticeChip();
+  media = tr.kind==='video' ? videoEl : audioEl;
+  videoHidden = tr.kind==='video' ? loadLS('pa.vhide.'+tr.id, false) : false;
+  $('trackName').textContent = tr.name;
+  $('tCur').textContent='0:00';
+  $('tDur').textContent = tr.duration ? fmt(tr.duration) : '0:00';
+  setBarRatio(0);
+  updatePlayIcon(false);
+  updateBadges();
+
+  media.onplay=()=>{ updatePlayIcon(true); maybeKeepAwake(); updateDiscSpin(); };
+  media.onpause=()=>{ updatePlayIcon(false); maybeKeepAwake(); savePos(); updateDiscSpin(); };
+  media.onended=onEnded;
+  media.onloadedmetadata=()=>{
+    if(isFinite(media.duration)){
+      updateTimes();
+      if(!tr.duration){ tr.duration=media.duration; store('pa.lib',lib); }
+    }
+    const pos=loadLS('pa.pos.'+tr.id, 0);
+    if(pos>3 && media.duration && pos < media.duration-3){ media.currentTime=pos; }
+    media.playbackRate=settings.speed||1;
+    updateProgress();
+  };
+  media.ontimeupdate=onTimeUpdate;
+  media.onerror=()=>{ toast('Не удалось открыть файл'); };
+  media.src=tr.path;
+  try{ media.load(); }catch(e){}
+  media.playbackRate=settings.speed||1;
+
+  applyBg(normalizeBg(loadLS('pa.bg.'+tr.id, null)));
+  updateVideoLayout();
+  updateFeatureStates();
+  $('scrPlayer').classList.remove('zen','editing','picking');
+  $('scrPlayer').classList.add('open');
+}
+function closePlayer(){
+  savePos();
+  if(media) media.pause();
+  practice=null; repeatAll=false; updatePracticeChip();
+  $('scrPlayer').classList.remove('open','zen','editing','picking');
+  hideTransPop();
+  closePops(); closeSheets();
+  const bgv=$('bgLayer').querySelector('video'); if(bgv) bgv.pause();
+  setTimeout(()=>{ if(!$('scrPlayer').classList.contains('open')){ detachMedia(); clearBgLayer(); cur=null; } }, 320);
+  if(hasPA()){
+    try{ PA.keepAwake(false); }catch(e){}
+  }
+}
+$('btnPlayerBack').addEventListener('click', ()=>{ hap('light'); closePlayer(); });
+
+function savePos(){
+  if(cur && media && isFinite(media.currentTime)) store('pa.pos.'+cur.id, media.currentTime);
+}
+function maybeKeepAwake(){
+  if(!hasPA()) return;
+  const playing = media && !media.paused;
+  const visual = (cur && cur.kind==='video') || (curBg.media && curBg.media.kind==='video');
+  try{ PA.keepAwake(!!(playing && visual)); }catch(e){}
+}
+function updatePlayIcon(playing){
+  $('icPlay').style.display = playing?'none':'block';
+  $('icPause').style.display = playing?'block':'none';
+}
+$('btnPlay').addEventListener('click', ()=>{
+  if(!media) return;
+  hap('medium');
+  if(inBreak()){ endBreak(true); return; }   // tapping play skips the break
+  if(media.paused) play(); else media.pause();
+});
+function play(){
+  if(!media) return;
+  media.play().catch(()=>toast('Не удалось включить'));
+}
+
+function onEnded(){
+  updatePlayIcon(false);
+  updateDiscSpin();
+  // a practice range that reaches the very end of the file finishes with
+  // "ended" rather than a timeupdate, so the loop is restarted here
+  if(practice && practice.loop && media){
+    media.currentTime=practice.start;
+    play();
+    return;
+  }
+  if(!practice && repeatAll && media){
+    media.currentTime=0;
+    play();
+    return;
+  }
+  if(practice){ practice=null; updatePracticeChip(); }
+  maybeKeepAwake();
+ 
+}
+function onTimeUpdate(){
+  updateProgress();
+  checkPracticeEnd();
+  const now=Date.now();
+  if(now-posSaveT>3000){ posSaveT=now; savePos(); }
+
+}
+/* The segment must play through to exactly the chosen second. "timeupdate"
+   only fires about four times a second, so a small timer watches the edge
+   while practising and the check never fires before practice.end. */
+function checkPracticeEnd(){
+  if(!practice || !media || media.paused) return;
+  if(media.currentTime >= practice.end){
+    // rewind only: if it was paused (e.g. the user seeked to the edge by
+    // hand), it stays paused instead of starting on its own
+    if(practice.loop){
+      if(settings.breakSec>0) startBreak();
+      else media.currentTime = practice.start;
+    }
+    else { media.pause(); practice=null; updatePracticeChip(); }
+  }
+}
+
+/* ---------------- break between repeats ---------------- */
+let breakTimer=null, breakUntil=0;
+function breakLeft(){ return Math.max(0, breakUntil-Date.now()); }
+function inBreak(){ return breakTimer!==null; }
+function startBreak(){
+  if(!media) return;
+  media.pause();
+  breakUntil=Date.now()+settings.breakSec*1000;
+  breakTimer=setInterval(()=>{
+    if(breakLeft()<=0) endBreak(true);
+    else updateChipText();
+  }, 200);
+  updateChipText();   // after the timer exists, so the chip shows the countdown at once
+  hap('light');
+}
+function endBreak(resume){
+  if(breakTimer){ clearInterval(breakTimer); breakTimer=null; }
+  breakUntil=0;
+  if(resume && practice && media){
+    media.currentTime=practice.start;
+    play();
+    hap('light');
+  }
+  updateChipText();
+}
+function fmtBreak(sec){
+  if(sec<=0) return 'выкл';
+  if(sec<60) return sec+'с';
+  const h=Math.floor(sec/3600), m=Math.floor(sec%3600/60), s=sec%60;
+  return h>0 ? h+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')
+             : m+':'+String(s).padStart(2,'0');
+}
+let practiceTimer=null;
+function startPracticeWatch(){
+  if(practiceTimer) return;
+  practiceTimer=setInterval(checkPracticeEnd, 30);
+}
+function stopPracticeWatch(){
+  if(practiceTimer){ clearInterval(practiceTimer); practiceTimer=null; }
+}
+/* The bar always spans the whole track. While practising, the segment is
+   marked on it and the knob stops at its edges instead of leaving it. */
+function trackDur(){ return media && isFinite(media.duration) ? media.duration : 0; }
+function seekLo(){ return practice ? practice.start : 0; }
+function seekHi(){ return practice ? practice.end : trackDur(); }
+/* Manual seeking stops a hair before the segment end, otherwise landing
+   exactly on it would trigger the loop and jump back to the start. */
+function seekHiManual(){
+  return practice ? Math.max(practice.start, practice.end - 0.05) : trackDur();
+}
+function setBarRatio(r){
+  r=clamp(r,0,1);
+  $('barFill').style.width=(r*100)+'%';
+  $('barKnob').style.left=(r*100)+'%';
+}
+function updateTimes(){
+  $('tDur').textContent=fmt(trackDur());
+}
+function updateProgress(){
+  if(!media || !isFinite(media.duration) || media.duration===0) return;
+  if(!dragging){
+    setBarRatio(media.currentTime/media.duration);
+    $('tCur').textContent=fmt(media.currentTime);
+  }
+}
+let dragging=false;
+const bar=$('bar');
+function seekFromEvent(e){
+  const d=trackDur();
+  if(!media || d===0) return;
+  const r=bar.getBoundingClientRect();
+  const ratio=clamp((e.clientX-r.left)/r.width,0,1);
+  if(inBreak()) endBreak(false);   // seeking by hand cancels the countdown
+  const t=clamp(ratio*d, seekLo(), seekHiManual());   // stops at the segment edges
+  setBarRatio(t/d);
+  $('tCur').textContent=fmt(t);
+  media.currentTime=t;
+}
+bar.addEventListener('pointerdown', e=>{
+  dragging=true;
+  try{ bar.setPointerCapture(e.pointerId); }catch(err){}
+  seekFromEvent(e);
+});
+bar.addEventListener('pointermove', e=>{ if(dragging) seekFromEvent(e); });
+bar.addEventListener('pointerup', e=>{ if(dragging){ dragging=false; seekFromEvent(e); hap('light'); } });
+bar.addEventListener('pointercancel', ()=>{ dragging=false; });
+
+/* ---------------- seek buttons ---------------- */
+function updateBadges(){
+  $('badgeRew').textContent=settings.seekBack+'с';
+  $('badgeFwd').textContent=settings.seekFwd+'с';
+}
+function doSeek(dir, silent){
+  if(!media || !isFinite(media.duration)) return;
+  const step = dir<0 ? settings.seekBack : settings.seekFwd;
+  media.currentTime = clamp(media.currentTime + dir*step, seekLo(), seekHiManual());
+  updateProgress();
+  if(!silent){
+    hap('light');
+    const b = dir<0 ? $('badgeRew') : $('badgeFwd');
+    b.classList.remove('pulse'); void b.offsetWidth; b.classList.add('pulse');
+  }
+}
+let stepDir=-1;
+function openStepPop(btn, dir){
+  stepDir=dir;
+  $('spTitle').textContent = dir<0 ? 'Перемотка назад' : 'Перемотка вперёд';
+  const v = dir<0 ? settings.seekBack : settings.seekFwd;
+  $('spVal').textContent=v;
+  $('spRange').value=v;
+  showPopAt($('stepPop'), btn);
+}
+let lastRangeVal=null;
+$('spRange').addEventListener('input', ()=>{
+  const v=parseInt($('spRange').value,10);
+  if(v===lastRangeVal) return;
+  lastRangeVal=v;
+  $('spVal').textContent=v;
+  if(stepDir<0) settings.seekBack=v; else settings.seekFwd=v;
+  store('pa.settings',settings);
+  updateBadges();
+  hap('light');
+});
+function setupSeekBtn(btn, dir){
+  let timer=null, fired=false;
+  btn.addEventListener('pointerdown', ()=>{
+    fired=false;
+    timer=setTimeout(()=>{ fired=true; timer=null; hap('heavy'); openStepPop(btn, dir); }, HOLD_MS);
+  });
+  const cancel=()=>{ if(timer){ clearTimeout(timer); timer=null; } };
+  btn.addEventListener('pointerup', ()=>{ const wasWaiting=!!timer; cancel(); if(wasWaiting && !fired) doSeek(dir); });
+  btn.addEventListener('pointercancel', cancel);
+  btn.addEventListener('pointerleave', cancel);
+}
+setupSeekBtn($('btnRew'), -1);
+setupSeekBtn($('btnFwd'), 1);
+
+/* ---------------- more menu ---------------- */
+$('btnMore').addEventListener('click', ()=>{
+  hap('light');
+  const mp=$('morePop');
+  if(mp.classList.contains('show')) closePops();
+  else showPopAt(mp, $('btnMore'));
+});
+$('miPractice').addEventListener('click', ()=>{ hap('light'); closePops(); openPractice(); });
+$('miTrans').addEventListener('click', ()=>{ hap('light'); closePops(); openTransMenu(); });
+$('miBg').addEventListener('click', ()=>{ hap('light'); closePops(); openBgEditor(); });
+$('miNotes').addEventListener('click', ()=>{ hap('light'); closePops(); openNotes(); });
+$('miExport').addEventListener('click', ()=>{ hap('light'); closePops(); openExport(); });
+$('miTrim').addEventListener('click', ()=>{ hap('light'); closePops(); openTrim(); });
+
+/* ---------------- trimming the recording itself ---------------- */
+let trimMode='cut';
+function openTrim(){
+  if(!cur || !media) return;
+  const t=curT(), d=durT();
+  writeTime('tmSM','tmSS', t);
+  writeTime('tmEM','tmES', d ? Math.min(d, t+10) : t+10);
+  setTrimMode(trimMode);
+  openSheet('shTrim');
+}
+function setTrimMode(m){
+  trimMode=m;
+  [...$('trimModeRow').children].forEach(b=>b.classList.toggle('on', b.dataset.mode===m));
+  $('tmHint').textContent = m==='cut'
+    ? 'Этот кусок вырежется, а края склеятся. Запись станет короче.'
+    : 'Останется только этот кусок, всё остальное пропадёт.';
+}
+$('trimModeRow').addEventListener('click', e=>{
+  const b=e.target.closest('.seg'); if(!b) return;
+  hap('light'); setTrimMode(b.dataset.mode);
+});
+$('tmSNow').addEventListener('click', ()=>{ hap('light'); writeTime('tmSM','tmSS', curT()); });
+$('tmSStart').addEventListener('click', ()=>{ hap('light'); writeTime('tmSM','tmSS', 0); });
+$('tmENow').addEventListener('click', ()=>{ hap('light'); writeTime('tmEM','tmES', curT()); });
+$('tmEEnd').addEventListener('click', ()=>{
+  hap('light');
+  const d=durT();
+  if(!d){ toast('Длительность ещё не известна'); return; }
+  writeTime('tmEM','tmES', d);
+});
+$('tmApply').addEventListener('click', ()=>{
+  if(!cur || !media) return;
+  const s=readTime('tmSM','tmSS'), e=readTime('tmEM','tmES');
+  const d=durT();
+  if(e<=s){ toast('«До» должно быть позже, чем «От»'); return; }
+  if(d && s>=d){ toast('Начало позже конца записи'); return; }
+  if(trimMode==='keep' && d && s<=0 && e>=d){ toast('Это вся запись — резать нечего'); return; }
+  if(trimMode==='cut' && d && s<=0 && e>=d){ toast('Так удалится вся запись'); return; }
+  if(!hasPA()){ toast('Обрезка доступна в приложении'); return; }
+  const len=fmt(e-s);
+  let text = trimMode==='cut'
+    ? 'Из «'+cur.name+'» вырежется '+len+' (с '+fmt(s)+' по '+fmt(e)+'). Отменить это будет нельзя.'
+    : 'От «'+cur.name+'» останется только '+len+' (с '+fmt(s)+' по '+fmt(e)+'). Отменить это будет нельзя.';
+  if(cur.kind==='video') text+=' Останется только звук — картинка не сохранится.';
+  if(getNotes().length) text+=' Времена заметок сместятся.';
+  askConfirm(
+    trimMode==='cut' ? 'Удалить кусок?' : 'Сократить запись?',
+    text,
+    trimMode==='cut' ? 'Удалить' : 'Сократить',
+    ()=>runTrim(s, e, trimMode==='keep')
+  );
+});
+let trimTarget=null;
+function runTrim(s, e, keep){
+  trimTarget={id:cur.id, keep:keep, s:s, e:e};
+  if(media) media.pause();
+  practice=null; repeatAll=false; updatePracticeChip();
+  toast('Обрабатываю…', true);
+  try{ PA.trimTrack(cur.path, s, e, keep, cur.name); }
+  catch(err){ hideToast(); toast('Не получилось обрезать'); trimTarget=null; }
+}
+window.onTrimDone = function(res){
+  hideToast();
+  const t=trimTarget; trimTarget=null;
+  if(!t || !res){ toast('Не получилось обрезать'); return; }
+  const tr=lib.find(x=>x.id===t.id);
+  if(!tr){ toast('Запись не найдена'); return; }
+  tr.path=res.path;
+  tr.mime=res.mime;
+  tr.kind='audio';        // the edit always produces an audio file
+  tr.duration=0;
+  store('pa.lib', lib);
+  localStorage.removeItem('pa.pos.'+tr.id);
+  probeDuration(tr);
+  renderLib();
+  hap('medium');
+  if($('scrPlayer').classList.contains('open') && cur && cur.id===tr.id) openPlayer(tr.id);
+  toast(t.keep ? 'Запись сокращена' : 'Кусок удалён');
+};
+window.onTrimFailed = function(msg){
+  hideToast(); trimTarget=null;
+  hap('heavy');
+  toast('Не получилось обрезать: '+(msg||'ошибка'));
+};
+
+/* ---------------- full-screen text writing ---------------- */
+$('btnTextBig').addEventListener('click', ()=>{
+  hap('light');
+  $('tfArea').value=$('bgTextInput').value;
+  $('textFull').classList.add('show');
+  setTimeout(()=>$('tfArea').focus(), 250);
+});
+function closeTextFull(save){
+  if(save){
+    $('bgTextInput').value=$('tfArea').value;
+    if(curBg.text){
+      curBg.text.value=$('tfArea').value;
+      saveCurBg(); refreshTextBg();
+    }
+  }
+  $('textFull').classList.remove('show');
+}
+$('tfDone').addEventListener('click', ()=>{ hap('medium'); closeTextFull(true); });
+
+/* ---------------- background model ---------------- */
+function normalizeBg(raw){
+  if(!raw) return {text:null, media:null};
+  if(raw.text!==undefined || raw.media!==undefined){
+    return {text:raw.text||null, media:raw.media||null};
+  }
+  // migrate the old single-background format
+  if(raw.type==='text'){
+    return {text:{value:raw.value, size:raw.size||24,
+      margin:raw.margin!=null?raw.margin:34, align:raw.align||'center',
+      font:raw.font||'serif', color:'default'}, media:null};
+  }
+  if(raw.type==='image'||raw.type==='video'){
+    return {text:null, media:{kind:raw.type, path:raw.value, size:raw.size||100}};
+  }
+  return {text:null, media:null};
+}
+function saveCurBg(){
+  if(!cur) return;
+  if(!curBg.text && !curBg.media) localStorage.removeItem('pa.bg.'+cur.id);
+  else store('pa.bg.'+cur.id, curBg);
+}
+function clearBgLayer(){
+  const l=$('bgLayer');
+  const v=l.querySelector('video');
+  if(v){ v.pause(); v.removeAttribute('src'); try{v.load();}catch(e){} }
+  l.innerHTML='';
+}
+function applyBgMediaStyle(el, size){
+  size = size || 100;
+  if(size>=100){
+    el.style.cssText='width:100%;height:100%;object-fit:cover;';
+  } else {
+    el.style.cssText='position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);'+
+      'max-width:'+size+'%;max-height:'+size+'%;width:auto;height:auto;object-fit:contain;'+
+      'border-radius:26px;box-shadow:0 10px 34px rgba(61,57,41,.22);';
+  }
+}
+function fontStack(f){
+  switch(f){
+    case 'sans-serif': return 'sans-serif';
+    case 'sans-serif-light': return "sans-serif-light, 'Segoe UI Light', sans-serif";
+    case 'cursive': return 'cursive';
+    case 'casual': return "casual, 'Comic Sans MS', cursive";
+    case 'monospace': return 'monospace';
+    default: return "Georgia, 'Times New Roman', serif";
+  }
+}
+function applyBg(bg){
+  clearBgLayer();
+  curBg = bg || {text:null, media:null};
+  const l=$('bgLayer');
+
+  if(curBg.media){
+    const wrap=document.createElement('div');
+    wrap.className='bg-media';
+    let el;
+    if(curBg.media.kind==='video'){
+      el=document.createElement('video');
+      el.muted=true; el.loop=true; el.autoplay=true; el.playsInline=true;
+      el.setAttribute('playsinline','');
+      el.src=curBg.media.path;
+      wrap.appendChild(el);
+      el.play().catch(()=>{});
+    } else {
+      el=document.createElement('img');
+      el.src=curBg.media.path;
+      wrap.appendChild(el);
+    }
+    applyBgMediaStyle(el, curBg.media.size);
+    l.appendChild(wrap);
+  }
+
+  if(curBg.text){
+    const w=document.createElement('div');
+    w.className='bg-text';
+    w.appendChild(document.createElement('div')).className='txt';
+    l.appendChild(w);
+    refreshTextBg();
+  }
+
+  if(!curBg.media && !curBg.text && cur && cur.kind!=='video'){
+    const w=document.createElement('div');
+    w.style.cssText='position:absolute;inset:0;display:flex;flex-direction:column;'+
+      'align-items:center;justify-content:center;gap:22px;padding-bottom:140px;';
+    w.innerHTML='<div class="bg-disc" style="width:158px;height:158px;border-radius:50%;'+
+      'background:var(--surface);border:1px solid var(--line);box-shadow:var(--sh-card);'+
+      'display:flex;align-items:center;justify-content:center;color:var(--accent)">'+
+      '<svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>'+
+      '</div>'+
+      '<div style="font-size:13px;color:var(--ink2);text-align:center;line-height:1.5;padding:0 50px">'+
+      'Нажми ✦, чтобы добавить фон,<br>текст, практику или заметки</div>';
+    l.appendChild(w);
+    updateDiscSpin();
+  }
+  maybeKeepAwake();
+  updateVideoLayout();
+}
+function updateDiscSpin(){
+  const d=$('bgLayer').querySelector('.bg-disc');
+  if(!d) return;
+  const on = !!(media && !media.paused);
+  d.style.animation = on ? 'spin 16s linear infinite' : 'none';
+}
+if(!document.getElementById('spinKf')){
+  const st=document.createElement('style');
+  st.id='spinKf';
+  st.textContent='@keyframes spin{to{transform:rotate(360deg)}}';
+  document.head.appendChild(st);
+}
+
+/* ---------------- text + transcriptions ---------------- */
+function getTr(){ return cur ? loadLS('pa.tr.'+cur.id, {}) : {}; }
+function setTr(o){ if(cur) store('pa.tr.'+cur.id, o); }
+function tokenize(text){ return String(text||'').split(/(\s+)/); }
+function wordCount(text){
+  let n=0;
+  tokenize(text).forEach(t=>{ if(t && !/^\s+$/.test(t)) n++; });
+  return n;
+}
+function refreshTextBg(){
+  if(!curBg.text) return;
+  const w=$('bgLayer').querySelector('.bg-text');
+  if(!w) return;
+  const t=curBg.text;
+  const m = t.margin!=null ? t.margin : 34;
+  w.style.paddingLeft=m+'px';
+  w.style.paddingRight=m+'px';
+  const box=w.querySelector('.txt');
+  box.style.fontSize=(t.size||24)+'px';
+  box.style.textAlign=t.align||'center';
+  box.style.fontFamily=fontStack(t.font||'serif');
+  const col=COLORS[t.color||'default'];
+  box.style.color = col || 'var(--ink)';
+
+  const tr=getTr();
+  const needWords = pickingWord || Object.keys(tr).length>0
+    || settings.translateOn===true;
+  box.innerHTML='';
+  if(!needWords){
+    box.textContent=t.value;
+    return;
+  }
+  let idx=0;
+  tokenize(t.value).forEach(tok=>{
+    if(!tok) return;
+    if(/^\s+$/.test(tok)){ box.appendChild(document.createTextNode(tok)); return; }
+    const i=idx++;
+    const sp=document.createElement('span');
+    sp.className='w';
+    sp.dataset.i=i;
+    sp.appendChild(document.createTextNode(tok));
+    const val=tr[i];
+    if(val && val!=='-'){
+      const s=document.createElement('span');
+      s.className='tr';
+      s.textContent=val;
+      sp.appendChild(s);
+    }
+    box.appendChild(sp);
+  });
+}
+
+/* word picking: one word, or the two ends of a sentence */
+function startPicking(mode){
+  if(!curBg.text){ toast('Сначала добавь текст в «Фон и текст»'); return; }
+  pickingWord=true;
+  pickMode=mode||'word';
+  rangeStart=-1;
+  $('pickHint').textContent = pickMode==='range'
+    ? 'Нажми на первое слово предложения'
+    : 'Нажми на любое слово';
+  $('scrPlayer').classList.add('picking');
+  $('scrPlayer').classList.remove('zen');
+  refreshTextBg();
+}
+function stopPicking(){
+  pickingWord=false;
+  pickMode='word';
+  rangeStart=-1;
+  $('scrPlayer').classList.remove('picking');
+  closePops();
+  refreshTextBg();
+}
+$('btnPickClose').addEventListener('click', ()=>{ hap('light'); stopPicking(); });
+$('btnPickDone').addEventListener('click', ()=>{ hap('medium'); closePops(); stopPicking(); });
+
+let wordIdx=-1;
+$('bgLayer').addEventListener('click', e=>{
+  const w=e.target.closest('.w');
+  if(pickingWord && w && pickMode==='range'){
+    e.stopPropagation();
+    hap('medium');
+    const i=parseInt(w.dataset.i,10);
+    if(rangeStart<0){
+      rangeStart=i;
+      w.classList.add('w-sel');
+      $('pickHint').textContent='Теперь нажми на последнее слово';
+      return;
+    }
+    const a=Math.min(rangeStart,i), b=Math.max(rangeStart,i);
+    stopPicking();
+    openTransSheet(a,b);
+    return;
+  }
+  if(pickingWord && w){
+    e.stopPropagation();
+    hap('medium');
+    wordIdx=parseInt(w.dataset.i,10);
+    const word=w.childNodes[0] ? w.childNodes[0].textContent : '';
+    $('wpWord').textContent=word;
+    const tr = transTarget==='tw' ? getTw() : getTr();
+    $('wpInput').value = tr[wordIdx] && tr[wordIdx]!=='-' ? tr[wordIdx] : '';
+    showPopAt($('wordPop'), w);
+    setTimeout(()=>$('wpInput').focus(), 220);
+    return;
+  }
+  if(!pickingWord && w && settings.translateOn===true){
+    e.stopPropagation();
+    if(twDragged){ twDragged=false; return; }   // the drag already showed a phrase
+    const i=parseInt(w.dataset.i,10);
+    const tw=getTw();
+    hap('light');
+    showTransPop(tw[i] && tw[i]!=='-' ? tw[i] : 'нет перевода', w);
+    return;
+  }
+  if(!pickingWord) toggleZen();
+});
+
+/* hold a word and drag to another one to translate the whole phrase */
+let twStart=-1, twDragged=false, twHoldT=null;
+function wordAt(x, y){
+  const el=document.elementFromPoint(x, y);
+  return el ? el.closest('.w') : null;
+}
+function markTwRange(a, b){
+  const box=$('bgLayer').querySelector('.txt'); if(!box) return;
+  box.querySelectorAll('.w').forEach(el=>{
+    const i=parseInt(el.dataset.i,10);
+    el.classList.toggle('tw-sel', a>=0 && i>=Math.min(a,b) && i<=Math.max(a,b));
+  });
+}
+function clearTwRange(){
+  const box=$('bgLayer').querySelector('.txt'); if(!box) return;
+  box.querySelectorAll('.tw-sel').forEach(el=>el.classList.remove('tw-sel'));
+}
+$('bgLayer').addEventListener('pointerdown', e=>{
+  if(pickingWord || settings.translateOn!==true) return;
+  const w=e.target.closest('.w'); if(!w) return;
+  twStart=parseInt(w.dataset.i,10);
+  twDragged=false;
+  clearTimeout(twHoldT);
+  twHoldT=setTimeout(()=>{ hap('medium'); markTwRange(twStart, twStart); }, 260);
+});
+$('bgLayer').addEventListener('pointermove', e=>{
+  if(twStart<0) return;
+  const w=wordAt(e.clientX, e.clientY);
+  if(!w) return;
+  const i=parseInt(w.dataset.i,10);
+  if(i!==twStart){ twDragged=true; markTwRange(twStart, i); }
+});
+$('bgLayer').addEventListener('pointerup', e=>{
+  clearTimeout(twHoldT);
+  if(twStart<0) return;
+  const w=wordAt(e.clientX, e.clientY);
+  const i=w ? parseInt(w.dataset.i,10) : twStart;
+  if(twDragged && w){
+    const a=Math.min(twStart,i), b=Math.max(twStart,i);
+    const tw=getTw();
+    const parts=[];
+    for(let n=a;n<=b;n++) if(tw[n] && tw[n]!=='-') parts.push(tw[n]);
+    hap('medium');
+    showTransPop(parts.length ? parts.join(' ') : 'нет перевода', w);
+  }
+  setTimeout(clearTwRange, 220);
+  twStart=-1;
+});
+$('bgLayer').addEventListener('pointercancel', ()=>{
+  clearTimeout(twHoldT); twStart=-1; twDragged=false; clearTwRange();
+});
+$('wpSave').addEventListener('click', ()=>{
+  if(wordIdx<0) return;
+  const v=$('wpInput').value.trim();
+  const isTw = transTarget==='tw';
+  const tr = isTw ? getTw() : getTr();
+  if(v) tr[wordIdx]=v; else delete tr[wordIdx];
+  if(isTw) setTw(tr); else setTr(tr);
+  hap('medium'); closePops(); refreshTextBg();
+});
+$('wpDelete').addEventListener('click', ()=>{
+  if(wordIdx<0) return;
+  const isTw = transTarget==='tw';
+  const tr = isTw ? getTw() : getTr();
+  delete tr[wordIdx];
+  if(isTw) setTw(tr); else setTr(tr);
+  hap('light'); closePops(); refreshTextBg();
+});
+
+/* transcription sheets */
+function openTransMenu(){
+  if(!curBg.text){ toast('Сначала добавь текст в «Фон и текст»'); return; }
+  openSheet('shTransMenu');
+}
+$('trWordMode').addEventListener('click', ()=>{ hap('medium'); closeSheets(); transTarget='tr'; startPicking('word'); });
+$('trSentMode').addEventListener('click', ()=>{ hap('medium'); closeSheets(); transTarget='tr'; startPicking('range'); });
+$('trAllMode').addEventListener('click', ()=>{ hap('light'); closeSheets(); transTarget='tr'; openTransSheet(); });
+
+function textWords(){ return curBg.text ? curBg.text.value.split(/\s+/).filter(Boolean) : []; }
+function transNeed(){
+  return transRange ? (transRange.b - transRange.a + 1) : textWords().length;
+}
+/* one sheet for both modes: the whole text, or just the picked sentence */
+function openTransSheet(a, b){
+  if(!curBg.text) return;
+  transRange = (a==null) ? null : {a:a, b:b};
+  const words=textWords();
+  const need=transNeed();
+  const base=transRange ? transRange.a : 0;
+  $('trAllTitle').textContent = transRange ? 'Предложение' : 'Весь текст';
+  if(transRange){
+    const quote=words.slice(a, b+1).join(' ');
+    $('trAllSub').textContent='«'+(quote.length>60 ? quote.slice(0,60)+'…' : quote)+'» — '+
+      need+' '+plural(need,'слово','слова','слов')+
+      '. Вставь столько же транскрипций через пробел. Дефис «-» пропускает слово.';
+  } else {
+    $('trAllSub').textContent='В тексте '+need+' '+plural(need,'слово','слова','слов')+
+      '. Вставь столько же транскрипций через пробел. Дефис «-» пропускает слово.';
+  }
+  const isTw = transTarget==='tw';
+  $('trAllTitle').textContent = (transRange ? 'Предложение' : 'Весь текст') + (isTw ? ' — перевод' : '');
+  if(isTw){
+    $('trAllSub').textContent = $('trAllSub').textContent
+      .replace('транскрипций','переводов').replace('транскрипции','переводы');
+  }
+  const tr = isTw ? getTw() : getTr();
+  const arr=[];
+  let any=false;
+  for(let i=0;i<need;i++){
+    const v=tr[base+i];
+    if(v) any=true;
+    arr.push(v||'-');
+  }
+  $('trAllInput').value = any ? arr.join(' ') : '';
+  updateTrCount();
+  openSheet('shTransAll');
+}
+function updateTrCount(){
+  if(!curBg.text) return;
+  const need=transNeed();
+  const got=wordCount($('trAllInput').value);
+  const el=$('trAllCount');
+  if(!got){ el.textContent='Нужно слов: '+need; el.style.color='var(--ink2)'; return; }
+  if(got===need){ el.textContent='✓ Совпадает: '+got+' из '+need; el.style.color='#3E8E5A'; }
+  else if(got<need){ el.textContent='Недостаточно слов: '+got+' из '+need; el.style.color='#C14434'; }
+  else { el.textContent='Слишком много слов: '+got+' из '+need; el.style.color='#C14434'; }
+}
+$('trAllInput').addEventListener('input', updateTrCount);
+$('trAllApply').addEventListener('click', ()=>{
+  if(!curBg.text) return;
+  const need=transNeed();
+  const parts=$('trAllInput').value.split(/\s+/).filter(Boolean);
+  if(parts.length!==need){
+    hap('heavy');
+    toast(parts.length<need
+      ? 'Недостаточно слов: '+parts.length+' из '+need
+      : 'Слишком много слов: '+parts.length+' из '+need);
+    return;
+  }
+  // a sentence updates only its own words, the whole text replaces everything
+  const isTw = transTarget==='tw';
+  const tr = transRange ? (isTw ? getTw() : getTr()) : {};
+  const base = transRange ? transRange.a : 0;
+  parts.forEach((p,i)=>{
+    if(p==='-') delete tr[base+i];
+    else tr[base+i]=p;
+  });
+  if(isTw) setTw(tr); else setTr(tr);
+  refreshTextBg();
+  hap('medium'); closeSheets();
+  toast(isTw
+    ? (transRange ? 'Перевод предложения добавлен' : 'Перевод добавлен')
+    : (transRange ? 'Транскрипция предложения добавлена' : 'Транскрипция добавлена'));
+  transRange=null; transTarget='tr';
+});
+$('trClear').addEventListener('click', ()=>{
+  setTr({});
+  refreshTextBg();
+  hap('light'); closeSheets(); toast('Транскрипции убраны');
+});
+
+/* ---------------- background editor ---------------- */
+function setSeg(rowId, attr, val){
+  [...$(rowId).children].forEach(b=>b.classList.toggle('on', b.dataset[attr]===val));
+}
+function getSeg(rowId, attr, dflt){
+  const on=[...$(rowId).children].find(b=>b.classList.contains('on'));
+  return on ? on.dataset[attr] : dflt;
+}
+function isEditing(){ return $('scrPlayer').classList.contains('editing'); }
+let bgSnapshot=null, bgOldMedia=null;
+function openBgEditor(){
+  bgSnapshot=JSON.parse(JSON.stringify(curBg));   // for the cancel button
+  bgOldMedia=null;
+  const t=curBg.text;
+  const st=textStyle();   // last used look, for a text that does not exist yet
+  $('bgTextInput').value = t ? t.value : '';
+  const ts = t && t.size ? t.size : st.size;
+  $('bgTextSize').value=ts; $('bgTextSizeVal').textContent=ts;
+  const mg = t && t.margin!=null ? t.margin : st.margin;
+  $('bgMargin').value=mg; $('bgMarginVal').textContent=mg;
+  setSeg('alignRow','align', t && t.align ? t.align : st.align);
+  setSeg('fontRow','font', t && t.font ? t.font : st.font);
+  setSeg('colorRow','color', t && t.color ? t.color : st.color);
+  $('bgClearText').style.display = t ? 'flex' : 'none';
+  const md=curBg.media;
+  $('bgMediaSizeWrap').style.display = md ? 'block' : 'none';
+  const ms = md && md.size ? md.size : 100;
+  $('bgMediaSize').value=ms; $('bgMediaSizeVal').textContent=ms+'%';
+  $('scrPlayer').classList.remove('zen');
+  $('scrPlayer').classList.add('editing');
+}
+function closeBgEditor(){ $('scrPlayer').classList.remove('editing'); }
+$('btnBgDone').addEventListener('click', ()=>{
+  hap('medium');
+  // the replaced media file is only dropped once the changes are kept
+  if(bgOldMedia && hasPA()){ try{ PA.deleteFile(bgOldMedia); }catch(e){} }
+  bgOldMedia=null; bgSnapshot=null;
+  closeBgEditor();
+});
+$('btnBgCancel').addEventListener('click', ()=>{
+  hap('light');
+  if(bgSnapshot){
+    // a media file picked during this session is thrown away again
+    if(bgOldMedia && curBg.media && curBg.media.path!==bgOldMedia && hasPA()){
+      try{ PA.deleteFile(curBg.media.path); }catch(e){}
+    }
+    curBg=JSON.parse(JSON.stringify(bgSnapshot));
+    saveCurBg();
+    applyBg(curBg);
+    toast('Изменения отменены');
+  }
+  bgOldMedia=null; bgSnapshot=null;
+  closeBgEditor();
+});
+
+$('bgSaveText').addEventListener('click', ()=>{
+  if(!cur) return;
+  const v=$('bgTextInput').value;
+  if(!v.trim()){ toast('Сначала напиши текст'); return; }
+  curBg.text={value:v,
+    size:parseInt($('bgTextSize').value,10)||24,
+    margin:parseInt($('bgMargin').value,10)||0,
+    align:getSeg('alignRow','align','center'),
+    font:getSeg('fontRow','font','serif'),
+    color:getSeg('colorRow','color','default')};
+  saveCurBg();
+  applyBg(curBg);
+  $('bgClearText').style.display='flex';
+  hap('medium');
+});
+$('bgTextInput').addEventListener('input', ()=>{
+  if(curBg.text){
+    curBg.text.value=$('bgTextInput').value;
+    saveCurBg(); refreshTextBg();
+  }
+});
+/* the look chosen here becomes the default for the next text */
+function rememberTextStyle(key, value){
+  settings.textStyle=Object.assign({}, settings.textStyle, {[key]:value});
+  store('pa.settings', settings);
+}
+function liveTextControl(id, valId, key, suffix){
+  let last=null;
+  $(id).addEventListener('input', ()=>{
+    const v=parseInt($(id).value,10);
+    if(v===last) return;
+    last=v;
+    $(valId).textContent=v+(suffix||'');
+    hap('light');
+    rememberTextStyle(key, v);
+    if(curBg.text){ curBg.text[key]=v; saveCurBg(); refreshTextBg(); }
+  });
+}
+liveTextControl('bgTextSize','bgTextSizeVal','size','');
+liveTextControl('bgMargin','bgMarginVal','margin','');
+function segRowHandler(rowId, attr, key){
+  $(rowId).addEventListener('click', e=>{
+    const b=e.target.closest('[data-'+attr+']'); if(!b) return;
+    hap('light');
+    setSeg(rowId, attr, b.dataset[attr]);
+    rememberTextStyle(key, b.dataset[attr]);
+    if(curBg.text){ curBg.text[key]=b.dataset[attr]; saveCurBg(); refreshTextBg(); }
+  });
+}
+segRowHandler('alignRow','align','align');
+segRowHandler('fontRow','font','font');
+segRowHandler('colorRow','color','color');
+let lastMediaSize=null;
+$('bgMediaSize').addEventListener('input', ()=>{
+  const v=parseInt($('bgMediaSize').value,10);
+  if(v===lastMediaSize) return;
+  lastMediaSize=v;
+  $('bgMediaSizeVal').textContent=v+'%';
+  hap('light');
+  if(curBg.media){
+    curBg.media.size=v; saveCurBg();
+    const el=$('bgLayer').querySelector('.bg-media img,.bg-media video');
+    if(el) applyBgMediaStyle(el, v);
+  }
+});
+$('bgPick').addEventListener('click', ()=>{
+  hap('light');
+  if(!hasPA()){ toast('Галерея доступна в приложении'); return; }
+  PA.pickBackground();
+});
+$('bgClearText').addEventListener('click', ()=>{
+  curBg.text=null;
+  saveCurBg();
+  applyBg(curBg);
+  $('bgTextInput').value='';
+  $('bgClearText').style.display='none';
+  hap('light'); toast('Текст убран');
+});
+$('bgClearMedia').addEventListener('click', ()=>{
+  if(curBg.media && curBg.media.path && hasPA()){ try{ PA.deleteFile(curBg.media.path); }catch(e){} }
+  curBg.media=null;
+  saveCurBg();
+  applyBg(curBg);
+  $('bgMediaSizeWrap').style.display='none';
+  hap('light'); toast('Фото убрано');
+});
+
+/* ---------------- zen mode ---------------- */
+function toggleZen(){
+  if(isEditing() || anySheetOpen() || pickingWord) return;
+  if(Date.now()-popJustClosed<450) return;
+  hap('light');
+  $('scrPlayer').classList.toggle('zen');
+}
+$('videoWrap').addEventListener('click', toggleZen);
+
+/* ---------------- time helpers ---------------- */
+/* time fields are minutes : seconds . milliseconds */
+function readTime(mi, si){
+  const m=parseInt($(mi).value,10)||0, s=parseInt($(si).value,10)||0;
+  const msEl=document.getElementById(si.replace(/S$/,'')+'MS');
+  const ms=msEl ? clamp(parseInt(msEl.value,10)||0, 0, 999) : 0;
+  return Math.max(0, m*60 + Math.min(59,Math.max(0,s)) + ms/1000);
+}
+function writeTime(mi, si, t){
+  t=Math.max(0, t||0);
+  const whole=Math.floor(t);
+  $(mi).value=Math.floor(whole/60);
+  $(si).value=whole%60;
+  const msEl=document.getElementById(si.replace(/S$/,'')+'MS');
+  if(msEl) msEl.value=Math.round((t-whole)*1000);
+}
+function curT(){ return media && isFinite(media.currentTime) ? media.currentTime : 0; }
+function durT(){ return media && isFinite(media.duration) ? media.duration : 0; }
+
+/* ---------------- practice ---------------- */
+function savePracticeFields(){
+  if(!cur) return;
+  store('pa.pr.'+cur.id, {
+    s:readTime('prSM','prSS'), e:readTime('prEM','prES'), loop:$('prLoop').checked
+  });
+}
+['prSM','prSS','prEM','prES'].forEach(id=>$(id).addEventListener('input', savePracticeFields));
+$('prLoop').addEventListener('change', savePracticeFields);
+
+function openPractice(){
+  const saved = cur ? loadLS('pa.pr.'+cur.id, null) : null;
+  if(saved){
+    writeTime('prSM','prSS', saved.s);
+    writeTime('prEM','prES', saved.e);
+    $('prLoop').checked = saved.loop!==false;
+  } else {
+    const t=curT(), d=durT();
+    writeTime('prSM','prSS', t);
+    writeTime('prEM','prES', d ? Math.min(d, t+10) : t+10);
+    $('prLoop').checked=true;
+  }
+  renderHistory();
+  openSheet('shPractice');
+}
+$('prSNow').addEventListener('click', ()=>{ hap('light'); writeTime('prSM','prSS', curT()); savePracticeFields(); });
+$('prSStart').addEventListener('click', ()=>{ hap('light'); writeTime('prSM','prSS', 0); savePracticeFields(); });
+$('prENow').addEventListener('click', ()=>{ hap('light'); writeTime('prEM','prES', curT()); savePracticeFields(); });
+$('prEEnd').addEventListener('click', ()=>{
+  hap('light');
+  const d=durT();
+  if(!d){ toast('Длительность ещё не известна'); return; }
+  writeTime('prEM','prES', d);
+  savePracticeFields();
+});
+
+function startPractice(s, e, loop){
+  if(!media) return false;
+  if(inBreak()) endBreak(false);
+  const d=media.duration;
+  if(isFinite(d) && d>0){
+    if(s>=d){ toast('Начало позже конца записи'); return false; }
+    if(e>d || e>=d-0.25) e=d;   // "to the very end"
+  }
+  if(e<=s){ toast('«До» должно быть позже, чем «От»'); return false; }
+  practice={start:s, end:e, loop:loop};
+  updatePracticeChip();
+  media.currentTime=s;
+  play();
+  return true;
+}
+$('prStart').addEventListener('click', ()=>{
+  const s=readTime('prSM','prSS'), e=readTime('prEM','prES');
+  if(startPractice(s,e,$('prLoop').checked)){ hap('medium'); closeSheets(); }
+});
+function updateChipText(){
+  const c=$('pChip');
+  if(practice && inBreak()){
+    $('pChipText').textContent='перерыв '+Math.ceil(breakLeft()/1000)+'с';
+    c.style.display='flex';
+  } else if(practice){
+    $('pChipText').textContent=fmt(practice.start)+' – '+fmt(practice.end)+(practice.loop?' ∞':'');
+    c.style.display='flex';
+  } else if(repeatAll){
+    $('pChipText').textContent='по кругу ∞';
+    c.style.display='flex';
+  } else {
+    c.style.display='none';
+  }
+}
+function updatePracticeChip(){
+  updateChipText();
+  if(!practice && inBreak()) endBreak(false);
+  $('miBreak').classList.toggle('off', !practice);
+  $('miBreakState').textContent=fmtBreak(settings.breakSec||0);
+  $('miBreakState').classList.toggle('on', !!practice && settings.breakSec>0);
+  if(practice) startPracticeWatch(); else stopPracticeWatch();
+  updateTimes();
+  updateProgress();
+  $('miRepeatState').textContent = repeatAll ? 'вкл' : 'выкл';
+  $('miRepeatState').classList.toggle('on', repeatAll);
+}
+$('pChipStop').addEventListener('click', ()=>{
+  hap('medium');
+  if(practice){ practice=null; if(media) media.pause(); }
+  else repeatAll=false;
+  updatePracticeChip();
+});
+
+/* ---------------- repeat the whole track ---------------- */
+$('miRepeatAll').addEventListener('click', ()=>{
+  hap('medium'); closePops();
+  repeatAll=!repeatAll;
+  if(repeatAll && practice){ practice=null; }
+  updatePracticeChip();
+  toast(repeatAll ? 'Бесконечный повтор включён' : 'Бесконечный повтор выключен');
+});
+
+/* ---------------- playback speed ---------------- */
+function applySpeed(v, save){
+  v=clamp(Math.round(v*100)/100, 0.1, 2);
+  settings.speed=v;
+  if(save) store('pa.settings', settings);
+  if(media) media.playbackRate=v;
+  const label=(Math.round(v*100)%100===0) ? v.toFixed(0)+'×' : String(v).replace('.',',')+'×';
+  $('miSpeedState').textContent=label;
+  $('miSpeedState').classList.toggle('on', v!==1);
+  $('spdVal').textContent=v.toFixed(2);
+  $('spdRange').value=Math.round(v*100);
+  [...$('spdPresets').children].forEach(b=>b.classList.toggle('on', parseFloat(b.dataset.v)===v));
+  return v;
+}
+function openSpeed(){
+  applySpeed(settings.speed||1, false);
+  $('spdInput').value='';
+  openSheet('shSpeed');
+}
+$('miBreak').addEventListener('click', ()=>{
+  if(!practice){ hap('light'); toast('Перерыв работает во время практики'); return; }
+  hap('light'); closePops();
+  const sec=settings.breakSec||0;
+  $('brH').value=Math.floor(sec/3600);
+  $('brM').value=Math.floor(sec%3600/60);
+  $('brS').value=sec%60;
+  openSheet('shBreak');
+});
+$('brPresets').addEventListener('click', e=>{
+  const b=e.target.closest('.preset'); if(!b) return;
+  hap('light');
+  const v=parseInt(b.dataset.v,10);
+  $('brH').value=0; $('brM').value=0; $('brS').value=v;
+  [...$('brPresets').children].forEach(x=>x.classList.toggle('on', x===b));
+});
+function readBreak(){
+  const h=parseInt($('brH').value,10)||0;
+  const m=parseInt($('brM').value,10)||0;
+  const s=parseInt($('brS').value,10)||0;
+  return clamp(h*3600+Math.min(59,m)*60+Math.min(59,s), 0, 86399);
+}
+$('brApply').addEventListener('click', ()=>{
+  settings.breakSec=readBreak();
+  store('pa.settings', settings);
+  updatePracticeChip();
+  hap('medium'); closeSheets();
+  toast(settings.breakSec>0 ? 'Перерыв: '+fmtBreak(settings.breakSec) : 'Перерыв выключен');
+});
+$('brOff').addEventListener('click', ()=>{
+  settings.breakSec=0;
+  store('pa.settings', settings);
+  if(inBreak()) endBreak(true);
+  updatePracticeChip();
+  hap('light'); closeSheets(); toast('Перерыв выключен');
+});
+$('miSpeed').addEventListener('click', ()=>{ hap('light'); closePops(); openSpeed(); });
+
+/* ---------------- haptics ---------------- */
+function applyHaptics(){
+  const on = settings.hapticOn!==false;
+  const lvl = clamp(settings.hapticLevel||50, 1, 100);
+  $('hapOn').checked=on;
+  $('hapLevel').value=lvl;
+  $('hapLevelVal').textContent=lvl;
+  $('hapLevelWrap').classList.toggle('off', !on);
+  [...$('hapPresets').children].forEach(b=>b.classList.toggle('on', parseInt(b.dataset.v,10)===lvl));
+  $('miHapticState').textContent = on ? 'вкл' : 'выкл';
+  $('miHapticState').classList.toggle('on', on);
+  if(hasPA()){ try{ PA.setHapticStrength(lvl); }catch(e){} }
+}
+$('miHaptic').addEventListener('click', ()=>{ hap('light'); closePops(); applyHaptics(); openSheet('shHaptic'); });
+$('hapOn').addEventListener('change', ()=>{
+  settings.hapticOn=$('hapOn').checked;
+  store('pa.settings', settings);
+  applyHaptics();
+  if(settings.hapticOn) hap('medium');
+});
+let lastHapLvl=null;
+$('hapLevel').addEventListener('input', ()=>{
+  const v=parseInt($('hapLevel').value,10);
+  if(v===lastHapLvl) return;
+  lastHapLvl=v;
+  settings.hapticLevel=v;
+  store('pa.settings', settings);
+  applyHaptics();
+  hap('medium');   // so the new strength can be felt at once
+});
+$('hapPresets').addEventListener('click', e=>{
+  const b=e.target.closest('.preset'); if(!b) return;
+  settings.hapticLevel=parseInt(b.dataset.v,10);
+  store('pa.settings', settings);
+  applyHaptics();
+  hap('medium');
+});
+
+/* ---------------- translation ---------------- */
+function getTw(){ return cur ? loadLS('pa.tw.'+cur.id, {}) : {}; }
+function setTw(o){ if(cur) store('pa.tw.'+cur.id, o); }
+$('miTranslate').addEventListener('click', ()=>{
+  hap('light'); closePops();
+  if(!curBg.text){ toast('Сначала добавь текст в «Фон и текст»'); return; }
+  $('twOn').checked = settings.translateOn===true;
+  openSheet('shTranslate');
+});
+$('twOn').addEventListener('change', ()=>{
+  settings.translateOn=$('twOn').checked;
+  store('pa.settings', settings);
+  updateFeatureStates();
+  refreshTextBg();
+  hap('light');
+});
+$('twWordMode').addEventListener('click', ()=>{ hap('medium'); closeSheets(); transTarget='tw'; startPicking('word'); });
+$('twSentMode').addEventListener('click', ()=>{ hap('medium'); closeSheets(); transTarget='tw'; startPicking('range'); });
+$('twAllMode').addEventListener('click', ()=>{ hap('light'); closeSheets(); transTarget='tw'; openTransSheet(); });
+$('twClear').addEventListener('click', ()=>{
+  setTw({}); refreshTextBg();
+  hap('light'); closeSheets(); toast('Переводы убраны');
+});
+function showTransPop(text, el){
+  const p=$('transPop');
+  p.textContent=text;
+  p.classList.add('show');
+  p.style.visibility='hidden';
+  const r=el.getBoundingClientRect();
+  const pw=p.offsetWidth, ph=p.offsetHeight;
+  let left=clamp(r.left + r.width/2 - pw/2, 10, window.innerWidth - pw - 10);
+  let top=r.top - ph - 12;
+  if(top < 10) top = r.bottom + 12;
+  p.style.left=left+'px';
+  p.style.top=top+'px';
+  p.style.visibility='';
+  clearTimeout(transPopT);
+  transPopT=setTimeout(()=>p.classList.remove('show'), 2600);
+}
+let transPopT=null;
+function hideTransPop(){ $('transPop').classList.remove('show'); clearTimeout(transPopT); }
+/* Video and text share the screen: the video is pinned at the top and the
+   text scrolls underneath, or the video is tucked away and only text remains
+   (the audio keeps playing either way). */
+let videoHidden=false;
+function updateVideoLayout(){
+  const isVideo = !!(cur && cur.kind==='video');
+  const hasText = !!(curBg && curBg.text);
+  const sp=$('scrPlayer');
+  $('videoWrap').style.display = isVideo ? 'flex' : 'none';
+  sp.classList.toggle('vidtop', isVideo && hasText && !videoHidden);
+  sp.classList.toggle('vidoff', isVideo && videoHidden);
+  $('btnVideoToggle').style.display = isVideo ? 'flex' : 'none';
+  $('icVideoOn').style.display = videoHidden ? 'none' : 'block';
+  $('icVideoOff').style.display = videoHidden ? 'block' : 'none';
+  $('btnVideoToggle').setAttribute('aria-label', videoHidden ? 'Показать видео' : 'Скрыть видео');
+}
+$('btnVideoToggle').addEventListener('click', ()=>{
+  if(!cur || cur.kind!=='video') return;
+  hap('medium');
+  videoHidden=!videoHidden;
+  store('pa.vhide.'+cur.id, videoHidden);
+  updateVideoLayout();
+  toast(videoHidden
+    ? (curBg && curBg.text ? 'Видео убрано — остался текст' : 'Видео убрано, звук идёт')
+    : 'Видео снова видно');
+});
+
+function updateFeatureStates(){
+  $('miTransState').textContent = settings.translateOn ? 'вкл' : 'выкл';
+  $('miTransState').classList.toggle('on', settings.translateOn===true);
+}
+let lastSpd=null;
+$('spdRange').addEventListener('input', ()=>{
+  const v=parseInt($('spdRange').value,10)/100;
+  if(v===lastSpd) return;
+  lastSpd=v; hap('light'); applySpeed(v, true);
+});
+$('spdPresets').addEventListener('click', e=>{
+  const b=e.target.closest('.preset'); if(!b) return;
+  hap('medium'); applySpeed(parseFloat(b.dataset.v), true);
+});
+$('spdApply').addEventListener('click', ()=>{
+  const raw=$('spdInput').value.trim().replace(',','.');
+  const v=parseFloat(raw);
+  if(!isFinite(v)){ toast('Впиши число, например 1.65'); return; }
+  if(v<0.1||v>2){ toast('Скорость — от 0,1 до 2'); return; }
+  hap('medium'); applySpeed(v, true); $('spdInput').value='';
+  toast('Скорость '+String(applySpeed(v,true)).replace('.',',')+'×');
+});
+
+/* practice history */
+function getHist(){ return cur ? loadLS('pa.phist.'+cur.id, []) : []; }
+function setHist(h){ if(cur) store('pa.phist.'+cur.id, h); }
+function renderHistory(){
+  const box=$('prHistory');
+  const h=getHist();
+  box.innerHTML='';
+  if(!h.length){ box.innerHTML='<div class="list-empty">Пока пусто. Нажми «В историю», чтобы сохранить отрезок</div>'; return; }
+  h.forEach(item=>{
+    const row=document.createElement('div');
+    row.className='row-item';
+    row.innerHTML='<button class="row-time">'+fmt(item.s)+' – '+fmt(item.e)+'</button>'+
+      '<div class="row-text">'+(item.loop?'бесконечный повтор':'один раз')+'</div>'+
+      '<button class="row-x" aria-label="Удалить">'+
+      '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>';
+    row.querySelector('.row-time').addEventListener('click', ()=>{
+      if(startPractice(item.s, item.e, item.loop)){
+        hap('medium'); closeSheets(); toast('Практика запущена');
+      }
+    });
+    row.querySelector('.row-x').addEventListener('click', ()=>{
+      setHist(getHist().filter(x=>x.id!==item.id));
+      renderHistory(); hap('light');
+    });
+    box.appendChild(row);
+  });
+}
+$('prSave').addEventListener('click', ()=>{
+  const s=readTime('prSM','prSS'), e=readTime('prEM','prES');
+  if(e<=s){ toast('«До» должно быть позже, чем «От»'); return; }
+  const h=getHist();
+  if(h.some(x=>x.s===s&&x.e===e)){ toast('Такой отрезок уже сохранён'); return; }
+  h.unshift({id:uid(), s:s, e:e, loop:$('prLoop').checked});
+  setHist(h);
+  renderHistory();
+  hap('medium'); toast('Сохранено в историю');
+});
+$('prDownload').addEventListener('click', ()=>{
+  hap('light');
+  closeSheets();
+  openExport(readTime('prSM','prSS'), readTime('prEM','prES'));
+});
+
+/* ---------------- export ---------------- */
+let exporting=false, lastExport=null;
+function openExport(s, e){
+  if(s==null){
+    const saved = cur ? loadLS('pa.pr.'+cur.id, null) : null;
+    s = practice ? practice.start : (saved ? saved.s : curT());
+    e = practice ? practice.end : (saved ? saved.e : Math.min(durT()||curT()+10, curT()+10));
+  }
+  writeTime('exSM','exSS', s);
+  writeTime('exEM','exES', e);
+  setSeg('exFormatRow','fmt', settings.exportFormat || 'm4a');
+  updateFmtHint();
+  $('exShare').style.display = lastExport ? 'flex' : 'none';
+  $('exStart').textContent='Скачать';
+  $('exStart').removeAttribute('disabled');
+  openSheet('shExport');
+}
+$('exSNow').addEventListener('click', ()=>{ hap('light'); writeTime('exSM','exSS', curT()); });
+$('exENow').addEventListener('click', ()=>{ hap('light'); writeTime('exEM','exES', curT()); });
+$('exSStart').addEventListener('click', ()=>{ hap('light'); writeTime('exSM','exSS', 0); });
+$('exEEnd').addEventListener('click', ()=>{
+  hap('light');
+  const d=durT();
+  if(!d){ toast('Длительность ещё не известна'); return; }
+  writeTime('exEM','exES', d);
+});
+$('exStart').addEventListener('click', ()=>{
+  if(exporting || !cur) return;
+  if(!hasPA()){ toast('Скачивание доступно в приложении'); return; }
+  let s=readTime('exSM','exSS'), e=readTime('exEM','exES');
+  const d=durT();
+  if(d && e>d) e=d;
+  if(e<=s){ toast('«До» должно быть позже, чем «От»'); return; }
+  exporting=true;
+  $('exStart').textContent='Готовлю…';
+  $('exStart').setAttribute('disabled','');
+  hap('medium');
+  const name = cur.name + ' ' + fmt(s).replace(/:/g,'-') + '_' + fmt(e).replace(/:/g,'-');
+  try{ PA.exportClip(cur.path, s, e, name, settings.exportFormat || 'm4a'); }
+  catch(err){ exporting=false; $('exStart').textContent='Скачать'; $('exStart').removeAttribute('disabled'); toast('Не получилось'); }
+});
+window.onExportDone = function(info){
+  exporting=false;
+  lastExport = info && info.name ? info.name : null;
+  $('exStart').textContent='Скачать';
+  $('exStart').removeAttribute('disabled');
+  $('exShare').style.display = lastExport ? 'flex' : 'none';
+  hap('medium');
+  toast(info && info.inDownloads
+    ? 'Сохранено в «Загрузки»: '+info.name
+    : 'Готово: '+info.name+'. Нажми «Отправить», чтобы сохранить');
+};
+window.onExportFailed = function(msg){
+  exporting=false;
+  $('exStart').textContent='Скачать';
+  $('exStart').removeAttribute('disabled');
+  hap('heavy');
+  toast('Не получилось вырезать отрезок');
+};
+function updateFmtHint(){
+  const f=getSeg('exFormatRow','fmt','m4a');
+  $('exFmtHint').textContent = f==='m4a'
+    ? 'M4A — сжатый звук, файл небольшой. Принимают мессенджеры, почта и плееры — везде, где берут MP3.'
+    : 'WAV — без сжатия, максимальное качество, но файл в разы больше.';
+}
+$('exFormatRow').addEventListener('click', e=>{
+  const b=e.target.closest('.seg'); if(!b) return;
+  hap('light');
+  setSeg('exFormatRow','fmt', b.dataset.fmt);
+  settings.exportFormat=b.dataset.fmt;
+  store('pa.settings', settings);
+  updateFmtHint();
+});
+$('exShare').addEventListener('click', ()=>{
+  if(!lastExport || !hasPA()) return;
+  hap('light');
+  try{ PA.shareExport(lastExport); }catch(e){}
+});
+
+/* ---------------- notes ---------------- */
+function getNotes(){ return cur ? loadLS('pa.notes.'+cur.id, []) : []; }
+function setNotes(n){ if(cur) store('pa.notes.'+cur.id, n); }
+function renderNotes(){
+  const list=$('notesList');
+  const notes=getNotes().slice().sort((a,b)=>a.t-b.t);
+  list.innerHTML='';
+  if(!notes.length){ list.innerHTML='<div class="list-empty">Заметок пока нет</div>'; return; }
+  notes.forEach(n=>{
+    const row=document.createElement('div');
+    row.className='row-item';
+    row.innerHTML='<button class="row-time">'+fmt(n.t)+'</button>'+
+      '<div class="row-text">'+esc(n.text)+'</div>'+
+      '<button class="row-x" aria-label="Удалить">'+
+      '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>';
+    row.querySelector('.row-time').addEventListener('click', ()=>{
+      if(media && isFinite(media.duration)){
+        media.currentTime=clamp(n.t,0,media.duration);
+        updateProgress();
+        hap('medium'); toast('Перемотано на '+fmt(n.t));
+      }
+    });
+    row.querySelector('.row-x').addEventListener('click', ()=>{
+      setNotes(getNotes().filter(x=>x.id!==n.id));
+      renderNotes(); hap('light');
+    });
+    list.appendChild(row);
+  });
+}
+function openNotes(){
+  writeTime('ntM','ntS', curT());
+  $('ntText').value='';
+  renderNotes();
+  openSheet('shNotes');
+}
+$('ntNow').addEventListener('click', ()=>{ hap('light'); writeTime('ntM','ntS', curT()); });
+$('ntAdd').addEventListener('click', ()=>{
+  const text=$('ntText').value.trim();
+  if(!text){ toast('Напиши текст заметки'); return; }
+  const notes=getNotes();
+  notes.push({id:uid(), t:readTime('ntM','ntS'), text:text});
+  setNotes(notes);
+  $('ntText').value='';
+  renderNotes();
+  hap('medium');
+});
+
+/* ---------------- sheets ---------------- */
+const sheets=[...document.querySelectorAll('.sheet')];
+function openSheet(id){
+  closeSheets();
+  $('overlay').classList.add('show');
+  $(id).classList.add('show');
+}
+function closeSheets(){
+  $('overlay').classList.remove('show');
+  sheets.forEach(s=>s.classList.remove('show'));
+}
+function anySheetOpen(){ return sheets.some(s=>s.classList.contains('show')); }
+$('overlay').addEventListener('click', closeSheets);
+document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click', ()=>{ hap('light'); closeSheets(); }));
+
+/* ---------------- system back ---------------- */
+window.handleBack = function(){
+  if($('textFull').classList.contains('show')){ closeTextFull(true); return true; }
+  if(anyPopOpen()){ closePops(); return true; }
+  if(anySheetOpen()){ closeSheets(); return true; }
+  if(pickingWord){ stopPicking(); return true; }
+  if(isEditing()){ closeBgEditor(); return true; }
+  if($('scrPlayer').classList.contains('zen')){ $('scrPlayer').classList.remove('zen'); return true; }
+  if($('scrPlayer').classList.contains('open')){ closePlayer(); return true; }
+  return false;
+};
+
+/* ---------------- demo seed (previews outside the app) ---------------- */
+if(location.hash==='#demo' && !lib.length){
+  lib=[
+    {id:'d1', name:'Deutsch A2 — Dialog im Café', path:'', mime:'audio/mpeg', kind:'audio', duration:754, added:Date.now()},
+    {id:'d2', name:'Подкаст — медленный немецкий', path:'', mime:'audio/mpeg', kind:'audio', duration:1930, added:Date.now()},
+    {id:'d3', name:'Урок 12 — видео', path:'', mime:'video/mp4', kind:'video', duration:433, added:Date.now()}
+  ];
+}
+
+renderLib();
+updateBadges();
+applySpeed(settings.speed||1, false);
+applyHaptics();
+updateFeatureStates();
+</script>
+</body>
+</html>
