@@ -27,10 +27,28 @@ var _font: Font
 
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	# set_anchors_preset() only moves the anchors — the offsets stay put, so the
+	# control keeps its starting size of zero. Everything here is laid out from
+	# `size`, so at zero the stick and the buttons land off the left/top edge of
+	# the screen and the touch zones collapse to nothing. Set both.
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_font = ThemeDB.fallback_font
+	_fit_to_viewport()
+	get_viewport().size_changed.connect(_fit_to_viewport)
 	set_process(true)
+
+
+func _fit_to_viewport() -> void:
+	var vp := get_viewport_rect().size
+	if vp.x > 0.0 and vp.y > 0.0:
+		size = vp
+		position = Vector2.ZERO
+
+
+## Where the stick sits when nobody is touching it.
+func _stick_home() -> Vector2:
+	return Vector2(STICK_RADIUS + 70.0, size.y - STICK_RADIUS - 70.0)
 
 
 func _button_positions() -> Dictionary:
@@ -44,6 +62,8 @@ func _button_positions() -> Dictionary:
 
 
 func _process(delta: float) -> void:
+	if size.x < 1.0 or size.y < 1.0:
+		_fit_to_viewport()
 	if _hint_alpha > 0.0 and (move_vector.length() > 0.2 or look_delta.length() > 4.0):
 		_hint_alpha = maxf(_hint_alpha - delta * 0.8, 0.0)
 	run_held = _pressed.get("run", false)
@@ -141,9 +161,11 @@ func _draw() -> void:
 		draw_circle(knob, KNOB_RADIUS, Color(1, 1, 1, 0.22))
 		draw_arc(knob, KNOB_RADIUS, 0.0, TAU, 32, bright, 3.0, true)
 	else:
-		var ghost := Vector2(190.0, size.y - 190.0)
-		draw_arc(ghost, STICK_RADIUS, 0.0, TAU, 48, Color(1, 1, 1, 0.10), 3.0, true)
-		draw_circle(ghost, KNOB_RADIUS * 0.8, Color(1, 1, 1, 0.07))
+		var home := _stick_home()
+		draw_circle(home, STICK_RADIUS, Color(1, 1, 1, 0.06))
+		draw_arc(home, STICK_RADIUS, 0.0, TAU, 48, Color(1, 1, 1, 0.30), 4.0, true)
+		draw_circle(home, KNOB_RADIUS, Color(1, 1, 1, 0.16))
+		draw_arc(home, KNOB_RADIUS, 0.0, TAU, 32, Color(1, 1, 1, 0.38), 3.0, true)
 
 	# --- action buttons ---
 	var buttons := _button_positions()

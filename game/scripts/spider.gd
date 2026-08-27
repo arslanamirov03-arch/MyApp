@@ -98,8 +98,10 @@ func _ready() -> void:
 func _build_rig() -> void:
 	# the "chitin" bark scan turned out to have moss in it, which made the
 	# spider green; the leather scan reads as a waxy exoskeleton instead
+	# Against the now brightly-lit rooms a light tint read as polished copper.
+	# Dark keeps it a spider, and keeps it legible as a silhouette.
 	var chitin := MaterialLib.object_surface("leather", 0.42, 1.8,
-		Color(0.92, 0.84, 0.78))
+		Color(0.40, 0.34, 0.31))
 	chitin.roughness = 0.36
 	chitin.metallic = 0.16
 	chitin.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX
@@ -110,7 +112,7 @@ func _build_rig() -> void:
 	chitin.rim = 0.75
 	chitin.rim_tint = 0.35
 	var joint_mat := MaterialLib.object_surface("chitin", 0.22, 1.4,
-		Color(0.62, 0.52, 0.44))
+		Color(0.30, 0.25, 0.22))
 	joint_mat.roughness = 0.52
 	joint_mat.rim_enabled = true
 	joint_mat.rim = 0.6
@@ -125,8 +127,8 @@ func _build_rig() -> void:
 	var head := SphereMesh.new()
 	head.radius = 0.5
 	head.height = 1.0
-	head.radial_segments = 32
-	head.rings = 20
+	head.radial_segments = 20
+	head.rings = 12
 	carapace.mesh = head
 	carapace.scale = Vector3(0.62, 0.40, 0.74) * body_size
 	carapace.position = Vector3(0.0, 0.0, -0.16) * body_size
@@ -142,8 +144,8 @@ func _build_rig() -> void:
 	var abd := SphereMesh.new()
 	abd.radius = 0.5
 	abd.height = 1.0
-	abd.radial_segments = 32
-	abd.rings = 22
+	abd.radial_segments = 22
+	abd.rings = 14
 	abdomen.mesh = abd
 	abdomen.scale = Vector3(0.80, 0.72, 1.05) * body_size
 	abdomen.position = Vector3(0.0, 0.02, 0.42) * body_size
@@ -303,7 +305,7 @@ func _segment(mat: Material, thickness: float, _bristles: int) -> MeshInstance3D
 	cm.top_radius = 0.38
 	cm.bottom_radius = 0.5
 	cm.height = 1.0
-	cm.radial_segments = 10
+	cm.radial_segments = 8
 	mi.mesh = cm
 	mi.set_meta("thick", thickness * 2.0)
 	mi.material_override = mat
@@ -317,8 +319,8 @@ func _ball(mat: Material, radius: float) -> MeshInstance3D:
 	var sm := SphereMesh.new()
 	sm.radius = radius
 	sm.height = radius * 2.0
-	sm.radial_segments = 12
-	sm.rings = 8
+	sm.radial_segments = 8
+	sm.rings = 5
 	mi.mesh = sm
 	mi.material_override = mat
 	mi.top_level = true

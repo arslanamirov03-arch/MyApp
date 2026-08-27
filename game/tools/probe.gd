@@ -106,6 +106,23 @@ func _run() -> void:
 	_check("legs reach the ground", _worst_leg_stretch() < 0.99,
 		"worst stretch=%.2f of reach" % _worst_leg_stretch())
 
+	print("\n--- 1b. the on-screen controls exist and are on screen ---")
+	var hud: TouchUI = main.get("hud")
+	var vp: Vector2 = hud.get_viewport_rect().size
+	_check("HUD fills the screen", hud.size.x > 100.0 and hud.size.y > 100.0,
+		"hud size=%.0fx%.0f, viewport=%.0fx%.0f" % [hud.size.x, hud.size.y, vp.x, vp.y])
+	var buttons: Dictionary = hud._button_positions()
+	var on_screen := true
+	for key in buttons:
+		var pos: Vector2 = buttons[key]
+		if pos.x < 0.0 or pos.y < 0.0 or pos.x > hud.size.x or pos.y > hud.size.y:
+			on_screen = false
+	_check("buttons are inside the screen", on_screen, str(buttons))
+	var home: Vector2 = hud._stick_home()
+	_check("stick is inside the screen",
+		home.x > 0.0 and home.y > 0.0 and home.x < hud.size.x and home.y < hud.size.y,
+		"stick at (%.0f, %.0f)" % [home.x, home.y])
+
 	print("\n--- 2. walk forward (-Z) across the room ---")
 	var before := spider.global_position
 	steps_heard = 0

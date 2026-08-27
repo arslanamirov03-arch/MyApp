@@ -7,6 +7,10 @@ extends Node3D
 const MODEL_ROOT := "res://assets/models/"
 
 var house: House
+## Lights that would like a shadow, most important first. How many actually
+## get one is a quality setting: each omni shadow is a cubemap render of the
+## whole house, which is the single most expensive thing in the scene.
+var shadow_candidates: Array[OmniLight3D] = []
 var _flickers: Array[Dictionary] = []
 var _time := 0.0
 
@@ -224,7 +228,9 @@ func _place_lights() -> void:
 		lamp.light_energy = spec.e
 		lamp.omni_range = spec.r
 		lamp.omni_attenuation = 1.15
-		lamp.shadow_enabled = spec.shadow
+		lamp.shadow_enabled = false
+		if spec.shadow:
+			shadow_candidates.append(lamp)
 		lamp.shadow_bias = 0.025
 		lamp.shadow_normal_bias = 0.7
 		lamp.shadow_blur = 0.5
@@ -282,7 +288,8 @@ func _fireplace() -> void:
 	fire.light_color = Color(1.0, 0.63, 0.36)
 	fire.light_energy = 2.6
 	fire.omni_range = 7.5
-	fire.shadow_enabled = true
+	fire.shadow_enabled = false
+	shadow_candidates.push_front(fire)
 	fire.shadow_bias = 0.025
 	fire.shadow_normal_bias = 0.7
 	fire.shadow_blur = 0.5

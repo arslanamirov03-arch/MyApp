@@ -2,6 +2,8 @@ extends Node3D
 ## Boots the whole thing: environment, house, props, spider, camera and HUD.
 
 const SPAWN := Vector3(15.0, 0.75, 11.0)
+## Ambient fill at brightness 1.0. The slider scales this.
+const AMBIENT_BASE := 1.75
 
 var house: House
 var props: Props
@@ -49,6 +51,7 @@ func _ready() -> void:
 	_build_audio()
 	_apply_quality(Settings.quality)
 	Settings.quality_changed.connect(_apply_quality)
+	Settings.brightness_changed.connect(_apply_brightness)
 
 
 # ---------------------------------------------------------------------------
@@ -71,12 +74,17 @@ func _build_environment() -> void:
 
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	env.ambient_light_sky_contribution = 1.0
-	env.ambient_light_energy = 0.45
+	# A flat fill light so walls, floors and corners stay readable everywhere.
+	# Sky-sourced ambient only lit what could see a window; this is a constant
+	# and is what the brightness slider drives. The lamps are untouched — they
+	# still make the warm pools on top of this.
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_sky_contribution = 0.0
+	env.ambient_light_color = Color(0.62, 0.65, 0.76)
+	env.ambient_light_energy = AMBIENT_BASE * Settings.brightness
 
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
-	env.tonemap_exposure = 0.95
+	env.tonemap_exposure = 1.10
 	env.tonemap_white = 6.0
 
 	env.glow_enabled = true
@@ -93,13 +101,13 @@ func _build_environment() -> void:
 	env.ssao_light_affect = 0.25
 	env.ssao_detail = 0.6
 
-	env.ssil_enabled = true
+	env.ssil_enabled = false
 	env.ssil_radius = 3.0
 	env.ssil_intensity = 0.85
 
 	# dust hanging in the air: this is what turns the window light into shafts
-	env.volumetric_fog_enabled = true
-	env.volumetric_fog_density = 0.016
+	env.volumetric_fog_enabled = false
+	env.volumetric_fog_density = 0.010
 	env.volumetric_fog_albedo = Color(0.62, 0.63, 0.70)
 	env.volumetric_fog_emission = Color(0.012, 0.013, 0.020)
 	env.volumetric_fog_gi_inject = 0.9
@@ -201,6 +209,9 @@ func _build_menu() -> Control:
 		func(v: float) -> void:
 			Settings.camera_distance = v
 			Settings.save_settings()))
+
+	panel.add_child(_slider_row("Brightness", 0.3, 3.0, Settings.brightness,
+		func(v: float) -> void: Settings.set_brightness(v)))
 
 	var inv := CheckBox.new()
 	inv.text = "Invert vertical look"
@@ -325,40 +336,48 @@ func _on_footstep(pos: Vector3, speed01: float) -> void:
 
 func _apply_quality(level: int) -> void:
 	var vp := get_viewport()
+	# Omni shadows dominate the frame time: each one re-renders the whole house
+	# into a cubemap, every frame, because the spider is always moving.
+	var shadow_casters := 0
+
 	match level:
 		Settings.Quality.LOW:
 			env.ssao_enabled = false
 			env.ssil_enabled = false
 			env.volumetric_fog_enabled = false
 			env.glow_enabled = false
-			moon.shadow_enabled = true
-			vp.scaling_3d_scale = 0.72
+			shadow_casters = 0
+			moon.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+			vp.scaling_3d_scale = 0.80
 			vp.msaa_3d = Viewport.MSAA_DISABLED
+			vp.mesh_lod_threshold = 3.0
 		Settings.Quality.MEDIUM:
 			env.ssao_enabled = true
 			env.ssil_enabled = false
-			env.volumetric_fog_enabled = true
-			env.volumetric_fog_density = 0.011
+			env.volumetric_fog_enabled = false
 			env.glow_enabled = true
-			vp.scaling_3d_scale = 0.85
-			vp.msaa_3d = Viewport.MSAA_2X
+			shadow_casters = 1
+			moon.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+			vp.scaling_3d_scale = 0.90
+			vp.msaa_3d = Viewport.MSAA_DISABLED
+			vp.mesh_lod_threshold = 2.0
 		_:
 			env.ssao_enabled = true
 			env.ssil_enabled = true
 			env.volumetric_fog_enabled = true
-			env.volumetric_fog_density = 0.016
 			env.glow_enabled = true
+			shadow_casters = 3
+			moon.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
 			vp.scaling_3d_scale = 1.0
 			vp.msaa_3d = Viewport.MSAA_2X
+			vp.mesh_lod_threshold = 1.0
 
-	# on Low, only the fire and one lamp keep their shadows
-	var kept := 0
-	for child in props.get_children():
-		if child is OmniLight3D:
-			var l := child as OmniLight3D
-			if level == Settings.Quality.LOW:
-				l.shadow_enabled = kept < 1 and l.shadow_enabled
-				kept += 1
+	for i in range(props.shadow_candidates.size()):
+		props.shadow_candidates[i].shadow_enabled = i < shadow_casters
+
+
+func _apply_brightness(value: float) -> void:
+	env.ambient_light_energy = AMBIENT_BASE * value
 
 
 # ---------------------------------------------------------------------------

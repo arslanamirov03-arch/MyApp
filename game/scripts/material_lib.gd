@@ -43,25 +43,21 @@ static func surface(set_name: String, tile_meters: float = 2.0, triplanar: bool 
 
 	# Poly Haven ships either separate Rough/AO maps or a packed ARM map
 	# (R = ambient occlusion, G = roughness, B = metallic).
+	#
+	# The ambient occlusion map is deliberately not used. Under triplanar
+	# mapping every texture costs three samples, so albedo + normal + roughness
+	# + AO is twelve samples per pixel before any overdraw — the single largest
+	# fragment cost in the scene on a phone. AO is the one that contributes
+	# least, especially now that a strong ambient fill washes it out anyway.
 	var arm := _tex(set_name, "arm")
 	if arm:
 		m.roughness_texture = arm
 		m.roughness_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_GREEN
-		m.ao_enabled = true
-		m.ao_texture = arm
-		m.ao_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_RED
-		m.ao_light_affect = 0.7
 	else:
 		var rough := _tex(set_name, "Rough")
 		if rough:
 			m.roughness_texture = rough
 			m.roughness_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_RED
-		var ao := _tex(set_name, "AO")
-		if ao:
-			m.ao_enabled = true
-			m.ao_texture = ao
-			m.ao_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_RED
-			m.ao_light_affect = 0.7
 
 	var s := 1.0 / maxf(tile_meters, 0.01)
 	if triplanar:
@@ -69,7 +65,9 @@ static func surface(set_name: String, tile_meters: float = 2.0, triplanar: bool 
 		m.uv1_world_triplanar = true
 		m.uv1_triplanar_sharpness = 2.0
 	m.uv1_scale = Vector3(s, s, s)
-	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	# anisotropic filtering is a per-sample cost a phone GPU feels; with
+	# triplanar mapping it is paid three times over
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	m.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX
 
 	_cache[key] = m
