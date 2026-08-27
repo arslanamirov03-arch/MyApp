@@ -39,6 +39,9 @@ jolt_physics_3d/limits/max_linear_velocity=200.0
 
 [rendering]
 
+occlusion_culling/use_occlusion_culling=true
+occlusion_culling/bvh_build_quality=1
+
 renderer/rendering_method="forward_plus"
 renderer/rendering_method.mobile="forward_plus"
 textures/vram_compression/import_etc2_astc=true

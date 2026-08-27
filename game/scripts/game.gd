@@ -1,11 +1,12 @@
 extends Node3D
 ## Boots the whole thing: environment, house, props, spider, camera and HUD.
 
-const SPAWN := Vector3(15.0, 0.75, 11.0)
+const SPAWN := Vector3(31.0, 1.20, 34.0)   # the grand hall, at the stairs
 ## Ambient fill at brightness 1.0. The slider scales this.
 const AMBIENT_BASE := 1.75
 
 var house: House
+var garden: Garden
 var props: Props
 var spider: Spider
 var rig: CameraRig
@@ -29,6 +30,10 @@ func _ready() -> void:
 	house = House.new()
 	house.name = "House"
 	add_child(house)
+
+	garden = Garden.new()
+	garden.name = "Garden"
+	add_child(garden)
 
 	props = Props.new()
 	props.name = "Props"
@@ -394,11 +399,14 @@ func _process(delta: float) -> void:
 	if kb.length() > 0.05:
 		move = kb
 	spider.move_input = move
-	spider.run_held = hud.run_held or Input.is_key_pressed(KEY_SHIFT)
+	var mode := hud.speed_mode
+	if Input.is_key_pressed(KEY_SHIFT):
+		mode = 2
+	elif Input.is_key_pressed(KEY_CTRL):
+		mode = 1
+	spider.speed_mode = mode
 	if hud.take_jump() or Input.is_key_pressed(KEY_SPACE):
 		spider.jump_queued = true
-	if hud.take_attack():
-		spider.attack_queued = true
 	spider.camera_basis = rig.global_transform.basis
 
 	rig.look_delta += hud.take_look()

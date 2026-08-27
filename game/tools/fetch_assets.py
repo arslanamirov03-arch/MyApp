@@ -20,21 +20,36 @@ ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets")
 ROOT = os.path.normpath(ROOT)
 
 # name -> (polyhaven slug, resolution)
+#
+# 1k, not 2k. At the tiling scales used here the difference is invisible on a
+# phone, and it roughly halves both the download and the texture memory — which
+# buys back what the palace and the garden cost.
 TEXTURES = {
-    "parquet":      ("herringbone_parquet", "2k"),
-    "planks":       ("plank_flooring_02", "2k"),
-    "wallpaper":    ("decrepit_wallpaper", "2k"),
-    "plaster":      ("plastered_wall_02", "2k"),
-    "ceiling":      ("white_stucco", "2k"),
-    "tiles_kitchen": ("floor_tiles_06", "2k"),
-    "tiles_bath":   ("marble_tiles", "2k"),
-    "wood_dark":    ("dark_planks", "2k"),
-    "brick":        ("brick_wall_006", "2k"),
-    "carpet":       ("dirty_carpet", "2k"),
-    "concrete":     ("concrete_floor_worn_001", "2k"),
-    "attic_wood":   ("old_planks_02", "2k"),
-    "chitin":       ("bark_brown_02", "2k"),
-    "leather":      ("brown_leather", "2k"),
+    "parquet":      ("herringbone_parquet", "1k"),
+    "planks":       ("plank_flooring_02", "1k"),
+    "wallpaper":    ("decrepit_wallpaper", "1k"),
+    "plaster":      ("plastered_wall_02", "1k"),
+    "ceiling":      ("white_stucco", "1k"),
+    "tiles_kitchen": ("floor_tiles_06", "1k"),
+    "tiles_bath":   ("marble_tiles", "1k"),
+    "wood_dark":    ("dark_planks", "1k"),
+    "brick":        ("brick_wall_006", "1k"),
+    "carpet":       ("dirty_carpet", "1k"),
+    "concrete":     ("concrete_floor_worn_001", "1k"),
+    "attic_wood":   ("old_planks_02", "1k"),
+    "chitin":       ("bark_brown_02", "1k"),
+    "leather":      ("brown_leather", "1k"),
+    # palace
+    "marble":       ("marble_01", "1k"),
+    "sandstone":    ("large_sandstone_blocks", "1k"),
+    "roof_slate":   ("red_slate_roof_tiles_01", "1k"),
+    "mosaic":       ("marble_mosaic_tiles", "1k"),
+    # garden
+    "grass":        ("leafy_grass", "1k"),
+    "path":         ("stone_pathway", "1k"),
+    "cobble":       ("cobblestone_floor_02", "1k"),
+    "gravel":       ("gravel_floor_02", "1k"),
+    "foliage":      ("forest_leaves_02", "1k"),
 }
 
 TEX_MAPS = ["Diffuse", "nor_gl", "Rough", "AO", "arm", "Displacement"]
@@ -62,6 +77,23 @@ MODELS = [
     # small physics props the spider can knock around
     "alarm_clock_01", "brass_goblets", "plastic_crate_01", "boombox",
     "wooden_bowl_01", "food_apple_01", "book_encyclopedia_set_01",
+    # --- palace ---
+    "Chandelier_02", "Chandelier_03", "lantern_chandelier_01",
+    "GothicCabinet_01", "GothicCommode_01", "gothic_coffee_table", "gothic_statue",
+    "chinese_sofa", "chinese_console_table", "chinese_screen_panels",
+    "marble_bust_01", "brass_vase_02", "brass_candleholders", "fancy_picture_frame_02",
+    # --- garden: planting ---
+    # No Poly Haven trees: even at 1k textures a single pine is 914 MB of leaf
+    # cards and dense geometry. The garden's trees are built procedurally in
+    # scripts/garden.gd instead — a trunk with branches and foliage clusters,
+    # which at night reads fine and costs almost nothing.
+    "shrub_01", "shrub_02", "shrub_03", "fern_02", "grass_medium_01",
+    "flower_gazania", "flower_ursinia", "dandelion_01", "calathea_orbifolia_01",
+    # --- garden: furniture, lights, ornament ---
+    "street_lamp_01", "street_lamp_02", "wooden_lantern_01",
+    "painted_wooden_bench", "outdoor_table_chair_set_01", "wooden_picnic_table",
+    "planter_box_01", "planter_pot_clay", "garden_gnome", "stone_fire_pit",
+    "horse_statue_01", "concrete_cat_statue", "boulder_01", "rock_07",
 ]
 
 

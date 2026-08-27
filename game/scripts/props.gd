@@ -1,118 +1,172 @@
 class_name Props
 extends Node3D
-## Furnishes the house with the CC0 Poly Haven models and lights the place for
-## a late evening: cold moonlight through the windows, a handful of warm lamps,
-## and a fire that will not sit still.
+## Furnishes the palace with the CC0 Poly Haven models and lights it for a late
+## evening: cold moonlight through the tall windows, chandeliers hung from every
+## ceiling anchor the house reports, and a fire that will not sit still.
 
 const MODEL_ROOT := "res://assets/models/"
 
 var house: House
-## Lights that would like a shadow, most important first. How many actually
-## get one is a quality setting: each omni shadow is a cubemap render of the
-## whole house, which is the single most expensive thing in the scene.
+## Lights that would like a shadow, most important first. How many actually get
+## one is a quality setting: each omni shadow is a cubemap render of the whole
+## palace, which is the most expensive thing in the scene.
 var shadow_candidates: Array[OmniLight3D] = []
 var _flickers: Array[Dictionary] = []
 var _time := 0.0
 
-## slug, position, yaw (degrees), and how it should be placed.
-##   kind: "static" (trimesh collision) | "rigid" (physics prop) | "deco" (no collision)
-##   y: "floor" drops the model so its lowest point sits on `pos.y`
+## slug, position, yaw (degrees), kind.
+##   "static" — trimesh collision, climbable
+##   "rigid"  — a physics prop that can be knocked over
+##   "deco"   — no collision (wall-hung things)
 const LAYOUT := [
-	# ---------- living room ----------
-	{"m": "Sofa_01", "p": Vector3(4.4, 0, 1.35), "r": 0, "k": "static"},
-	{"m": "throw_pillows_01", "p": Vector3(3.6, 0.46, 1.35), "r": 20, "k": "deco"},
-	{"m": "ArmChair_01", "p": Vector3(7.9, 0, 3.4), "r": -105, "k": "static"},
-	{"m": "CoffeeTable_01", "p": Vector3(4.9, 0, 3.1), "r": 4, "k": "static"},
-	{"m": "Television_01", "p": Vector3(5.2, 0, 7.4), "r": 180, "k": "static"},
-	{"m": "wooden_bookshelf_worn", "p": Vector3(8.9, 0, 6.1), "r": -90, "k": "static"},
-	{"m": "vintage_grandfather_clock_01", "p": Vector3(9.2, 0, 1.0), "r": -90, "k": "static"},
-	{"m": "potted_plant_01", "p": Vector3(1.3, 0, 7.3), "r": 0, "k": "static"},
-	{"m": "fancy_picture_frame_01", "p": Vector3(0.5, 1.85, 6.4), "r": 90, "k": "deco"},
-	{"m": "wooden_bowl_01", "p": Vector3(4.9, 0.44, 3.1), "r": 0, "k": "rigid", "mass": 0.7},
-	{"m": "food_apple_01", "p": Vector3(5.15, 0.5, 3.3), "r": 0, "k": "rigid", "mass": 0.2},
+	# ================= BALLROOM  (x 2..24, z 20..38) =================
+	{"m": "chinese_sofa", "p": Vector3(11.0, 0, 21.6), "r": 0, "k": "static"},
+	{"m": "Sofa_01", "p": Vector3(16.5, 0, 21.6), "r": 0, "k": "static"},
+	{"m": "ArmChair_01", "p": Vector3(10.0, 0, 25.5), "r": 120, "k": "static"},
+	{"m": "ArmChair_01", "p": Vector3(17.0, 0, 25.5), "r": -120, "k": "static"},
+	{"m": "gothic_coffee_table", "p": Vector3(13.5, 0, 24.6), "r": 0, "k": "static"},
+	{"m": "gothic_statue", "p": Vector3(9.0, 0, 36.4), "r": 160, "k": "static"},
+	{"m": "gothic_statue", "p": Vector3(17.5, 0, 36.4), "r": -160, "k": "static"},
+	{"m": "chinese_screen_panels", "p": Vector3(13.0, 0, 34.5), "r": 0, "k": "static"},
+	{"m": "brass_candleholders", "p": Vector3(13.5, 0.55, 24.6), "r": 0, "k": "rigid", "mass": 1.2},
+	{"m": "throw_pillows_01", "p": Vector3(16.0, 0.5, 21.6), "r": 15, "k": "deco"},
 
-	# ---------- kitchen ----------
-	{"m": "electric_stove", "p": Vector3(11.1, 0, 1.0), "r": 0, "k": "static"},
-	{"m": "WoodenTable_01", "p": Vector3(15.4, 0, 3.5), "r": 0, "k": "static"},
-	{"m": "WoodenChair_01", "p": Vector3(14.2, 0, 3.5), "r": 90, "k": "static"},
-	{"m": "WoodenChair_01", "p": Vector3(16.6, 0, 3.5), "r": -90, "k": "static"},
-	{"m": "WoodenChair_01", "p": Vector3(15.4, 0, 4.7), "r": 180, "k": "static"},
-	{"m": "wicker_basket_01", "p": Vector3(18.6, 0, 5.3), "r": 30, "k": "static"},
-	{"m": "brass_pot_01", "p": Vector3(12.6, 0.97, 0.72), "r": 0, "k": "rigid", "mass": 1.6},
-	{"m": "vintage_electric_kettle", "p": Vector3(13.6, 0.97, 0.72), "r": -25, "k": "rigid", "mass": 1.1},
-	{"m": "wine_bottles_01", "p": Vector3(19.3, 0.97, 1.6), "r": 0, "k": "rigid", "mass": 1.0},
-	{"m": "ceramic_vase_01", "p": Vector3(15.4, 0.78, 3.5), "r": 0, "k": "rigid", "mass": 0.9},
-	{"m": "brass_goblets", "p": Vector3(15.9, 0.78, 3.2), "r": 40, "k": "rigid", "mass": 0.4},
+	# ================= GRAND HALL  (x 24..38, z 20..38) =================
+	{"m": "marble_bust_01", "p": Vector3(25.6, 0, 22.0), "r": 45, "k": "static"},
+	{"m": "marble_bust_01", "p": Vector3(36.4, 0, 22.0), "r": -45, "k": "static"},
+	{"m": "potted_plant_01", "p": Vector3(25.6, 0, 35.5), "r": 0, "k": "static"},
+	{"m": "potted_plant_01", "p": Vector3(36.4, 0, 35.5), "r": 0, "k": "static"},
+	{"m": "ornate_mirror_01", "p": Vector3(24.4, 3.0, 30.0), "r": -90, "k": "deco"},
 
-	# ---------- hall ----------
-	{"m": "ornate_mirror_01", "p": Vector3(19.6, 1.55, 9.2), "r": -90, "k": "deco"},
-	{"m": "wooden_ladder", "p": Vector3(10.5, 0, 7.1), "r": 8, "k": "static"},
-	{"m": "wall_clock", "p": Vector3(10.35, 2.15, 11.2), "r": 90, "k": "deco"},
-	{"m": "vintage_suitcase", "p": Vector3(18.2, 0, 12.6), "r": 25, "k": "rigid", "mass": 4.0},
-	{"m": "plastic_crate_01", "p": Vector3(17.4, 0, 7.0), "r": -15, "k": "rigid", "mass": 2.5},
+	# ================= THRONE ROOM  (x 38..58, z 20..38) =================
+	{"m": "GothicCabinet_01", "p": Vector3(39.8, 0, 23.0), "r": 90, "k": "static"},
+	{"m": "GothicCommode_01", "p": Vector3(56.2, 0, 23.0), "r": -90, "k": "static"},
+	{"m": "horse_statue_01", "p": Vector3(41.5, 0, 35.0), "r": -30, "k": "static"},
+	{"m": "brass_vase_02", "p": Vector3(45.5, 1.05, 29.0), "r": 0, "k": "rigid", "mass": 3.0},
+	{"m": "brass_vase_02", "p": Vector3(50.5, 1.05, 29.0), "r": 0, "k": "rigid", "mass": 3.0},
+	{"m": "fancy_picture_frame_02", "p": Vector3(57.5, 4.0, 29.0), "r": -90, "k": "deco"},
+	{"m": "chinese_console_table", "p": Vector3(48.0, 0, 21.5), "r": 0, "k": "static"},
 
-	# ---------- dining ----------
-	{"m": "WoodenTable_01", "p": Vector3(7.4, 0, 11.0), "r": 90, "k": "static"},
-	{"m": "WoodenChair_01", "p": Vector3(7.4, 0, 9.8), "r": 180, "k": "static"},
-	{"m": "WoodenChair_01", "p": Vector3(7.4, 0, 12.2), "r": 0, "k": "static"},
-	{"m": "book_encyclopedia_set_01", "p": Vector3(9.6, 1.05, 11.0), "r": 0, "k": "deco"},
+	# ================= GALLERY  (x 2..58, z 14..20) =================
+	{"m": "fancy_picture_frame_01", "p": Vector3(10.0, 3.6, 19.6), "r": 180, "k": "deco"},
+	{"m": "fancy_picture_frame_02", "p": Vector3(24.0, 3.6, 19.6), "r": 180, "k": "deco"},
+	{"m": "fancy_picture_frame_01", "p": Vector3(38.0, 3.6, 19.6), "r": 180, "k": "deco"},
+	{"m": "fancy_picture_frame_02", "p": Vector3(52.0, 3.6, 19.6), "r": 180, "k": "deco"},
+	{"m": "vintage_grandfather_clock_01", "p": Vector3(3.4, 0, 17.0), "r": 90, "k": "static"},
+	{"m": "potted_plant_01", "p": Vector3(56.6, 0, 17.0), "r": 0, "k": "static"},
+	{"m": "wooden_ladder", "p": Vector3(33.0, 0, 14.8), "r": 6, "k": "static"},
 
-	# ---------- bedroom 1 (first floor) ----------
-	{"m": "GothicBed_01", "p": Vector3(2.7, 3.3, 2.1), "r": 0, "k": "static"},
-	{"m": "ClassicNightstand_01", "p": Vector3(4.7, 3.3, 0.95), "r": 0, "k": "static"},
-	{"m": "desk_lamp_arm_01", "p": Vector3(4.7, 3.92, 0.95), "r": -30, "k": "deco"},
-	{"m": "alarm_clock_01", "p": Vector3(4.45, 3.92, 1.2), "r": 20, "k": "rigid", "mass": 0.4},
-	{"m": "vintage_cabinet_01", "p": Vector3(8.7, 3.3, 1.4), "r": -90, "k": "static"},
+	# ================= LIBRARY  (x 2..22, z 2..14) =================
+	{"m": "WoodenTable_01", "p": Vector3(12.0, 0, 8.0), "r": 0, "k": "static"},
+	{"m": "WoodenChair_01", "p": Vector3(12.0, 0, 6.2), "r": 180, "k": "static"},
+	{"m": "WoodenChair_01", "p": Vector3(12.0, 0, 9.8), "r": 0, "k": "static"},
+	{"m": "book_encyclopedia_set_01", "p": Vector3(12.0, 0.78, 8.0), "r": 20, "k": "deco"},
+	{"m": "vintage_oil_lamp", "p": Vector3(12.9, 0.78, 8.6), "r": 0, "k": "deco"},
+	{"m": "wooden_bookshelf_worn", "p": Vector3(20.6, 0, 5.5), "r": -90, "k": "static"},
+	{"m": "wooden_bookshelf_worn", "p": Vector3(20.6, 0, 11.0), "r": -90, "k": "static"},
+	{"m": "ArmChair_01", "p": Vector3(17.0, 0, 8.0), "r": -90, "k": "static"},
 
-	# ---------- bedroom 2 ----------
-	{"m": "old_bed_frame", "p": Vector3(12.8, 3.3, 2.3), "r": 0, "k": "static"},
-	{"m": "vintage_radio_transceiver", "p": Vector3(18.6, 3.3, 1.3), "r": -60, "k": "static"},
-	{"m": "boombox", "p": Vector3(16.2, 3.3, 6.2), "r": 15, "k": "rigid", "mass": 3.0},
+	# ================= DINING HALL  (x 24..40, z 2..14) =================
+	{"m": "WoodenChair_01", "p": Vector3(29.6, 0, 4.4), "r": 90, "k": "static"},
+	{"m": "WoodenChair_01", "p": Vector3(29.6, 0, 8.0), "r": 90, "k": "static"},
+	{"m": "WoodenChair_01", "p": Vector3(29.6, 0, 11.6), "r": 90, "k": "static"},
+	{"m": "WoodenChair_01", "p": Vector3(34.4, 0, 4.4), "r": -90, "k": "static"},
+	{"m": "WoodenChair_01", "p": Vector3(34.4, 0, 8.0), "r": -90, "k": "static"},
+	{"m": "WoodenChair_01", "p": Vector3(34.4, 0, 11.6), "r": -90, "k": "static"},
+	{"m": "brass_candleholders", "p": Vector3(32.0, 1.18, 6.0), "r": 0, "k": "rigid", "mass": 1.2},
+	{"m": "brass_goblets", "p": Vector3(32.0, 1.18, 8.0), "r": 30, "k": "rigid", "mass": 0.5},
+	{"m": "wine_bottles_01", "p": Vector3(32.0, 1.18, 10.0), "r": 0, "k": "rigid", "mass": 1.0},
+	{"m": "ceramic_vase_01", "p": Vector3(25.5, 0, 12.6), "r": 0, "k": "rigid", "mass": 1.2},
 
-	# ---------- corridor & study ----------
-	{"m": "potted_plant_01", "p": Vector3(1.1, 3.3, 9.7), "r": 40, "k": "static"},
-	{"m": "hanging_picture_frame_01", "p": Vector3(9.0, 5.0, 7.15), "r": 0, "k": "deco"},
-	{"m": "wooden_bookshelf_worn", "p": Vector3(6.2, 3.3, 13.6), "r": 180, "k": "static"},
-	{"m": "WoodenTable_01", "p": Vector3(3.6, 3.3, 12.5), "r": 0, "k": "static"},
-	{"m": "vintage_oil_lamp", "p": Vector3(3.6, 4.05, 12.5), "r": 0, "k": "deco"},
-	{"m": "book_encyclopedia_set_01", "p": Vector3(3.2, 4.05, 12.8), "r": 35, "k": "deco"},
+	# ================= KITCHEN  (x 42..58, z 2..14) =================
+	{"m": "electric_stove", "p": Vector3(44.0, 0, 3.2), "r": 0, "k": "static"},
+	{"m": "WoodenTable_01", "p": Vector3(49.0, 0, 8.5), "r": 90, "k": "static"},
+	{"m": "wicker_basket_01", "p": Vector3(53.5, 0, 12.4), "r": 25, "k": "static"},
+	{"m": "brass_pot_01", "p": Vector3(47.5, 1.35, 2.9), "r": 0, "k": "rigid", "mass": 1.8},
+	{"m": "vintage_electric_kettle", "p": Vector3(52.0, 1.35, 2.9), "r": -20, "k": "rigid", "mass": 1.2},
+	{"m": "wooden_bowl_01", "p": Vector3(49.0, 0.78, 8.5), "r": 0, "k": "rigid", "mass": 0.8},
+	{"m": "food_apple_01", "p": Vector3(49.3, 0.86, 8.8), "r": 0, "k": "rigid", "mass": 0.2},
+	{"m": "plastic_crate_01", "p": Vector3(55.0, 0, 5.0), "r": -15, "k": "rigid", "mass": 2.5},
 
-	# ---------- attic ----------
-	{"m": "wooden_crate_01", "p": Vector3(6.0, 6.6, 3.0), "r": 12, "k": "rigid", "mass": 9.0},
-	{"m": "wooden_crate_01", "p": Vector3(6.4, 7.05, 3.2), "r": -22, "k": "rigid", "mass": 9.0},
-	{"m": "cardboard_box_01", "p": Vector3(13.5, 6.6, 4.5), "r": 30, "k": "rigid", "mass": 2.0},
-	{"m": "old_military_crate", "p": Vector3(15.0, 6.6, 9.0), "r": -10, "k": "rigid", "mass": 11.0},
-	{"m": "metal_toolbox", "p": Vector3(8.0, 6.6, 10.5), "r": 45, "k": "rigid", "mass": 6.0},
-	{"m": "wooden_barrels_01", "p": Vector3(4.0, 6.6, 6.0), "r": 0, "k": "static"},
-	{"m": "vintage_suitcase", "p": Vector3(11.0, 6.6, 11.5), "r": -35, "k": "rigid", "mass": 4.0},
+	# ================= STATE BEDROOM  (first floor) =================
+	{"m": "GothicBed_01", "p": Vector3(8.0, 7.5, 26.0), "r": 0, "k": "static"},
+	{"m": "ClassicNightstand_01", "p": Vector3(11.2, 7.5, 24.2), "r": 0, "k": "static"},
+	{"m": "desk_lamp_arm_01", "p": Vector3(11.2, 8.12, 24.2), "r": -30, "k": "deco"},
+	{"m": "alarm_clock_01", "p": Vector3(10.8, 8.12, 24.6), "r": 20, "k": "rigid", "mass": 0.4},
+	{"m": "GothicCommode_01", "p": Vector3(21.0, 7.5, 30.0), "r": -90, "k": "static"},
+	{"m": "vintage_cabinet_01", "p": Vector3(4.0, 7.5, 33.0), "r": 90, "k": "static"},
+	{"m": "ornate_mirror_01", "p": Vector3(2.9, 9.6, 28.0), "r": 90, "k": "deco"},
+
+	# ================= MUSIC ROOM  (first floor) =================
+	{"m": "chinese_sofa", "p": Vector3(45.0, 7.5, 24.0), "r": 0, "k": "static"},
+	{"m": "gothic_coffee_table", "p": Vector3(45.0, 7.5, 27.0), "r": 0, "k": "static"},
+	{"m": "chinese_console_table", "p": Vector3(52.0, 7.5, 36.0), "r": 180, "k": "static"},
+	{"m": "vintage_radio_transceiver", "p": Vector3(52.0, 8.35, 36.0), "r": -30, "k": "deco"},
+	{"m": "boombox", "p": Vector3(48.0, 7.5, 31.0), "r": 15, "k": "rigid", "mass": 3.0},
+	{"m": "marble_bust_01", "p": Vector3(56.0, 7.5, 24.0), "r": -40, "k": "static"},
+
+	# ================= UPPER GALLERY / STUDY / GUEST =================
+	{"m": "hanging_picture_frame_01", "p": Vector3(12.0, 10.6, 14.4), "r": 0, "k": "deco"},
+	{"m": "hanging_picture_frame_01", "p": Vector3(44.0, 10.6, 14.4), "r": 0, "k": "deco"},
+	{"m": "potted_plant_01", "p": Vector3(3.5, 7.5, 18.0), "r": 0, "k": "static"},
+	{"m": "potted_plant_01", "p": Vector3(56.5, 7.5, 18.0), "r": 0, "k": "static"},
+	{"m": "WoodenTable_01", "p": Vector3(8.0, 7.5, 7.0), "r": 0, "k": "static"},
+	{"m": "wooden_bookshelf_worn", "p": Vector3(20.6, 7.5, 7.0), "r": -90, "k": "static"},
+	{"m": "vintage_oil_lamp", "p": Vector3(8.0, 8.28, 7.0), "r": 0, "k": "deco"},
+	{"m": "old_bed_frame", "p": Vector3(29.0, 7.5, 5.0), "r": 0, "k": "static"},
+	{"m": "old_bed_frame", "p": Vector3(29.0, 7.5, 11.0), "r": 0, "k": "static"},
+	{"m": "vintage_suitcase", "p": Vector3(38.0, 7.5, 8.0), "r": 25, "k": "rigid", "mass": 4.0},
+	{"m": "wooden_crate_01", "p": Vector3(50.0, 7.5, 4.5), "r": 12, "k": "rigid", "mass": 9.0},
+	{"m": "cardboard_box_01", "p": Vector3(52.0, 7.5, 6.5), "r": 30, "k": "rigid", "mass": 2.0},
+
+	# ================= ROOF AND TOWER =================
+	{"m": "wooden_crate_01", "p": Vector3(12.0, 14.06, 8.0), "r": 20, "k": "rigid", "mass": 9.0},
+	{"m": "old_military_crate", "p": Vector3(46.0, 14.06, 30.0), "r": -10, "k": "rigid", "mass": 11.0},
+	{"m": "metal_toolbox", "p": Vector3(14.0, 14.06, 30.0), "r": 45, "k": "rigid", "mass": 6.0},
+	{"m": "wooden_barrels_01", "p": Vector3(48.0, 14.06, 8.0), "r": 0, "k": "static"},
 ]
 
-## Warm practical lights. `shadow` is expensive, so only a few get it.
-## `fix` hangs a real light fitting from the ceiling at `ceil` above the bulb.
-const LIGHTS := [
-	{"p": Vector3(5.0, 2.55, 3.4), "e": 2.80, "r": 11.0, "c": Color(1.0, 0.87, 0.73),
-		"shadow": true, "flicker": 0.0, "fix": "Chandelier_01", "ceil": 3.0},
-	{"p": Vector3(15.2, 2.60, 2.8), "e": 2.30, "r": 9.5, "c": Color(1.0, 0.90, 0.79),
-		"shadow": true, "flicker": 0.12, "fix": "modern_ceiling_lamp_01", "ceil": 3.0},
-	{"p": Vector3(15.0, 2.55, 10.0), "e": 1.70, "r": 8.5, "c": Color(1.0, 0.85, 0.70),
-		"shadow": true, "flicker": 0.35, "fix": "caged_hanging_light", "ceil": 3.0},
-	{"p": Vector3(7.5, 2.55, 11.0), "e": 1.90, "r": 8.0, "c": Color(1.0, 0.88, 0.75),
-		"shadow": false, "flicker": 0.0, "fix": "caged_hanging_light", "ceil": 3.0},
-	{"p": Vector3(4.7, 4.02, 0.95), "e": 1.60, "r": 6.0, "c": Color(1.0, 0.84, 0.68),
-		"shadow": true, "flicker": 0.0, "fix": "", "ceil": 0.0},
-	{"p": Vector3(6.0, 5.85, 9.0), "e": 1.20, "r": 8.0, "c": Color(0.97, 0.86, 0.74),
-		"shadow": false, "flicker": 0.55, "fix": "caged_hanging_light", "ceil": 6.3},
-	{"p": Vector3(16.0, 5.85, 9.0), "e": 1.00, "r": 7.0, "c": Color(0.97, 0.86, 0.74),
-		"shadow": false, "flicker": 0.0, "fix": "caged_hanging_light", "ceil": 6.3},
-	{"p": Vector3(10.0, 8.3, 7.0), "e": 0.90, "r": 9.0, "c": Color(0.95, 0.84, 0.72),
-		"shadow": false, "flicker": 0.8, "fix": "", "ceil": 0.0},
+## Garden props, placed on the lawn at y = 0.
+const GARDEN_LAYOUT := [
+	{"m": "painted_wooden_bench", "p": Vector3(21.0, 0, -14.0), "r": 90, "k": "static"},
+	{"m": "painted_wooden_bench", "p": Vector3(39.0, 0, -14.0), "r": -90, "k": "static"},
+	{"m": "outdoor_table_chair_set_01", "p": Vector3(14.0, 0, -36.0), "r": 20, "k": "static"},
+	{"m": "wooden_picnic_table", "p": Vector3(46.0, 0, -36.0), "r": -15, "k": "static"},
+	{"m": "stone_fire_pit", "p": Vector3(46.0, 0, -40.0), "r": 0, "k": "static"},
+	{"m": "garden_gnome", "p": Vector3(24.5, 0, -10.0), "r": 30, "k": "static"},
+	{"m": "concrete_cat_statue", "p": Vector3(35.5, 0, -10.0), "r": -30, "k": "static"},
+	{"m": "planter_box_01", "p": Vector3(24.0, 0, -20.0), "r": 0, "k": "static"},
+	{"m": "planter_box_01", "p": Vector3(36.0, 0, -20.0), "r": 0, "k": "static"},
+	{"m": "planter_pot_clay", "p": Vector3(24.0, 0, -26.0), "r": 0, "k": "static"},
+	{"m": "planter_pot_clay", "p": Vector3(36.0, 0, -26.0), "r": 0, "k": "static"},
+	{"m": "boulder_01", "p": Vector3(10.0, 0, -24.0), "r": 40, "k": "static"},
+	{"m": "rock_07", "p": Vector3(52.0, 0, -24.0), "r": -60, "k": "static"},
+	{"m": "shrub_01", "p": Vector3(8.0, 0, -12.0), "r": 0, "k": "static"},
+	{"m": "shrub_02", "p": Vector3(52.0, 0, -12.0), "r": 45, "k": "static"},
+	{"m": "shrub_03", "p": Vector3(8.0, 0, -40.0), "r": 90, "k": "static"},
+	{"m": "shrub_01", "p": Vector3(52.0, 0, -40.0), "r": -45, "k": "static"},
+	{"m": "fern_02", "p": Vector3(20.0, 0, -33.0), "r": 0, "k": "deco"},
+	{"m": "fern_02", "p": Vector3(40.0, 0, -33.0), "r": 60, "k": "deco"},
+	{"m": "grass_medium_01", "p": Vector3(18.0, 0, -8.0), "r": 0, "k": "deco"},
+	{"m": "grass_medium_01", "p": Vector3(42.0, 0, -8.0), "r": 30, "k": "deco"},
+	{"m": "calathea_orbifolia_01", "p": Vector3(26.0, 0, -6.0), "r": 0, "k": "deco"},
+	{"m": "calathea_orbifolia_01", "p": Vector3(34.0, 0, -6.0), "r": 0, "k": "deco"},
+	{"m": "flower_gazania", "p": Vector3(22.5, 0, -17.0), "r": 0, "k": "deco"},
+	{"m": "flower_ursinia", "p": Vector3(37.5, 0, -17.0), "r": 0, "k": "deco"},
+	{"m": "dandelion_01", "p": Vector3(16.0, 0, -28.0), "r": 0, "k": "deco"},
+	{"m": "street_lamp_01", "p": Vector3(19.0, 0, -3.0), "r": 0, "k": "static"},
+	{"m": "street_lamp_01", "p": Vector3(41.0, 0, -3.0), "r": 0, "k": "static"},
+	{"m": "street_lamp_02", "p": Vector3(6.0, 0, -23.0), "r": 90, "k": "static"},
+	{"m": "street_lamp_02", "p": Vector3(54.0, 0, -23.0), "r": -90, "k": "static"},
+	{"m": "wooden_lantern_01", "p": Vector3(30.0, 0, -44.0), "r": 0, "k": "static"},
 ]
 
 
 func build(h: House) -> void:
 	house = h
-	_place_models()
-	_place_lights()
+	_place_models(LAYOUT)
+	_place_models(GARDEN_LAYOUT)
+	_place_chandeliers()
 	_fireplace()
 
 
@@ -128,7 +182,6 @@ func _load_model(slug: String) -> Node3D:
 	return packed.instantiate() as Node3D
 
 
-## Bounds of every mesh under `node`, in world space.
 func _world_aabb(node: Node3D) -> AABB:
 	var out := AABB()
 	var first := true
@@ -143,10 +196,8 @@ func _world_aabb(node: Node3D) -> AABB:
 
 
 ## Move `node` so the centre of its footprint lands on (pos.x, pos.z) and its
-## lowest point rests on pos.y. Poly Haven models do not share a common origin —
-## some are centred, some are not — so without this a sofa can end up metres
-## from where the layout table says it is. That is what put a coffee table on
-## top of the player spawn.
+## lowest point rests on pos.y. Poly Haven models do not share a common origin,
+## so without this a sofa can end up metres from where the layout says it is.
 func _seat_on_floor(node: Node3D, pos: Vector3) -> void:
 	var box := _world_aabb(node)
 	if box.size == Vector3.ZERO:
@@ -165,8 +216,8 @@ func _all_meshes(node: Node) -> Array[MeshInstance3D]:
 	return found
 
 
-func _place_models() -> void:
-	for entry in LAYOUT:
+func _place_models(table: Array) -> void:
+	for entry in table:
 		var node := _load_model(entry.m)
 		if node == null:
 			push_warning("missing model: %s" % entry.m)
@@ -186,6 +237,10 @@ func _place_models() -> void:
 					mi.create_trimesh_collision()
 			for mi in _all_meshes(node):
 				mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+				# distant furniture stops drawing; the palace is big enough that
+				# this matters more than it did in a house
+				mi.visibility_range_end = 65.0
+				mi.visibility_range_end_margin = 10.0
 
 
 func _as_rigid(node: Node3D, pos: Vector3, yaw: float, mass: float) -> void:
@@ -200,8 +255,6 @@ func _as_rigid(node: Node3D, pos: Vector3, yaw: float, mass: float) -> void:
 
 	body.add_child(node)
 	node.transform = Transform3D()
-	# centre the mesh on the body origin, then lift the body so the object's
-	# lowest point rests on the requested height
 	var box := _world_aabb(node)
 	if box.size != Vector3.ZERO:
 		node.global_position -= box.get_center()
@@ -218,95 +271,96 @@ func _as_rigid(node: Node3D, pos: Vector3, yaw: float, mass: float) -> void:
 		cs.global_transform = mi.global_transform
 
 
-func _place_lights() -> void:
-	for spec in LIGHTS:
-		if float(spec.e) <= 0.0:
-			continue
+# ---------------------------------------------------------------------------
+#  lighting
+# ---------------------------------------------------------------------------
+
+## One chandelier per ceiling anchor the house reported, sized to the room.
+func _place_chandeliers() -> void:
+	var fittings := ["Chandelier_01", "Chandelier_02", "Chandelier_03",
+		"lantern_chandelier_01"]
+	var i := 0
+	for anchor in house.ceiling_anchors:
+		var pos: Vector3 = anchor.pos
+		var ceiling: float = anchor.ceiling
+		var size: float = anchor.size
+		var drop: float = clampf(size * 1.4, 1.0, 3.0)
+
+		var fixture := _load_model(fittings[i % fittings.size()])
+		if fixture:
+			add_child(fixture)
+			fixture.global_position = Vector3.ZERO
+			var box := _world_aabb(fixture)
+			var centre := box.get_center()
+			fixture.global_position += Vector3(pos.x, ceiling, pos.z) \
+				- Vector3(centre.x, box.end.y, centre.z)
+			fixture.scale = Vector3.ONE * clampf(size, 0.9, 2.0)
+			for mi in _all_meshes(fixture):
+				mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+				mi.visibility_range_end = 80.0
+
+		var bulb_y := ceiling - drop * 0.5
 		var lamp := OmniLight3D.new()
-		lamp.position = spec.p
-		lamp.light_color = spec.c
-		lamp.light_energy = spec.e
-		lamp.omni_range = spec.r
+		lamp.position = Vector3(pos.x, bulb_y, pos.z)
+		lamp.light_color = Color(1.0, 0.87, 0.72)
+		lamp.light_energy = lerpf(2.2, 4.2, clampf((size - 0.9) / 1.3, 0.0, 1.0))
+		lamp.omni_range = lerpf(14.0, 26.0, clampf((size - 0.9) / 1.3, 0.0, 1.0))
 		lamp.omni_attenuation = 1.15
 		lamp.shadow_enabled = false
-		if spec.shadow:
-			shadow_candidates.append(lamp)
-		lamp.shadow_bias = 0.025
+		lamp.shadow_bias = 0.03
 		lamp.shadow_normal_bias = 0.7
 		lamp.shadow_blur = 0.5
 		lamp.distance_fade_enabled = true
-		lamp.distance_fade_begin = 26.0
-		lamp.distance_fade_length = 8.0
+		lamp.distance_fade_begin = 48.0
+		lamp.distance_fade_length = 14.0
 		add_child(lamp)
+		if size >= 1.4:
+			shadow_candidates.append(lamp)
 
-		# a glowing bulb so the source is visible in the room
 		var bulb := MeshInstance3D.new()
 		var sm := SphereMesh.new()
-		sm.radius = 0.07
-		sm.height = 0.14
+		sm.radius = 0.12
+		sm.height = 0.24
+		sm.radial_segments = 10
+		sm.rings = 6
 		bulb.mesh = sm
-		bulb.material_override = MaterialLib.emissive(spec.c, 3.0)
-		bulb.position = spec.p
+		bulb.material_override = MaterialLib.emissive(Color(1.0, 0.9, 0.76), 3.0)
+		bulb.position = Vector3(pos.x, bulb_y, pos.z)
 		bulb.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(bulb)
 
-		# hang a real fitting from the ceiling above the bulb
-		var fixture_name := String(spec.get("fix", ""))
-		if fixture_name != "":
-			var fixture := _load_model(fixture_name)
-			if fixture:
-				add_child(fixture)
-				fixture.global_position = Vector3.ZERO
-				var box := _world_aabb(fixture)
-				var centre := box.get_center()
-				# hang it so its top touches the ceiling
-				fixture.global_position += Vector3(spec.p.x, float(spec.ceil), spec.p.z) \
-					- Vector3(centre.x, box.end.y, centre.z)
-				for mi in _all_meshes(fixture):
-					mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		else:
-			var shade := MeshInstance3D.new()
-			var cm := CylinderMesh.new()
-			cm.top_radius = 0.06
-			cm.bottom_radius = 0.26
-			cm.height = 0.2
-			shade.mesh = cm
-			shade.material_override = MaterialLib.plain(Color(0.14, 0.12, 0.1), 0.6)
-			shade.position = spec.p + Vector3(0.0, 0.16, 0.0)
-			add_child(shade)
-
-		if float(spec.flicker) > 0.0:
-			_flickers.append({
-				"light": lamp, "base": float(spec.e), "amt": float(spec.flicker),
-				"seed": randf() * 20.0,
-			})
+		if i % 4 == 3:
+			_flickers.append({"light": lamp, "base": lamp.light_energy,
+				"amt": 0.35, "seed": randf() * 20.0})
+		i += 1
 
 
 func _fireplace() -> void:
 	var fire := OmniLight3D.new()
-	fire.position = Vector3(1.25, 0.55, 4.0)
+	fire.position = Vector3(3.9, 1.4, 29.0)
 	fire.light_color = Color(1.0, 0.63, 0.36)
-	fire.light_energy = 2.6
-	fire.omni_range = 7.5
+	fire.light_energy = 3.0
+	fire.omni_range = 12.0
 	fire.shadow_enabled = false
-	shadow_candidates.push_front(fire)
 	fire.shadow_bias = 0.025
 	fire.shadow_normal_bias = 0.7
 	fire.shadow_blur = 0.5
 	add_child(fire)
-	_flickers.append({"light": fire, "base": 2.6, "amt": 0.75, "seed": 3.7})
+	shadow_candidates.push_front(fire)
+	_flickers.append({"light": fire, "base": 3.0, "amt": 0.75, "seed": 3.7})
 
-	# embers
-	for i in range(7):
+	for i in range(9):
 		var e := MeshInstance3D.new()
 		var sm := SphereMesh.new()
-		sm.radius = randf_range(0.03, 0.08)
+		sm.radius = randf_range(0.05, 0.13)
 		sm.height = sm.radius * 2.0
+		sm.radial_segments = 8
+		sm.rings = 5
 		e.mesh = sm
 		e.material_override = MaterialLib.emissive(
-			Color(1.0, randf_range(0.28, 0.55), 0.08), randf_range(3.0, 8.0))
-		e.position = Vector3(1.05 + randf_range(-0.1, 0.1), 0.2 + randf_range(0.0, 0.14),
-			4.0 + randf_range(-0.5, 0.5))
+			Color(1.0, randf_range(0.30, 0.55), 0.10), randf_range(3.0, 8.0))
+		e.position = Vector3(3.5 + randf_range(-0.2, 0.2), 0.3 + randf_range(0.0, 0.3),
+			29.0 + randf_range(-1.2, 1.2))
 		e.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(e)
 
@@ -315,7 +369,6 @@ func _process(delta: float) -> void:
 	_time += delta
 	for f in _flickers:
 		var t: float = _time * 7.0 + float(f.seed)
-		# layered sine noise reads as an unstable filament / open flame
 		var n: float = sin(t) * 0.5 + sin(t * 2.37 + 1.1) * 0.3 + sin(t * 5.11 + 2.7) * 0.2
 		var light: OmniLight3D = f.light
 		light.light_energy = float(f.base) * (1.0 - float(f.amt) * (0.5 + 0.5 * n) * 0.5)

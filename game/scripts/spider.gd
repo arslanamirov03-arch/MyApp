@@ -15,17 +15,24 @@ signal footstep(world_pos: Vector3, speed01: float)
 signal landed(impact: float)
 
 const LEG_COUNT := 8
-## Tallest thing the spider can simply walk up onto rather than climb.
-const MAX_STEP := 0.75
+## Tallest thing the spider can simply walk up onto rather than climb. Palace
+## steps, plinths, kerbs and furniture are all bigger than a house's were, and
+## anything taller than this still gets climbed as a wall — so a generous value
+## just means fewer places to snag.
+const MAX_STEP := 1.45
 ## Below this a ledge is just surface noise, not something to climb onto.
 const MIN_STEP := 0.12
 
-@export var walk_speed := 3.4
-@export var run_speed := 7.8
+## Three gaits. The slow one is the default: the palace and the garden are
+## worth looking at, and a spider that crosses a ballroom in two seconds is not
+## exploring it.
+@export var walk_speed := 1.7
+@export var fast_speed := 3.6
+@export var run_speed := 6.6
 @export var acceleration := 16.0
 @export var air_acceleration := 3.0
 @export var turn_rate := 9.0
-@export var ride_height := 0.62
+@export var ride_height := 0.68
 @export var jump_speed := 6.2
 @export var gravity := 13.0
 @export var stick_force := 9.0
@@ -33,7 +40,8 @@ const MIN_STEP := 0.12
 
 # --- input, written by the HUD or the keyboard ---
 var move_input := Vector2.ZERO
-var run_held := false
+## 0 = slow walk, 1 = fast walk, 2 = run
+var speed_mode := 0
 var jump_queued := false
 var attack_queued := false
 
@@ -51,6 +59,8 @@ var rig: Node3D
 var carapace: MeshInstance3D
 var abdomen_pivot: Node3D
 var abdomen: MeshInstance3D
+var sternum: MeshInstance3D
+var pedicel: MeshInstance3D
 var fang_l: Node3D
 var fang_r: Node3D
 var palp_l: MeshInstance3D
@@ -80,7 +90,7 @@ func _ready() -> void:
 	_rng.randomize()
 	motion_mode = CharacterBody3D.MOTION_MODE_FLOATING
 	var shape := SphereShape3D.new()
-	shape.radius = 0.46 * body_size
+	shape.radius = 0.40 * body_size
 	var cs := CollisionShape3D.new()
 	cs.shape = shape
 	add_child(cs)
@@ -130,7 +140,7 @@ func _build_rig() -> void:
 	head.radial_segments = 20
 	head.rings = 12
 	carapace.mesh = head
-	carapace.scale = Vector3(0.62, 0.40, 0.74) * body_size
+	carapace.scale = Vector3(0.50, 0.30, 0.68) * body_size
 	carapace.position = Vector3(0.0, 0.0, -0.16) * body_size
 	carapace.material_override = chitin
 	rig.add_child(carapace)
@@ -147,7 +157,7 @@ func _build_rig() -> void:
 	abd.radial_segments = 22
 	abd.rings = 14
 	abdomen.mesh = abd
-	abdomen.scale = Vector3(0.80, 0.72, 1.05) * body_size
+	abdomen.scale = Vector3(0.58, 0.52, 0.94) * body_size
 	abdomen.position = Vector3(0.0, 0.02, 0.42) * body_size
 	abdomen.material_override = chitin
 	abdomen_pivot.add_child(abdomen)
@@ -159,10 +169,40 @@ func _build_rig() -> void:
 		ms.radius = 0.5
 		ms.height = 1.0
 		mark.mesh = ms
-		mark.scale = Vector3(0.30 - i * 0.06, 0.06, 0.20) * body_size
+		mark.scale = Vector3(0.22 - i * 0.05, 0.05, 0.18) * body_size
 		mark.position = Vector3(0.0, 0.30 - i * 0.02, 0.20 + i * 0.24) * body_size
 		mark.material_override = MaterialLib.plain(Color(0.05, 0.04, 0.035), 0.75)
 		abdomen_pivot.add_child(mark)
+
+	# Underside plate. The legs spring from this rather than from thin air,
+	# which is most of why the old rig looked like loose parts flying in
+	# formation.
+	sternum = MeshInstance3D.new()
+	var st := SphereMesh.new()
+	st.radius = 0.5
+	st.height = 1.0
+	st.radial_segments = 16
+	st.rings = 10
+	sternum.mesh = st
+	sternum.scale = Vector3(0.46, 0.16, 0.72) * body_size
+	sternum.position = Vector3(0.0, -0.10, -0.10) * body_size
+	sternum.material_override = joint_mat
+	rig.add_child(sternum)
+
+	# Pedicel: the waist. The abdomen rides on a spring, so this is re-spanned
+	# every frame between the back of the carapace and the front of the abdomen
+	# and the two can never be seen to come apart.
+	pedicel = MeshInstance3D.new()
+	var pm2 := CylinderMesh.new()
+	pm2.top_radius = 0.5
+	pm2.bottom_radius = 0.5
+	pm2.height = 1.0
+	pm2.radial_segments = 10
+	pedicel.mesh = pm2
+	pedicel.set_meta("thick", 0.20 * body_size)
+	pedicel.material_override = joint_mat
+	pedicel.top_level = true
+	add_child(pedicel)
 
 	_build_eyes()
 	_build_mouthparts(chitin)
@@ -255,18 +295,19 @@ func _build_mouthparts(chitin: Material) -> void:
 
 func _build_legs(chitin: Material, joint_mat: Material) -> void:
 	# hips run down each side of the cephalothorax, front to back
+	# hips sit on the flank of the carapace, not inside it
 	var hips := [
-		Vector3(-0.30, 0.03, -0.34), Vector3(-0.35, 0.01, -0.12),
-		Vector3(-0.35, 0.00, 0.10), Vector3(-0.31, -0.02, 0.30),
+		Vector3(-0.23, 0.02, -0.30), Vector3(-0.25, 0.00, -0.10),
+		Vector3(-0.25, -0.01, 0.08), Vector3(-0.23, -0.03, 0.26),
 	]
 	var rests := [
-		Vector3(-1.02, 0.0, -1.18), Vector3(-1.32, 0.0, -0.44),
-		Vector3(-1.32, 0.0, 0.40), Vector3(-1.08, 0.0, 1.12),
+		Vector3(-1.20, 0.0, -1.46), Vector3(-1.54, 0.0, -0.52),
+		Vector3(-1.54, 0.0, 0.48), Vector3(-1.26, 0.0, 1.34),
 	]
 	# front and rear legs are longer, like a real spider's leg I and IV
 	var lengths := [
-		[0.66, 0.80, 0.46], [0.60, 0.70, 0.40],
-		[0.60, 0.70, 0.40], [0.68, 0.82, 0.48],
+		[0.80, 1.00, 0.58], [0.74, 0.90, 0.50],
+		[0.74, 0.90, 0.50], [0.82, 1.04, 0.60],
 	]
 
 	for i in range(LEG_COUNT):
@@ -284,12 +325,20 @@ func _build_legs(chitin: Material, joint_mat: Material) -> void:
 		leg.phase_jitter = _rng.randf_range(-0.022, 0.022)
 		leg.foot = global_position + leg.rest_local
 
-		leg.femur = _segment(chitin, 0.115 * body_size, 4)
-		leg.tibia = _segment(chitin, 0.082 * body_size, 4)
-		leg.tarsus = _segment(chitin, 0.050 * body_size, 3)
-		leg.knee_ball = _ball(joint_mat, 0.088 * body_size)
-		leg.ankle_ball = _ball(joint_mat, 0.062 * body_size)
-		leg.claw = _ball(MaterialLib.plain(Color(0.06, 0.05, 0.05), 0.3), 0.036 * body_size)
+		# thin: a spider's leg is a bristle, not a sausage
+		leg.femur = _segment(chitin, 0.060 * body_size, 0)
+		leg.tibia = _segment(chitin, 0.044 * body_size, 0)
+		leg.tarsus = _segment(chitin, 0.028 * body_size, 0)
+		leg.knee_ball = _ball(joint_mat, 0.062 * body_size)
+		leg.ankle_ball = _ball(joint_mat, 0.042 * body_size)
+		leg.claw = _ball(MaterialLib.plain(Color(0.06, 0.05, 0.05), 0.3), 0.026 * body_size)
+		# coxa: a stub on the body at the hip, so the leg has something to
+		# come out of instead of starting in mid-air
+		var coxa := _ball(joint_mat, 0.085 * body_size)
+		coxa.top_level = false
+		remove_child(coxa)
+		rig.add_child(coxa)
+		coxa.position = leg.hip_local
 		legs.append(leg)
 
 
@@ -429,34 +478,26 @@ func _update_surface(delta: float) -> void:
 		new_normal = down.normal
 		dist = pos.distance_to(down.position)
 
-	# 2. concave corner: a wall right in front becomes the new floor.
-	#    A stair tread or a coffee table also reports a vertical face here, so
-	#    only roll onto it if the surface is still there a body-height further
-	#    up. Anything shorter than that is a step, handled by _step_assist().
+	# 2. Anything in the way is either something to step onto or something to
+	#    climb. Ask the step probe first; if the obstacle is too tall to step
+	#    onto, roll the up vector onto its face and walk up it instead. That is
+	#    what makes lamp posts, plinths, columns, tree trunks, statues and the
+	#    outside of the building all climbable without special cases.
 	_step_lift = 0.0
 	if move_dir != Vector3.ZERO:
-		var rolled := false
-		var wall := _ray(pos, pos + move_dir * 0.95 * body_size)
-		if wall:
-			var eye := pos + up * 0.95 * body_size
-			var tall := _ray(eye, eye + move_dir * 1.05 * body_size)
-			if tall:
+		_step_lift = _step_assist(pos, up, move_dir)
+		if _step_lift <= 0.0:
+			var wall := _ray(pos, pos + move_dir * 0.95 * body_size)
+			if wall and wall.normal.dot(up) < 0.86:
 				var d: float = pos.distance_to(wall.position)
 				var blend: float = clampf(1.0 - (d - 0.35) / 0.6, 0.0, 1.0)
-				if blend > 0.0 and wall.normal.dot(up) < 0.86:
+				if blend > 0.0:
 					new_normal = new_normal.lerp(wall.normal, blend).normalized()
 					if not down:
 						dist = d
 					found = true
-					rolled = true
-		# Always consider stepping up, even when the ray above saw nothing: a
-		# stair riser sits below the body's centre line, so it passes clean
-		# under that ray while still stopping the collider dead. _step_assist
-		# reports 0 on flat ground and on walls, so this is safe to run always.
-		if not rolled:
-			_step_lift = _step_assist(pos, up, move_dir)
 
-		# 3. convex edge: floor runs out ahead, so wrap around it
+		# 3. convex edge: the floor runs out ahead, so wrap around it
 		if not down:
 			var probe_at := pos + move_dir * 0.55 * body_size - up * 0.5 * body_size
 			var back := _ray(probe_at, probe_at - move_dir * 0.9 * body_size)
@@ -509,7 +550,11 @@ func _apply_movement(delta: float) -> void:
 	var wish := _wish_dir
 	var input_len := clampf(move_input.length(), 0.0, 1.0)
 
-	var top_speed := run_speed if run_held else walk_speed
+	var top_speed := walk_speed
+	if speed_mode >= 2:
+		top_speed = run_speed
+	elif speed_mode == 1:
+		top_speed = fast_speed
 	var target := wish * top_speed * input_len
 
 	if attached:
@@ -745,7 +790,13 @@ func _update_pose(delta: float) -> void:
 	abdomen_pivot.position = Vector3(0.0, 0.05, 0.42) * body_size + _abd_offset
 	# slow breathing
 	var breath := 1.0 + sin(_time * 1.35) * 0.018
-	abdomen.scale = Vector3(0.80, 0.72, 1.05) * body_size * breath
+	abdomen.scale = Vector3(0.58, 0.52, 0.94) * body_size * breath
+
+	# waist, re-spanned between carapace and abdomen wherever the spring put them
+	if pedicel and abdomen_pivot:
+		var back := rig.global_transform * (Vector3(0.0, 0.0, 0.18) * body_size)
+		var front := abdomen_pivot.global_transform * (Vector3(0.0, 0.02, -0.06) * body_size)
+		SpiderLeg._place(pedicel, back, front)
 
 	# solve every leg against the new body transform
 	var hip_xf := rig.global_transform

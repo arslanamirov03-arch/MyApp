@@ -1,7 +1,8 @@
 # Spider House
 
-A giant spider loose in a dark house, for Android. Walk, run, jump and climb
-every wall and ceiling in an eleven-room house at dusk.
+A giant spider loose in a palace, for Android. Walk, run, jump and climb every
+wall, column, roof and lamp post — inside a twelve-room palace at dusk and the
+formal garden behind it.
 
 Built with **Godot 4.4.1** (Forward+ renderer, Jolt physics), GDScript only —
 no native extensions, so the APK is repacked from the stock export template and
@@ -11,10 +12,11 @@ needs no NDK.
 
 | | |
 |---|---|
-| House | 11 rooms over two floors plus an attic, generated procedurally: walls with door and window openings, stairs, panelling, a brick fireplace, kitchen counters, a bathroom |
+| Palace | 60 x 40 m, twelve rooms over two storeys with a walkable roof terrace and a tower. Ballroom, double-height grand hall, throne room, gallery, library, banqueting hall, kitchen; state bedroom, music room, upper gallery, study, guest hall. 7 m ceilings, colonnades, a grand staircase, arched openings 4.2 m wide — and no door leaves anywhere |
+| Garden | A 72 x 46 m parterre behind the palace: central axis, fountain, hedge parterres, trees, lit lanterns, statuary, benches and a gated wall. Repeated planting is drawn through MultiMesh, so hundreds of hedge blocks and flowers cost one draw call each |
 | Spider | Procedurally built body and eight IK legs. No animation clips exist anywhere in the project |
 | Lighting | Evening: cold moonlight raking through the windows, warm practical lamps, a flickering fire, volumetric fog, SSAO/SSIL, real-time shadows |
-| Controls | Floating left thumbstick, right-side drag to look, RUN / JUMP / BITE buttons; keyboard and mouse also work for desktop testing |
+| Controls | Floating left thumbstick, right-side drag to look, FAST / RUN / JUMP buttons. Three gaits: a slow default made for looking around, a fast walk, and a run |
 | Physics | Jolt. Crates, bottles, vases and suitcases are rigid bodies the spider can knock over |
 
 ## How the spider moves
@@ -23,6 +25,12 @@ There is no climb button and no climb animation. The body is a *surface walker*:
 it carries its own up vector, which is the normal of whatever it is standing on.
 Walking into a wall rolls that vector onto the wall, so floors, walls and
 ceilings are all just surfaces.
+
+Anything in the way is either something to step onto or something to climb: the
+step probe is asked first, and whatever is too tall to step onto gets climbed
+instead. That one rule is what makes lamp posts, plinths, columns, tree trunks,
+statues, the outside of the building and the tower all climbable with no special
+cases.
 
 Each of the eight legs is an independent two-bone IK chain with its own step
 state machine. A leg is told where its foot ought to be standing; it decides for

@@ -12,9 +12,9 @@ const BTN_R := 74.0
 
 var move_vector := Vector2.ZERO
 var look_delta := Vector2.ZERO
-var run_held := false
+## 0 = slow walk, 1 = fast walk, 2 = run
+var speed_mode := 0
 var jump_pressed := false
-var attack_pressed := false
 
 var _stick_touch := -1
 var _look_touch := -1
@@ -55,8 +55,8 @@ func _button_positions() -> Dictionary:
 	var s := size
 	return {
 		"jump": Vector2(s.x - 130.0, s.y - 150.0),
-		"run": Vector2(s.x - 280.0, s.y - 105.0),
-		"bite": Vector2(s.x - 175.0, s.y - 310.0),
+		"run": Vector2(s.x - 285.0, s.y - 120.0),
+			"fast": Vector2(s.x - 180.0, s.y - 320.0),
 		"pause": Vector2(s.x - 70.0, 70.0),
 	}
 
@@ -66,7 +66,13 @@ func _process(delta: float) -> void:
 		_fit_to_viewport()
 	if _hint_alpha > 0.0 and (move_vector.length() > 0.2 or look_delta.length() > 4.0):
 		_hint_alpha = maxf(_hint_alpha - delta * 0.8, 0.0)
-	run_held = _pressed.get("run", false)
+	# run beats fast walk if both thumbs are down
+	if _pressed.get("run", false):
+		speed_mode = 2
+	elif _pressed.get("fast", false):
+		speed_mode = 1
+	else:
+		speed_mode = 0
 	queue_redraw()
 
 
@@ -91,7 +97,6 @@ func _handle_touch(e: InputEventScreenTouch) -> void:
 				_pressed[name] = true
 				match name:
 					"jump": jump_pressed = true
-					"bite": attack_pressed = true
 					"pause": pause_pressed.emit()
 				return
 		if e.position.x < size.x * 0.46 and _stick_touch == -1:
@@ -141,12 +146,6 @@ func take_jump() -> bool:
 	return j
 
 
-func take_attack() -> bool:
-	var a := attack_pressed
-	attack_pressed = false
-	return a
-
-
 # ---------------------------------------------------------------------------
 
 func _draw() -> void:
@@ -171,13 +170,13 @@ func _draw() -> void:
 	var buttons := _button_positions()
 	_draw_button(buttons["jump"], BTN_R, "JUMP", _pressed.get("jump", false))
 	_draw_button(buttons["run"], BTN_R, "RUN", _pressed.get("run", false))
-	_draw_button(buttons["bite"], BTN_R * 0.82, "BITE", _pressed.get("bite", false))
+	_draw_button(buttons["fast"], BTN_R * 0.88, "FAST", _pressed.get("fast", false))
 	_draw_button(buttons["pause"], BTN_R * 0.8, "II", false)
 
 	# --- first-run hint ---
 	if _hint_alpha > 0.01 and _font:
 		var c := Color(1, 1, 1, _hint_alpha * 0.75)
-		var text := "Left thumb: walk   ·   Right side: look   ·   Walls and ceilings work too"
+		var text := "Left thumb: walk   ·   Right side: look   ·   FAST / RUN to speed up   ·   Every wall, roof and lamp is climbable"
 		var w := _font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 34).x
 		draw_string(_font, Vector2((size.x - w) * 0.5, size.y * 0.16), text,
 			HORIZONTAL_ALIGNMENT_LEFT, -1, 34, c)

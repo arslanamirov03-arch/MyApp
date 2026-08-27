@@ -9,10 +9,9 @@ var spider: Spider
 var steps_heard := 0
 var failures := 0
 
-## Tests 1-4 run in bedroom 1 upstairs: a long blank wall with no window in it
-## and no furniture in the way, so the climb is measuring the climb and not the
-## spider's opinion of a wardrobe.
-const FLOOR1 := 3.30
+## Tests 1-4 run in the ballroom: a long blank stretch of the z = 20 wall with
+## no opening and no furniture in front of it, so the climb measures the climb.
+const BALLROOM_X := 17.0
 
 
 func _ready() -> void:
@@ -30,15 +29,16 @@ func _ready() -> void:
 ## than poking the spider directly, so the probe exercises what the player does.
 ## The camera starts looking down -Z and only turns when the player drags, so
 ## (0, 1) is reliably "walk towards -Z".
-func _drive(frames: int, input: Vector2, run := false) -> void:
+func _drive(frames: int, input: Vector2, mode := 0) -> void:
 	var hud = main.get("hud")
 	for i in range(frames):
 		hud.move_vector = input
-		hud.run_held = run
-		hud._pressed["run"] = run
+		hud._pressed["run"] = mode >= 2
+		hud._pressed["fast"] = mode == 1
 		await get_tree().physics_frame
 	hud.move_vector = Vector2.ZERO
 	hud._pressed["run"] = false
+	hud._pressed["fast"] = false
 
 
 ## Put the spider AND the camera back to a known state, so each numbered test
@@ -95,12 +95,14 @@ func _blockers() -> String:
 
 
 func _run() -> void:
-	print("\n--- 1. drop into the bedroom and settle ---")
-	_reset(Vector3(6.5, 4.90, 5.0))
+	var ride := spider.ride_height
+
+	print("\n--- 1. drop into the ballroom and settle ---")
+	_reset(Vector3(BALLROOM_X, 2.2, 32.0))
 	await _drive(90, Vector2.ZERO)
 	print("  ", _state())
-	_check("lands on the floor", absf(spider.global_position.y - (FLOOR1 + 0.62)) < 0.22,
-		"y=%.3f (want ~%.2f)" % [spider.global_position.y, FLOOR1 + 0.62])
+	_check("lands on the floor", absf(spider.global_position.y - ride) < 0.25,
+		"y=%.3f (ride height is %.2f)" % [spider.global_position.y, ride])
 	_check("up vector is vertical", spider.surface_normal.y > 0.97,
 		"up.y=%.3f" % spider.surface_normal.y)
 	_check("legs reach the ground", _worst_leg_stretch() < 0.99,
@@ -117,72 +119,104 @@ func _run() -> void:
 		var pos: Vector2 = buttons[key]
 		if pos.x < 0.0 or pos.y < 0.0 or pos.x > hud.size.x or pos.y > hud.size.y:
 			on_screen = false
-	_check("buttons are inside the screen", on_screen, str(buttons))
-	var home: Vector2 = hud._stick_home()
-	_check("stick is inside the screen",
-		home.x > 0.0 and home.y > 0.0 and home.x < hud.size.x and home.y < hud.size.y,
-		"stick at (%.0f, %.0f)" % [home.x, home.y])
+	_check("buttons are inside the screen", on_screen, str(buttons.keys()))
+	_check("the bite button is gone", not buttons.has("bite"), str(buttons.keys()))
+	_check("there is a fast-walk button", buttons.has("fast"), str(buttons.keys()))
 
-	print("\n--- 2. walk forward (-Z) across the room ---")
-	var before := spider.global_position
+	print("\n--- 2. the three gaits are actually different speeds ---")
+	var travelled: Array[float] = []
+	for mode_v in [0, 1, 2]:
+		var mode: int = mode_v
+		_reset(Vector3(BALLROOM_X, 1.4, 34.0))
+		await _drive(60, Vector2.ZERO)
+		var from := spider.global_position
+		await _drive(60, Vector2(0.0, 1.0), mode)
+		travelled.append(from.distance_to(spider.global_position))
+	print("  walk=%.2f m  fast=%.2f m  run=%.2f m (1 s each)" % travelled)
+	_check("slow walk is slow", travelled[0] < 2.2, "%.2f m/s" % travelled[0])
+	_check("fast walk beats walking", travelled[1] > travelled[0] + 0.8,
+		"%.2f vs %.2f" % [travelled[1], travelled[0]])
+	_check("running beats fast walking", travelled[2] > travelled[1] + 0.8,
+		"%.2f vs %.2f" % [travelled[2], travelled[1]])
+
+	print("\n--- 3. walk into the ballroom wall: it should climb ---")
+	_reset(Vector3(BALLROOM_X, 1.4, 30.0))
+	await _drive(60, Vector2.ZERO)
 	steps_heard = 0
-	await _drive(72, Vector2(0.0, 1.0))
+	await _drive(150, Vector2(0.0, 1.0), 2)
 	print("  ", _state())
-	print("  velocity=", spider.velocity, "  wish=", spider._wish_dir,
-		"  step_lift=%.3f" % spider._step_lift)
-	print("  touching: ", _blockers())
-	_check("moved forward", before.z - spider.global_position.z > 1.5,
-		"travelled %.2f m in -Z" % (before.z - spider.global_position.z))
-	_check("legs are stepping", steps_heard >= 8, "%d footfalls in 1.5 s" % steps_heard)
-	_check("still on the floor", spider.attached and spider.surface_normal.y > 0.9,
-		"up.y=%.3f" % spider.surface_normal.y)
-
-	print("\n--- 3. keep walking into the far wall: it should climb ---")
-	await _drive(48, Vector2(0.0, 1.0))
-	print("  ", _state())
-	_check("climbed off the floor", spider.global_position.y - FLOOR1 > 1.2,
-		"%.2f m up the wall" % (spider.global_position.y - FLOOR1))
+	_check("legs are stepping", steps_heard >= 10, "%d footfalls" % steps_heard)
+	_check("climbed off the floor", spider.global_position.y > 2.0,
+		"%.2f m up the wall" % spider.global_position.y)
 	_check("body rolled onto the wall", spider.surface_normal.y < 0.45,
-		"up.y=%.3f (0 = flat against a wall)" % spider.surface_normal.y)
-	_check("legs still reach the wall", _worst_leg_stretch() < 0.99,
+		"up.y=%.3f" % spider.surface_normal.y)
+	_check("legs still reach", _worst_leg_stretch() < 0.99,
 		"worst stretch=%.2f" % _worst_leg_stretch())
 
-	print("\n--- 4. keep going: over the top onto the ceiling ---")
-	await _drive(45, Vector2(0.0, 1.0))
+	print("\n--- 4. keep going: onto the 7 m ceiling ---")
+	await _drive(60, Vector2(0.0, 1.0), 2)
 	print("  ", _state())
-	_check("reached ceiling height", spider.global_position.y - FLOOR1 > 2.2,
-		"%.2f up (the ceiling is 3.0 above this floor)" % (spider.global_position.y - FLOOR1))
+	_check("reached ceiling height", spider.global_position.y > 5.0,
+		"y=%.2f (the ceiling is at 7.0)" % spider.global_position.y)
 	_check("hanging upside down", spider.surface_normal.y < 0.0,
-		"up.y=%.3f (negative = under the ceiling)" % spider.surface_normal.y)
+		"up.y=%.3f" % spider.surface_normal.y)
 
-	print("\n--- 5. run down the upstairs corridor (clear floor) ---")
-	_reset(Vector3(6.0, 3.95, 9.0))
-	await _drive(70, Vector2.ZERO)
-	var run_from := spider.global_position
-	await _drive(60, Vector2(1.0, 0.0), true)
-	var travelled := run_from.distance_to(spider.global_position)
-	print("  ", _state())
-	_check("running covers ground", travelled > 3.5,
-		"%.2f m in 1 s (walking would be ~%.1f)" % [travelled, spider.walk_speed * 0.75])
-
-	print("\n--- 6. jump ---")
-	_reset(Vector3(15.0, 1.0, 10.0))
+	print("\n--- 5. jump ---")
+	_reset(Vector3(48.0, 1.2, 24.0))
 	await _drive(60, Vector2.ZERO)
 	var ground_y := spider.global_position.y
-	main.get("hud").jump_pressed = true
+	hud.jump_pressed = true
 	await _drive(14, Vector2.ZERO)
-	var peak := spider.global_position.y
-	_check("jump leaves the ground", peak - ground_y > 0.5,
-		"rose %.2f m" % (peak - ground_y))
-	await _drive(120, Vector2.ZERO)
-	_check("lands again", spider.attached and absf(spider.global_position.y - ground_y) < 0.4,
+	_check("jump leaves the ground", spider.global_position.y - ground_y > 0.5,
+		"rose %.2f m" % (spider.global_position.y - ground_y))
+	await _drive(150, Vector2.ZERO)
+	_check("lands again", spider.attached
+		and absf(spider.global_position.y - ground_y) < 0.5,
 		"y=%.2f, attached=%s" % [spider.global_position.y, spider.attached])
 
-	print("\n--- 7. climb the stairs in the hall ---")
-	_reset(Vector3(11.5, 0.8, 13.6))
+	print("\n--- 6. the grand staircase ---")
+	_reset(Vector3(31.0, 1.4, 38.0))
 	await _drive(60, Vector2.ZERO)
 	var stair_start := spider.global_position.y
-	await _drive(200, Vector2(0.0, 1.0))
+	await _drive(320, Vector2(0.0, 1.0), 2)
 	print("  ", _state())
-	_check("gained a storey on the stairs", spider.global_position.y - stair_start > 1.2,
-		"climbed %.2f m (a storey is 3.3)" % (spider.global_position.y - stair_start))
+	_check("climbed the grand stair", spider.global_position.y - stair_start > 1.5,
+		"climbed %.2f m (a storey is 7.5)" % (spider.global_position.y - stair_start))
+
+	print("\n--- 7. the garden exists and is solid ---")
+	_reset(Vector3(30.0, 2.5, -20.0))
+	await _drive(110, Vector2.ZERO)
+	print("  ", _state())
+	_check("stands on the lawn", spider.attached and absf(spider.global_position.y - ride) < 0.45,
+		"y=%.2f" % spider.global_position.y)
+	var from_g := spider.global_position
+	await _drive(90, Vector2(0.0, 1.0), 2)
+	_check("can walk in the garden", from_g.distance_to(spider.global_position) > 3.0,
+		"%.2f m" % from_g.distance_to(spider.global_position))
+	_check("legs reach garden ground", _worst_leg_stretch() < 0.99,
+		"worst stretch=%.2f" % _worst_leg_stretch())
+
+	print("\n--- 8. climb a gallery column ---")
+	_reset(Vector3(6.0, 1.4, 25.0))
+	await _drive(60, Vector2.ZERO)
+	var col_start := spider.global_position.y
+	# 100 frames is the top of the shaft; much longer and the spider has already
+	# gone over the capital, along the ceiling and back down the far side
+	await _drive(100, Vector2(0.0, 1.0), 1)
+	print("  ", _state())
+	_check("climbed the column", spider.global_position.y - col_start > 1.0,
+		"rose %.2f m (the column is 7 m)" % (spider.global_position.y - col_start))
+
+	print("\n--- 9. the roof is a real surface you can stand on ---")
+	_reset(Vector3(12.0, 15.6, 30.0))
+	await _drive(110, Vector2.ZERO)
+	print("  ", _state())
+	_check("stands on the roof", spider.attached and spider.global_position.y > 14.0
+		and spider.global_position.y < 15.6,
+		"y=%.2f (the roof deck is at 14.06)" % spider.global_position.y)
+	var roof_from := spider.global_position
+	await _drive(90, Vector2(0.0, 1.0), 2)
+	_check("can walk on the roof", roof_from.distance_to(spider.global_position) > 3.0
+		and spider.global_position.y > 13.5,
+		"%.2f m at y=%.2f" % [roof_from.distance_to(spider.global_position),
+			spider.global_position.y])

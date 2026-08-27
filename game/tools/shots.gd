@@ -12,14 +12,14 @@ var cam: Camera3D
 ## name, camera eye, look-at target, where to put the spider,
 ## and how many frames to walk it forward first (to get a real moving pose)
 const SHOTS := [
-	["01_living", Vector3(8.4, 1.80, 7.2), Vector3(3.2, 0.6, 2.0), Vector3(5.8, 0.9, 5.2), 26],
-	["02_spider", Vector3(2.6, 1.00, 6.6), Vector3(6.0, 0.70, 3.8), Vector3(6.2, 0.9, 5.0), 34],
-	["03_kitchen", Vector3(10.9, 1.9, 5.4), Vector3(17.2, 0.8, 1.8), Vector3(15.6, 0.9, 4.4), 24],
-	["04_stairs", Vector3(18.4, 2.4, 8.0), Vector3(11.6, 1.6, 12.0), Vector3(11.5, 0.9, 13.4), 90],
-	["05_wall", Vector3(9.4, 5.4, 4.4), Vector3(6.5, 5.4, 0.9), Vector3(6.5, 4.9, 3.4), 120],
-	["06_bedroom", Vector3(9.0, 4.9, 5.8), Vector3(2.8, 3.9, 1.6), Vector3(6.0, 4.1, 3.6), 26],
-	["07_attic", Vector3(16.8, 7.5, 10.4), Vector3(6.5, 7.3, 4.2), Vector3(10.0, 7.4, 6.4), 26],
-	["08_hall", Vector3(19.2, 1.9, 12.6), Vector3(11.0, 1.2, 8.0), Vector3(15.6, 0.9, 10.6), 26],
+	["01_hall", Vector3(31.0, 4.0, 38.6), Vector3(31.0, 2.0, 26.0), Vector3(31.0, 1.2, 34.0), 40],
+	["02_spider", Vector3(26.5, 1.30, 29.0), Vector3(30.5, 1.0, 26.5), Vector3(30.5, 1.2, 27.5), 46],
+	["03_ballroom", Vector3(22.5, 3.2, 36.5), Vector3(7.0, 1.6, 24.0), Vector3(13.0, 1.2, 30.0), 40],
+	["04_throne", Vector3(40.0, 3.4, 21.5), Vector3(48.0, 2.2, 30.0), Vector3(44.5, 1.2, 26.0), 40],
+	["05_garden", Vector3(30.0, 7.5, -6.0), Vector3(30.0, 1.0, -32.0), Vector3(26.0, 1.2, -14.0), 40],
+	["06_fountain", Vector3(30.0, 3.2, -19.0), Vector3(30.0, 2.4, -30.0), Vector3(28.0, 1.2, -22.0), 40],
+	["07_roof", Vector3(18.0, 17.5, 22.0), Vector3(31.0, 17.0, 9.0), Vector3(23.0, 15.0, 17.0), 40],
+	["08_gallery", Vector3(4.5, 3.4, 17.0), Vector3(56.0, 1.6, 17.0), Vector3(13.0, 1.2, 17.0), 40],
 ]
 
 
