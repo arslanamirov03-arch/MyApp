@@ -57,7 +57,7 @@ static func _water() -> StandardMaterial3D:
 
 
 func _box(size: Vector3, pos: Vector3, mat: Material, collide := true,
-		basis := Basis(), shadows := true) -> MeshInstance3D:
+		basis := Basis(), _shadows := true) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	var bm := BoxMesh.new()
 	bm.size = size
@@ -65,8 +65,7 @@ func _box(size: Vector3, pos: Vector3, mat: Material, collide := true,
 	mi.transform = Transform3D(basis, pos)
 	if mat:
 		mi.material_override = mat
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadows \
-		else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mi)
 	if collide:
 		var body := StaticBody3D.new()
@@ -105,7 +104,7 @@ func _cylinder(radius: float, height: float, pos: Vector3, mat: Material,
 
 ## One draw call for many copies of the same mesh.
 func _scatter(mesh: Mesh, mat: Material, transforms: Array[Transform3D],
-		shadows := false) -> void:
+		_shadows := false) -> void:
 	if transforms.is_empty():
 		return
 	var mm := MultiMesh.new()
@@ -117,27 +116,16 @@ func _scatter(mesh: Mesh, mat: Material, transforms: Array[Transform3D],
 	var mmi := MultiMeshInstance3D.new()
 	mmi.multimesh = mm
 	mmi.material_override = mat
-	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadows \
-		else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mmi)
 
 
 # ---------------------------------------------------------------------------
 
 func _build_ground() -> void:
-	# The lawn is split into a grid of tiles rather than one huge quad: a single
-	# 72 m slab would be culled all-or-nothing and its triplanar texture would
-	# swim at grazing angles.
-	var cols := 6
-	var rows := 4
-	var w := (X1 - X0) / float(cols)
-	var d := (Z1 - Z0) / float(rows)
-	for cx in range(cols):
-		for cz in range(rows):
-			_box(Vector3(w, 0.5, d),
-				Vector3(X0 + w * (cx + 0.5), -0.25, Z0 + d * (cz + 0.5)),
-				mats["grass"], true, Basis(), false)
-
+	var _unused := 0
+	# The ground itself belongs to Terrain, which covers the whole world so
+	# there is nowhere left to fall through. The garden only dresses it.
 	# grass tufts, thickest away from the paths
 	var tuft := BoxMesh.new()
 	tuft.size = Vector3(0.5, 0.42, 0.06)

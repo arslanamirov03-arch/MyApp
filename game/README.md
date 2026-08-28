@@ -15,7 +15,8 @@ needs no NDK.
 | Palace | 60 x 40 m, twelve rooms over two storeys with a walkable roof terrace and a tower. Ballroom, double-height grand hall, throne room, gallery, library, banqueting hall, kitchen; state bedroom, music room, upper gallery, study, guest hall. 7 m ceilings, colonnades, a grand staircase, arched openings 4.2 m wide — and no door leaves anywhere |
 | Garden | A 72 x 46 m parterre behind the palace: central axis, fountain, hedge parterres, trees, lit lanterns, statuary, benches and a gated wall. Repeated planting is drawn through MultiMesh, so hundreds of hedge blocks and flowers cost one draw call each |
 | Spider | Procedurally built body and eight IK legs. No animation clips exist anywhere in the project |
-| Lighting | Evening: cold moonlight raking through the windows, warm practical lamps, a flickering fire, volumetric fog, SSAO/SSIL, real-time shadows |
+| Lighting | Daylight under a real 4K sky panorama — blue with cloud — which also lights the whole scene, plus practical lamps indoors. **Nothing casts a shadow anywhere**: shadow maps were the largest cost on a phone, and SSAO does the grounding instead |
+| Ground | A continuous 204 x 204 m field under everything, closed in by a treeline, so there is no direction you can walk in and find a hole |
 | Controls | Floating left thumbstick, right-side drag to look, FAST / RUN / JUMP buttons. Three gaits: a slow default made for looking around, a fast walk, and a run |
 | Physics | Jolt. Crates, bottles, vases and suitcases are rigid bodies the spider can knock over |
 
@@ -28,7 +29,11 @@ ceilings are all just surfaces.
 
 Anything in the way is either something to step onto or something to climb: the
 step probe is asked first, and whatever is too tall to step onto gets climbed
-instead. That one rule is what makes lamp posts, plinths, columns, tree trunks,
+instead. With nothing underfoot at all it reaches out instead of dropping and
+catches any surface within 1.5 m, which is how it crosses from one wall to the
+one facing it and goes out through a window onto the outside. And if it ever
+does end up on its back, it tells that apart from hanging under a ceiling by
+what is underneath in world terms, and pushes itself back over. That one rule is what makes lamp posts, plinths, columns, tree trunks,
 statues, the outside of the building and the tower all climbable with no special
 cases.
 

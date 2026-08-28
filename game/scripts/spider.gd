@@ -22,6 +22,8 @@ const LEG_COUNT := 8
 const MAX_STEP := 1.45
 ## Below this a ledge is just surface noise, not something to climb onto.
 const MIN_STEP := 0.12
+## How far the spider can reach out and catch a surface while in mid-air.
+const GRAB_RANGE := 1.5
 
 ## Three gaits. The slow one is the default: the palace and the garden are
 ## worth looking at, and a spider that crosses a ballroom in two seconds is not
@@ -80,6 +82,7 @@ var _rng := RandomNumberGenerator.new()
 var _step_lift := 0.0
 var _wish_dir := Vector3.ZERO
 var _jump_lock := 0.0
+var _righting := 0.0
 var _stuck_time := 0.0
 var _stuck_from := Vector3.ZERO
 var _space: PhysicsDirectSpaceState3D
@@ -326,15 +329,15 @@ func _build_legs(chitin: Material, joint_mat: Material) -> void:
 		leg.foot = global_position + leg.rest_local
 
 		# thin: a spider's leg is a bristle, not a sausage
-		leg.femur = _segment(chitin, 0.060 * body_size, 0)
-		leg.tibia = _segment(chitin, 0.044 * body_size, 0)
-		leg.tarsus = _segment(chitin, 0.028 * body_size, 0)
-		leg.knee_ball = _ball(joint_mat, 0.062 * body_size)
-		leg.ankle_ball = _ball(joint_mat, 0.042 * body_size)
-		leg.claw = _ball(MaterialLib.plain(Color(0.06, 0.05, 0.05), 0.3), 0.026 * body_size)
+		leg.femur = _segment(chitin, 0.038 * body_size, 0)
+		leg.tibia = _segment(chitin, 0.027 * body_size, 0)
+		leg.tarsus = _segment(chitin, 0.017 * body_size, 0)
+		leg.knee_ball = _ball(joint_mat, 0.044 * body_size)
+		leg.ankle_ball = _ball(joint_mat, 0.029 * body_size)
+		leg.claw = _ball(MaterialLib.plain(Color(0.06, 0.05, 0.05), 0.3), 0.016 * body_size)
 		# coxa: a stub on the body at the hip, so the leg has something to
 		# come out of instead of starting in mid-air
-		var coxa := _ball(joint_mat, 0.085 * body_size)
+		var coxa := _ball(joint_mat, 0.060 * body_size)
 		coxa.top_level = false
 		remove_child(coxa)
 		rig.add_child(coxa)
@@ -393,12 +396,42 @@ func _physics_process(delta: float) -> void:
 	_update_surface(delta)
 	_apply_movement(delta)
 	move_and_slide()
+	_right_self(delta)
 	_unstick(delta)
 	_update_gait(delta)
 	_update_pose(delta)
 	_update_mouthparts(delta)
 
 	_prev_velocity = velocity
+
+
+## Flip back over.
+##
+## Being under a ceiling and lying on your back look identical to the surface
+## walker — both are "attached to something whose normal points down". They are
+## told apart by what is underneath in world terms: from a real ceiling the
+## ground is a storey away, whereas on your back it is right there. In that case
+## the legs push off and the body rolls upright.
+func _right_self(delta: float) -> void:
+	if _righting > 0.0:
+		_righting = maxf(_righting - delta, 0.0)
+		return
+	if not attached or surface_normal.y > -0.25:
+		return
+	var below := _ray(global_position, global_position + Vector3.DOWN * 2.2 * body_size)
+	if not below:
+		return                      # genuinely hanging from a ceiling
+	var n: Vector3 = below.normal
+	if n.y < 0.3:
+		return
+	_righting = 0.55
+	surface_normal = n
+	facing = Vec.unit(facing - n * facing.dot(n), Vector3.FORWARD)
+	velocity = n * 2.2
+	# throw the legs out so the flip is something the legs visibly do
+	for leg in legs:
+		leg.step_t = 1.0
+		leg.foot = global_position + leg.rest_local * 1.3 + n * 0.2 * body_size
 
 
 ## Safety net: a concave collision mesh can swallow the body, and once inside it
@@ -506,6 +539,17 @@ func _update_surface(delta: float) -> void:
 				dist = pos.distance_to(back.position)
 				found = true
 
+	# 4. Nothing underfoot: reach out. A real spider crossing a gap catches the
+	#    far side with a leg rather than dropping, and without this the only way
+	#    off a wall was down. This is what lets you cross from one wall to the
+	#    one facing it, and go up through a window opening onto the outside.
+	if not found:
+		var grab := _grab(pos, up)
+		if not grab.is_empty():
+			found = true
+			new_normal = grab.normal
+			dist = pos.distance_to(grab.position)
+
 	if found:
 		attached = true
 		airborne = 0.0
@@ -521,8 +565,29 @@ func _update_surface(delta: float) -> void:
 		if airborne > 0.16:
 			if attached:
 				attached = false
-			var rate2: float = 1.0 - exp(-3.0 * delta)
+			var rate2: float = 1.0 - exp(-7.0 * delta)
 			surface_normal = Vec.slerp_dir(surface_normal, Vector3.UP, rate2)
+
+
+## Feel around for any surface within reach and return the nearest hit.
+func _grab(pos: Vector3, up: Vector3) -> Dictionary:
+	var reach := GRAB_RANGE * body_size
+	var b := _rig_basis
+	var dirs: Array[Vector3] = [
+		-up, up, b.x, -b.x, -b.z, b.z, Vector3.DOWN,
+		(-up + b.x).normalized(), (-up - b.x).normalized(),
+		(-up - b.z).normalized(), (-up + b.z).normalized(),
+	]
+	var best := {}
+	var best_d := reach + 1.0
+	for d in dirs:
+		var hit := _ray(pos, pos + d * reach)
+		if hit:
+			var dist: float = pos.distance_to(hit.position)
+			if dist < best_d:
+				best_d = dist
+				best = hit
+	return best
 
 
 ## How far the body needs to rise to get onto the low obstacle in front of it.
@@ -624,7 +689,8 @@ func _update_gait(delta: float) -> void:
 		if leg.is_stepping():
 			busy_groups[leg.group] = true
 
-	var threshold := lerpf(0.30, 0.62, speed01) * body_size
+	# tighter tolerance = the feet are re-planted more often and slide less
+	var threshold := lerpf(0.15, 0.40, speed01) * body_size
 	_idle_timer += delta
 	var hip_xf := rig.global_transform
 

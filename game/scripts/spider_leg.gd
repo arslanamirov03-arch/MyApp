@@ -55,8 +55,8 @@ func begin_step(target: Vector3, speed01: float, up: float) -> void:
 	step_to = target
 	step_t = 0.0
 	# fast legs when running, lazy legs when creeping
-	step_time = lerpf(0.30, 0.11, clampf(speed01, 0.0, 1.0)) + phase_jitter
-	step_height = lerpf(0.16, 0.46, clampf(speed01, 0.0, 1.0)) * up
+	step_time = lerpf(0.17, 0.075, clampf(speed01, 0.0, 1.0)) + phase_jitter * 0.6
+	step_height = lerpf(0.24, 0.55, clampf(speed01, 0.0, 1.0)) * up
 
 
 ## Advance the swing. Returns true on the frame the foot touches down.
@@ -67,7 +67,7 @@ func advance(delta: float, up_vec: Vector3) -> bool:
 		return false
 	step_t = minf(step_t + delta / maxf(step_time, 0.01), 1.0)
 	# ease-out: the leg snaps out quickly and settles softly, like a real one
-	var e := 1.0 - pow(1.0 - step_t, 2.3)
+	var e := 1.0 - pow(1.0 - step_t, 2.9)
 	var arc := sin(step_t * PI)
 	foot = step_from.lerp(step_to, e) + up_vec * arc * step_height
 	if step_t >= 1.0:
@@ -104,7 +104,8 @@ func solve(hip_world: Vector3, body_up: Vector3, outward: Vector3) -> void:
 	ankle = hip_world + axis * d
 
 	# pole vector: knee rides high and slightly outboard
-	var pole := (body_up * 1.0 + outward * 0.42).normalized()
+	# knees ride high above the back — what makes a spider look like a spider
+	var pole := (body_up * 1.45 + outward * 0.28).normalized()
 	var perp := pole - axis * pole.dot(axis)
 	if perp.length_squared() < 0.0001:
 		perp = outward - axis * outward.dot(axis)

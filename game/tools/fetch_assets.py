@@ -97,6 +97,27 @@ MODELS = [
 ]
 
 
+# A real sky panorama: blue with clouds, and it lights the whole scene for free
+# because Godot takes the ambient straight from it.
+HDRI = ("kloofendal_48d_partly_cloudy_puresky", "4k")
+
+
+def fetch_hdri():
+    slug, res = HDRI
+    try:
+        files = get_json(f"{API}/files/{slug}")
+    except Exception as exc:  # noqa: BLE001
+        print(f"  !! api {slug}: {exc}")
+        return 0
+    entry = files.get("hdri", {}).get(res, {}).get("hdr")
+    if not entry:
+        print(f"  !! no {res} hdr for {slug}")
+        return 0
+    got = download(entry["url"], os.path.join(ROOT, "hdri", "sky.hdr"))
+    print(f"  sky {slug} @{res} ({got/1e6:.1f} MB)")
+    return got
+
+
 def get_json(url):
     req = urllib.request.Request(url, headers={"User-Agent": "spiderhouse-build/1.0"})
     with urllib.request.urlopen(req, timeout=60) as r:
@@ -163,6 +184,7 @@ def main():
     os.makedirs(ROOT, exist_ok=True)
     print(f"Downloading CC0 assets into {ROOT}")
     total = 0
+    total += fetch_hdri()
     with ThreadPoolExecutor(max_workers=8) as pool:
         for got in pool.map(fetch_texture, TEXTURES.items()):
             total += got

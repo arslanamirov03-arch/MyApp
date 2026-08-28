@@ -236,7 +236,7 @@ func _place_models(table: Array) -> void:
 				for mi in _all_meshes(node):
 					mi.create_trimesh_collision()
 			for mi in _all_meshes(node):
-				mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+				mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 				# distant furniture stops drawing; the palace is big enough that
 				# this matters more than it did in a house
 				mi.visibility_range_end = 65.0
@@ -261,7 +261,7 @@ func _as_rigid(node: Node3D, pos: Vector3, yaw: float, mass: float) -> void:
 		body.global_position = pos + Vector3(0.0, box.size.y * 0.5, 0.0)
 
 	for mi in _all_meshes(node):
-		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		var shape := mi.mesh.create_convex_shape(true, true)
 		if shape == null:
 			continue
@@ -314,8 +314,6 @@ func _place_chandeliers() -> void:
 		lamp.distance_fade_begin = 48.0
 		lamp.distance_fade_length = 14.0
 		add_child(lamp)
-		if size >= 1.4:
-			shadow_candidates.append(lamp)
 
 		var bulb := MeshInstance3D.new()
 		var sm := SphereMesh.new()
@@ -346,7 +344,6 @@ func _fireplace() -> void:
 	fire.shadow_normal_bias = 0.7
 	fire.shadow_blur = 0.5
 	add_child(fire)
-	shadow_candidates.push_front(fire)
 	_flickers.append({"light": fire, "base": 3.0, "amt": 0.75, "seed": 3.7})
 
 	for i in range(9):

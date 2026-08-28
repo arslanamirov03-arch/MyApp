@@ -3,8 +3,11 @@ extends Node3D
 
 const SPAWN := Vector3(31.0, 1.20, 34.0)   # the grand hall, at the stairs
 ## Ambient fill at brightness 1.0. The slider scales this.
-const AMBIENT_BASE := 1.75
+const AMBIENT_BASE := 1.70
+## Below this the spider is considered to have fallen out of the world.
+const FALL_LIMIT := -25.0
 
+var terrain: Terrain
 var house: House
 var garden: Garden
 var props: Props
@@ -26,6 +29,10 @@ var _rng := RandomNumberGenerator.new()
 func _ready() -> void:
 	_rng.randomize()
 	_build_environment()
+
+	terrain = Terrain.new()
+	terrain.name = "Terrain"
+	add_child(terrain)
 
 	house = House.new()
 	house.name = "House"
@@ -66,85 +73,80 @@ func _ready() -> void:
 func _build_environment() -> void:
 	env = Environment.new()
 
-	var sky_mat := ProceduralSkyMaterial.new()
-	sky_mat.sky_top_color = Color(0.035, 0.055, 0.135)
-	sky_mat.sky_horizon_color = Color(0.150, 0.140, 0.190)
-	sky_mat.ground_bottom_color = Color(0.010, 0.010, 0.015)
-	sky_mat.ground_horizon_color = Color(0.055, 0.050, 0.065)
-	sky_mat.sun_angle_max = 14.0
-	sky_mat.sun_curve = 0.08
-	sky_mat.sky_energy_multiplier = 1.30
+	# A real 4K sky panorama — blue with cloud — rather than a procedural
+	# gradient. Godot takes the ambient light straight out of it, so the whole
+	# scene is lit correctly by the sky for free, which matters a lot now that
+	# nothing casts a shadow.
 	var sky := Sky.new()
-	sky.sky_material = sky_mat
+	var sky_path := "res://assets/hdri/sky.hdr"
+	if ResourceLoader.exists(sky_path):
+		var pano := PanoramaSkyMaterial.new()
+		pano.panorama = load(sky_path)
+		pano.energy_multiplier = 1.0
+		sky.sky_material = pano
+	else:
+		var fallback := ProceduralSkyMaterial.new()
+		fallback.sky_top_color = Color(0.28, 0.48, 0.82)
+		fallback.sky_horizon_color = Color(0.78, 0.86, 0.95)
+		fallback.ground_bottom_color = Color(0.42, 0.46, 0.40)
+		fallback.ground_horizon_color = Color(0.72, 0.78, 0.80)
+		sky.sky_material = fallback
+	sky.radiance_size = Sky.RADIANCE_SIZE_128
 
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
-	# A flat fill light so walls, floors and corners stay readable everywhere.
-	# Sky-sourced ambient only lit what could see a window; this is a constant
-	# and is what the brightness slider drives. The lamps are untouched — they
-	# still make the warm pools on top of this.
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_sky_contribution = 0.0
-	env.ambient_light_color = Color(0.62, 0.65, 0.76)
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+	env.ambient_light_sky_contribution = 1.0
 	env.ambient_light_energy = AMBIENT_BASE * Settings.brightness
 
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
-	env.tonemap_exposure = 1.10
+	env.tonemap_exposure = 1.15
 	env.tonemap_white = 6.0
 
-	env.glow_enabled = true
-	env.glow_intensity = 0.55
+	env.glow_enabled = false
+	env.glow_intensity = 0.4
 	env.glow_strength = 1.0
-	env.glow_bloom = 0.06
-	env.glow_hdr_threshold = 1.05
+	env.glow_bloom = 0.04
+	env.glow_hdr_threshold = 1.3
 	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_SOFTLIGHT
 
+	# With no shadows anywhere, screen-space ambient occlusion is the only thing
+	# left that darkens contact points, so it does the work of grounding objects.
 	env.ssao_enabled = true
-	env.ssao_radius = 0.7
-	env.ssao_intensity = 2.6
-	env.ssao_power = 1.6
-	env.ssao_light_affect = 0.25
-	env.ssao_detail = 0.6
+	env.ssao_radius = 0.9
+	env.ssao_intensity = 2.4
+	env.ssao_power = 1.5
+	env.ssao_light_affect = 0.2
+	env.ssao_detail = 0.5
 
 	env.ssil_enabled = false
-	env.ssil_radius = 3.0
-	env.ssil_intensity = 0.85
-
-	# dust hanging in the air: this is what turns the window light into shafts
 	env.volumetric_fog_enabled = false
-	env.volumetric_fog_density = 0.010
-	env.volumetric_fog_albedo = Color(0.62, 0.63, 0.70)
-	env.volumetric_fog_emission = Color(0.012, 0.013, 0.020)
-	env.volumetric_fog_gi_inject = 0.9
-	env.volumetric_fog_anisotropy = 0.25
-	env.volumetric_fog_length = 52.0
-	env.volumetric_fog_detail_spread = 2.0
-	env.volumetric_fog_ambient_inject = 0.6
+	env.fog_enabled = true
+	env.fog_mode = Environment.FOG_MODE_DEPTH
+	env.fog_light_color = Color(0.72, 0.80, 0.90)
+	env.fog_density = 0.0
+	env.fog_depth_begin = 90.0
+	env.fog_depth_end = 260.0
+	env.fog_depth_curve = 1.4
+	env.fog_sky_affect = 0.0
 
 	env.adjustment_enabled = true
 	env.adjustment_brightness = 1.0
-	env.adjustment_contrast = 1.08
-	env.adjustment_saturation = 0.86
+	env.adjustment_contrast = 1.04
+	env.adjustment_saturation = 1.02
 
 	world_env = WorldEnvironment.new()
 	world_env.environment = env
 	add_child(world_env)
 
-	# low moon raking through the windows
+	# The sun, matched to where it sits in the panorama. It casts no shadow —
+	# no light in this game does any more.
 	moon = DirectionalLight3D.new()
-	# A moon this low threw shadows several rooms long. Steeper keeps the light
-	# coming through the windows but the shadows short and readable.
-	moon.rotation_degrees = Vector3(-56.0, 128.0, 0.0)
-	moon.light_color = Color(0.60, 0.72, 1.0)
-	moon.light_energy = 3.60
-	moon.light_angular_distance = 0.30
-	moon.shadow_enabled = true
-	moon.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
-	moon.directional_shadow_max_distance = 32.0
-	moon.directional_shadow_blend_splits = true
-	moon.shadow_bias = 0.02
-	moon.shadow_normal_bias = 0.6
-	moon.light_specular = 0.6
+	moon.rotation_degrees = Vector3(-48.0, 138.0, 0.0)
+	moon.light_color = Color(1.0, 0.97, 0.90)
+	moon.light_energy = 2.60
+	moon.shadow_enabled = false
+	moon.light_specular = 0.5
 	add_child(moon)
 
 
@@ -341,44 +343,25 @@ func _on_footstep(pos: Vector3, speed01: float) -> void:
 
 func _apply_quality(level: int) -> void:
 	var vp := get_viewport()
-	# Omni shadows dominate the frame time: each one re-renders the whole house
-	# into a cubemap, every frame, because the spider is always moving.
-	var shadow_casters := 0
-
 	match level:
 		Settings.Quality.LOW:
 			env.ssao_enabled = false
-			env.ssil_enabled = false
-			env.volumetric_fog_enabled = false
 			env.glow_enabled = false
-			shadow_casters = 0
-			moon.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
 			vp.scaling_3d_scale = 0.80
 			vp.msaa_3d = Viewport.MSAA_DISABLED
 			vp.mesh_lod_threshold = 3.0
 		Settings.Quality.MEDIUM:
 			env.ssao_enabled = true
-			env.ssil_enabled = false
-			env.volumetric_fog_enabled = false
-			env.glow_enabled = true
-			shadow_casters = 1
-			moon.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+			env.glow_enabled = false
 			vp.scaling_3d_scale = 0.90
 			vp.msaa_3d = Viewport.MSAA_DISABLED
 			vp.mesh_lod_threshold = 2.0
 		_:
 			env.ssao_enabled = true
-			env.ssil_enabled = true
-			env.volumetric_fog_enabled = true
 			env.glow_enabled = true
-			shadow_casters = 3
-			moon.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
 			vp.scaling_3d_scale = 1.0
 			vp.msaa_3d = Viewport.MSAA_2X
 			vp.mesh_lod_threshold = 1.0
-
-	for i in range(props.shadow_candidates.size()):
-		props.shadow_candidates[i].shadow_enabled = i < shadow_casters
 
 
 func _apply_brightness(value: float) -> void:
@@ -413,6 +396,11 @@ func _process(delta: float) -> void:
 
 	if Settings.show_fps:
 		fps_label.text = "%d fps" % Engine.get_frames_per_second()
+
+	# Last-resort floor. Terrain closes the world, but if anything ever does slip
+	# through a seam this puts the player back rather than dropping them forever.
+	if spider.global_position.y < FALL_LIMIT:
+		spider.teleport(SPAWN)
 
 	_creak_timer -= delta
 	if _creak_timer <= 0.0:

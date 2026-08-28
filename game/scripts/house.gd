@@ -29,6 +29,15 @@ const WIN_B := 1.30      # sill height
 
 ## The double-height void over the grand hall.
 const HALL_VOID := Rect2(24.0, 24.0, 14.0, 14.0)
+## Stairwells. Each one is the hole the flight below it rises through, so the
+## opening and the flight are defined from the same numbers and cannot drift
+## apart. Both ground-floor flights run the length of the gallery, which is the
+## only room deep enough to give a staircase a sane pitch: 7.5 m of rise wants
+## about 12 m of run, and trying to fit that into the grand hall was what left
+## the old flights ending in mid-air over the void.
+const STAIR_E := Rect2(43.0, 14.8, 14.5, 4.4)    # gallery -> upper gallery, east
+const STAIR_W := Rect2(2.5, 14.8, 14.5, 4.4)     # gallery -> upper gallery, west
+const STAIR_ROOF := Rect2(19.0, 15.0, 14.0, 4.0)  # upper gallery -> roof
 
 var mats: Dictionary = {}
 var rooms: Array[Dictionary] = []
@@ -77,7 +86,7 @@ func _load_materials() -> void:
 # ---------------------------------------------------------------------------
 
 func _box(size: Vector3, pos: Vector3, mat: Material, collide := true,
-		basis := Basis(), shadows := true, occlude := false) -> MeshInstance3D:
+		basis := Basis(), _shadows := true, occlude := false) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	var bm := BoxMesh.new()
 	bm.size = size
@@ -85,8 +94,9 @@ func _box(size: Vector3, pos: Vector3, mat: Material, collide := true,
 	mi.transform = Transform3D(basis, pos)
 	if mat:
 		mi.material_override = mat
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadows \
-		else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# Nothing in the palace casts a shadow: shadow maps were the single biggest
+	# cost on a phone, and without them the frame rate roughly doubles.
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mi)
 	if collide:
 		var body := StaticBody3D.new()
@@ -231,9 +241,9 @@ func _opening_trim(basis: Basis, origin: Vector3, u0: float, u1: float,
 		var sill := Vector3((u0 + u1) * 0.5, y0 - origin.y, 0.0)
 		_box(Vector3(span + 0.6, 0.22, thickness + 0.5),
 			origin + basis * sill, stone, true, basis, false)
+		# No glass: every window is an open hole, so the spider can go straight
+		# through one and out onto the wall outside.
 		var g := Vector3((u0 + u1) * 0.5, (y0 + y1) * 0.5 - origin.y, 0.0)
-		_box(Vector3(span - 0.12, y1 - y0 - 0.12, 0.05),
-			origin + basis * g, MaterialLib.glass(), true, basis, false)
 		for i in range(3):
 			var mx := (u0 + u1) * 0.5 + (i - 1) * span * 0.30
 			_box(Vector3(0.09, y1 - y0, 0.10),
@@ -279,7 +289,7 @@ func _build_ground_floor() -> void:
 	# ceiling of the ground floor, minus the double-height grand hall and the
 	# stairwell opening into the upper gallery
 	_slab(Rect2(0.0, 0.0, W, D), F1, ST, mats["ceiling"],
-		[HALL_VOID, Rect2(25.0, 15.0, 8.0, 5.0)])
+		[HALL_VOID, STAIR_E, STAIR_W])
 
 	_exterior_ring(y, CH, {
 		# south wall (z = 0) faces the garden
@@ -364,7 +374,7 @@ func _build_first_floor() -> void:
 	var y := F1
 	_slab(Rect2(2.0, 22.0, 22.0, 16.0), y, 0.03, mats["carpet"])
 	_slab(Rect2(38.0, 22.0, 20.0, 16.0), y, 0.03, mats["parquet"])
-	_slab(Rect2(2.0, 14.0, 56.0, 8.0), y, 0.03, mats["marble"], [Rect2(25.0, 15.0, 8.0, 5.0)])
+	_slab(Rect2(2.0, 14.0, 56.0, 8.0), y, 0.03, mats["marble"], [STAIR_E, STAIR_W, STAIR_ROOF])
 	_slab(Rect2(2.0, 2.0, 20.0, 12.0), y, 0.03, mats["parquet"])
 	_slab(Rect2(24.0, 2.0, 34.0, 12.0), y, 0.03, mats["planks"])
 
@@ -374,7 +384,9 @@ func _build_first_floor() -> void:
 	_register_room("study", Rect2(2.0, 2.0, 20.0, 12.0), y, "parquet")
 	_register_room("guest_hall", Rect2(24.0, 2.0, 34.0, 12.0), y, "planks")
 
-	_slab(Rect2(0.0, 0.0, W, D), ROOF, ST, mats["ceiling"], [HALL_VOID])
+	# The hall void is cut from the first floor only. Cutting it from the roof
+	# as well left the grand hall open to the sky.
+	_slab(Rect2(0.0, 0.0, W, D), ROOF, ST, mats["ceiling"], [STAIR_ROOF])
 
 	_exterior_ring(y, CH1, {
 		"south": [
@@ -436,7 +448,7 @@ func _build_first_floor() -> void:
 # ---------------------------------------------------------------------------
 
 func _build_roof() -> void:
-	_slab(Rect2(0.0, 0.0, W, D), ROOF + 0.06, 0.06, mats["deck"], [HALL_VOID])
+	_slab(Rect2(0.0, 0.0, W, D), ROOF + 0.06, 0.06, mats["deck"], [STAIR_ROOF])
 	_register_room("roof", Rect2(0.0, 0.0, W, D), ROOF, "roof")
 
 	var stone: Material = mats["sandstone"]
@@ -451,16 +463,7 @@ func _build_roof() -> void:
 		var x: float = x_v
 		_box(Vector3(XT + 0.4, 0.28, D), Vector3(x, ROOF + h, D * 0.5), mats["gold"], false)
 
-	_balustrade(Vector3(HALL_VOID.position.x, ROOF, HALL_VOID.position.y),
-		Vector3(HALL_VOID.end.x, ROOF, HALL_VOID.position.y))
-	_balustrade(Vector3(HALL_VOID.position.x, ROOF, HALL_VOID.end.y),
-		Vector3(HALL_VOID.end.x, ROOF, HALL_VOID.end.y))
 
-	# an outside stair from the garden terrace all the way up the west flank,
-	# so the roof is reachable on foot as well as by climbing the wall
-	_ramp_stairs(Vector3(-2.2, 0.0, 4.0), Vector3(-2.2, ROOF, 34.0), 3.0)
-	_box(Vector3(3.4, 0.4, 4.0), Vector3(-2.2, ROOF - 0.2, 36.0), mats["marble"])
-	_box(Vector3(3.4, 0.4, 3.0), Vector3(0.6, ROOF - 0.2, 36.0), mats["marble"])
 
 
 func _build_tower() -> void:
@@ -508,7 +511,6 @@ func _build_tower() -> void:
 	finial.add_child(body)
 
 	_anchor(Vector3(31.0, TOWER_TOP - 0.4, 8.0), TOWER_TOP - 0.4, 1.0)
-	_ramp_stairs(Vector3(31.0, ROOF, 15.0), Vector3(31.0, ROOF + 4.0, 12.6), 3.0)
 
 
 # ---------------------------------------------------------------------------
@@ -537,18 +539,27 @@ func _ramp_stairs(from: Vector3, to: Vector3, width: float) -> void:
 
 
 func _build_stairs() -> void:
-	# the grand staircase: one wide flight to a half landing, then two returns
-	var mid := F1 * 0.5
-	_ramp_stairs(Vector3(31.0, 0.0, 37.0), Vector3(31.0, mid, 30.0), 7.0)
-	_box(Vector3(9.0, 0.5, 3.6), Vector3(31.0, mid - 0.25, 28.4), mats["marble"])
-	_ramp_stairs(Vector3(26.6, mid, 27.0), Vector3(26.6, F1, 33.0), 3.4)
-	_ramp_stairs(Vector3(35.4, mid, 27.0), Vector3(35.4, F1, 33.0), 3.4)
+	# Three proper flights, each rising through the hole named after it. Pitch
+	# works out at about 32 degrees — 0.26 m rise on 0.41 m of going, which is
+	# what a real staircase is.
+	var w := 3.2
+	_flight(Vector3(STAIR_E.end.x - 1.0, 0.0, 17.0),
+		Vector3(STAIR_E.position.x + 1.0, F1, 17.0), w)
+	_flight(Vector3(STAIR_W.position.x + 1.0, 0.0, 17.0),
+		Vector3(STAIR_W.end.x - 1.0, F1, 17.0), w)
+	_flight(Vector3(STAIR_ROOF.position.x + 0.5, F1, 17.0),
+		Vector3(STAIR_ROOF.end.x - 0.5, ROOF, 17.0), w)
 
-	_balustrade(Vector3(27.4, 0.0, 37.0), Vector3(27.4, mid, 30.0))
-	_balustrade(Vector3(34.6, 0.0, 37.0), Vector3(34.6, mid, 30.0))
 
-	# a second stair, gallery to upper gallery, through the slab opening
-	_ramp_stairs(Vector3(29.0, 0.0, 19.4), Vector3(29.0, F1, 15.4), 3.2)
+## A flight plus the balustrades down both of its sides.
+func _flight(from: Vector3, to: Vector3, width: float) -> void:
+	_ramp_stairs(from, to, width)
+	var flat := Vector2(to.x - from.x, to.z - from.z)
+	if flat.length() < 0.1:
+		return
+	var side := Vector3(-flat.normalized().y, 0.0, flat.normalized().x) * (width * 0.5)
+	_balustrade(from + side, to + side)
+	_balustrade(from - side, to - side)
 
 
 func _balustrade(a: Vector3, b: Vector3) -> void:
@@ -578,10 +589,11 @@ func _build_columns() -> void:
 		_column(Vector3(20.0, 0.0, 23.0 + i * 3.4), CH)
 		_column(Vector3(42.0, 0.0, 23.0 + i * 3.4), CH)
 		_column(Vector3(54.0, 0.0, 23.0 + i * 3.4), CH)
-	for i in range(9):
-		_column(Vector3(6.0 + i * 6.0, 0.0, 17.0), CH)
-	for i in range(5):
-		_column(Vector3(8.0 + i * 11.0, F1, 18.0), CH1)
+	# The gallery carries the staircases now, so its colonnade moves to the
+	# short stretch between the two flights where there is actually room.
+	for i in range(3):
+		_column(Vector3(20.0 + i * 10.0, 0.0, 15.2), CH)
+		_column(Vector3(20.0 + i * 10.0, 0.0, 18.8), CH)
 
 
 func _column(base: Vector3, height: float) -> void:
