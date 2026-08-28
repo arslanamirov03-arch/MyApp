@@ -65,9 +65,11 @@ static func surface(set_name: String, tile_meters: float = 2.0, triplanar: bool 
 		m.uv1_world_triplanar = true
 		m.uv1_triplanar_sharpness = 2.0
 	m.uv1_scale = Vector3(s, s, s)
-	# anisotropic filtering is a per-sample cost a phone GPU feels; with
-	# triplanar mapping it is paid three times over
-	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	# Anisotropic filtering back on. Without it every floor and every long wall
+	# smears into mush at a grazing angle, which is most of what "the textures
+	# look like pixels" was. Now that no light casts a shadow there is budget
+	# for it.
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 	m.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX
 
 	_cache[key] = m

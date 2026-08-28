@@ -7,7 +7,7 @@ func _ready() -> void:
 	add_child(main)
 	await get_tree().process_frame
 	spider = main.get("spider")
-	spider.teleport(Vector3(6.0, 1.4, 25.0))
+	spider.teleport(Vector3(56.0, 1.4, 17.0))
 	spider.facing = Vector3.FORWARD
 	var rig = main.get("rig")
 	rig._fwd = Vector3.FORWARD; rig._up = Vector3.UP; rig.pitch = -0.20
@@ -15,8 +15,8 @@ func _ready() -> void:
 	for i in range(70):
 		await get_tree().physics_frame
 	print("frame  pos                    up                 att lift  vel                  wish")
-	for i in range(220):
-		hud.move_vector = Vector2(0.0, 1.0)
+	for i in range(300):
+		hud.move_vector = Vector2(-1.0, 0.0)
 		hud._pressed["fast"] = true
 		await get_tree().physics_frame
 		if i % 10 == 0:

@@ -10,7 +10,7 @@ enum Quality { LOW, MEDIUM, HIGH }
 
 var look_sensitivity: float = 1.0
 var invert_y: bool = false
-var quality: int = Quality.LOW      # phones first; raise it in the pause menu
+var quality: int = Quality.MEDIUM   # full resolution; drop to Low if it stutters
 var show_fps: bool = false
 var camera_distance: float = 1.0
 var brightness: float = 1.0

@@ -166,7 +166,10 @@ func _run() -> void:
 	_reset(Vector3(56.0, 1.4, 17.0))
 	await _drive(60, Vector2.ZERO)
 	var s0 := spider.global_position.y
-	await _drive(300, Vector2(-1.0, 0.0), 1)
+	# 190 frames puts it at the top. Much further and it walks the length of the
+	# upper gallery and drops down the OTHER stairwell, which is a fine thing
+	# for a spider to do and a useless thing to measure.
+	await _drive(190, Vector2(-1.0, 0.0), 1)
 	print("  ", _state())
 	_check("ground floor to first floor", spider.global_position.y - s0 > F1 * 0.8,
 		"climbed %.2f m of %.1f" % [spider.global_position.y - s0, F1])
@@ -200,10 +203,10 @@ func _run() -> void:
 		"%d of %d" % [landed, corners.size()])
 
 	print("\n--- 8. catches a wall in mid-air ---")
-	# z = 26 is a solid stretch of the west wall. z = 20 is not: it is the
-	# middle of a window, and the windows are open holes now, so the spider
-	# correctly went through it instead of grabbing.
-	_reset(Vector3(-1.15, 4.0, 26.0))
+	# Outside the north wall at x = 20, which is a solid stretch: the west
+	# flank is no longer a wall to grab at all, it is the opening into the new
+	# west wing.
+	_reset(Vector3(20.0, 4.0, 41.15))
 	spider.attached = false
 	await _drive(50, Vector2.ZERO)
 	print("  ", _state())

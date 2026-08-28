@@ -21,35 +21,34 @@ ROOT = os.path.normpath(ROOT)
 
 # name -> (polyhaven slug, resolution)
 #
-# 1k, not 2k. At the tiling scales used here the difference is invisible on a
-# phone, and it roughly halves both the download and the texture memory — which
-# buys back what the palace and the garden cost.
+# 2k. 1k was a false economy: with anisotropic filtering off and the 3D buffer
+# at 80% it read as mush on a phone screen. All three are back up.
 TEXTURES = {
-    "parquet":      ("herringbone_parquet", "1k"),
-    "planks":       ("plank_flooring_02", "1k"),
-    "wallpaper":    ("decrepit_wallpaper", "1k"),
-    "plaster":      ("plastered_wall_02", "1k"),
-    "ceiling":      ("white_stucco", "1k"),
-    "tiles_kitchen": ("floor_tiles_06", "1k"),
-    "tiles_bath":   ("marble_tiles", "1k"),
-    "wood_dark":    ("dark_planks", "1k"),
-    "brick":        ("brick_wall_006", "1k"),
-    "carpet":       ("dirty_carpet", "1k"),
-    "concrete":     ("concrete_floor_worn_001", "1k"),
-    "attic_wood":   ("old_planks_02", "1k"),
-    "chitin":       ("bark_brown_02", "1k"),
-    "leather":      ("brown_leather", "1k"),
+    "parquet":      ("herringbone_parquet", "2k"),
+    "planks":       ("plank_flooring_02", "2k"),
+    "wallpaper":    ("decrepit_wallpaper", "2k"),
+    "plaster":      ("plastered_wall_02", "2k"),
+    "ceiling":      ("white_stucco", "2k"),
+    "tiles_kitchen": ("floor_tiles_06", "2k"),
+    "tiles_bath":   ("marble_tiles", "2k"),
+    "wood_dark":    ("dark_planks", "2k"),
+    "brick":        ("brick_wall_006", "2k"),
+    "carpet":       ("dirty_carpet", "2k"),
+    "concrete":     ("concrete_floor_worn_001", "2k"),
+    "attic_wood":   ("old_planks_02", "2k"),
+    "chitin":       ("bark_brown_02", "2k"),
+    "leather":      ("brown_leather", "2k"),
     # palace
-    "marble":       ("marble_01", "1k"),
-    "sandstone":    ("large_sandstone_blocks", "1k"),
-    "roof_slate":   ("red_slate_roof_tiles_01", "1k"),
-    "mosaic":       ("marble_mosaic_tiles", "1k"),
+    "marble":       ("marble_01", "2k"),
+    "sandstone":    ("large_sandstone_blocks", "2k"),
+    "roof_slate":   ("red_slate_roof_tiles_01", "2k"),
+    "mosaic":       ("marble_mosaic_tiles", "2k"),
     # garden
-    "grass":        ("leafy_grass", "1k"),
-    "path":         ("stone_pathway", "1k"),
-    "cobble":       ("cobblestone_floor_02", "1k"),
-    "gravel":       ("gravel_floor_02", "1k"),
-    "foliage":      ("forest_leaves_02", "1k"),
+    "grass":        ("leafy_grass", "2k"),
+    "path":         ("stone_pathway", "2k"),
+    "cobble":       ("cobblestone_floor_02", "2k"),
+    "gravel":       ("gravel_floor_02", "2k"),
+    "foliage":      ("forest_leaves_02", "2k"),
 }
 
 TEX_MAPS = ["Diffuse", "nor_gl", "Rough", "AO", "arm", "Displacement"]

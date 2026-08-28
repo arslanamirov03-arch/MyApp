@@ -12,7 +12,7 @@ needs no NDK.
 
 | | |
 |---|---|
-| Palace | 60 x 40 m, twelve rooms over two storeys with a walkable roof terrace and a tower. Ballroom, double-height grand hall, throne room, gallery, library, banqueting hall, kitchen; state bedroom, music room, upper gallery, study, guest hall. 7 m ceilings, colonnades, a grand staircase, arched openings 4.2 m wide — and no door leaves anywhere |
+| Palace | 60 x 40 m plus two 26 x 26 m wings, twelve rooms over two storeys with a walkable roof terrace and a tower. Ballroom, double-height grand hall, throne room, gallery, library, banqueting hall, kitchen; state bedroom, music room, upper gallery, study, guest hall. 7 m ceilings, colonnades, a grand staircase, arched openings 4.2 m wide — and no door leaves anywhere |
 | Garden | A 72 x 46 m parterre behind the palace: central axis, fountain, hedge parterres, trees, lit lanterns, statuary, benches and a gated wall. Repeated planting is drawn through MultiMesh, so hundreds of hedge blocks and flowers cost one draw call each |
 | Spider | Procedurally built body and eight IK legs. No animation clips exist anywhere in the project |
 | Lighting | Daylight under a real 4K sky panorama — blue with cloud — which also lights the whole scene, plus practical lamps indoors. **Nothing casts a shadow anywhere**: shadow maps were the largest cost on a phone, and SSAO does the grounding instead |
@@ -37,12 +37,19 @@ what is underneath in world terms, and pushes itself back over. That one rule is
 statues, the outside of the building and the tower all climbable with no special
 cases.
 
-Each of the eight legs is an independent two-bone IK chain with its own step
-state machine. A leg is told where its foot ought to be standing; it decides for
-itself when that is far enough away to be worth a step, then swings the foot
-along an arc. Steps alternate in the tetrapod pattern real spiders use (legs
-L1/R2/L3/R4 together, then the other four), with a per-leg timing jitter so the
-sets never land in perfect unison. The body then rides on the plane through the
+Each of the eight legs is an independent two-bone IK chain driven by one
+continuous gait cycle. The cycle advances at a cadence set by how fast the body
+is actually moving, and each leg holds a phase offset into it: a leg swings
+while its phase is inside the duty window and stands the rest of the time. That
+is what makes the walk continuous rather than a series of hops — nothing waits
+for a threshold to trip, so nothing snaps when it does. Within a swing the
+horizontal travel is eased in *and* out, so a foot leaves the ground and reaches
+the next one at zero speed, and the landing point is re-read every frame instead
+of being fixed at lift-off, so the foot tracks where the floor really is by the
+time it gets there. Offsets are laid out in the tetrapod pattern real spiders
+use (legs L1/R2/L3/R4 together, then the other four) with a per-leg jitter so
+the sets never land in perfect unison; a leg that gets left behind re-seats its
+offset to the current phase and the gait re-staggers around it. The body then rides on the plane through the
 eight feet, which is where the pitch and roll over stairs and door sills comes
 from, and the abdomen trails on a spring. Because the joint angles are solved
 rather than authored, the legs bend correctly on a staircase, a wall and a
@@ -51,7 +58,7 @@ ceiling without any extra cases.
 ## Building
 
 ```bash
-python3 tools/fetch_assets.py    # ~264 MB of CC0 assets from polyhaven.com
+python3 tools/fetch_assets.py    # ~475 MB of CC0 assets from polyhaven.com
 python3 tools/gen_audio.py       # synthesises the sound effects
 python3 tools/gen_icon.py        # draws the app icon
 godot --headless --editor --quit --path .          # import

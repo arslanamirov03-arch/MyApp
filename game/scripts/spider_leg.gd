@@ -18,16 +18,16 @@ var femur_len: float = 0.62
 var tibia_len: float = 0.72
 var tarsus_len: float = 0.42
 
-# --- step state ---
+# --- swing state ---
+## Where in the gait cycle this leg swings. Shifting it is how a leg that has
+## been left behind asks to move now: it re-enters the swing window at once and
+## the whole gait re-staggers around it.
+var phase_offset: float = 0.0
+var swinging: bool = false
 var foot: Vector3              # current world foot position
 var step_from: Vector3
 var step_to: Vector3
-var step_t: float = 1.0        # >= 1.0 means planted
-var step_time: float = 0.18
-var step_height: float = 0.28
-var phase_jitter: float = 0.0
 var plant_normal: Vector3 = Vector3.UP
-var settled: float = 0.0       # small vertical settle after touchdown
 
 # --- visuals ---
 var femur: MeshInstance3D
@@ -42,39 +42,48 @@ var ankle_pos: Vector3
 
 
 func is_stepping() -> bool:
-	return step_t < 1.0
+	return swinging
 
 
 func reach() -> float:
 	return femur_len + tibia_len + tarsus_len
 
 
-## Begin a swing towards `target`.
-func begin_step(target: Vector3, speed01: float, up: float) -> void:
+## Lift off from wherever the foot is standing.
+func begin_swing() -> void:
 	step_from = foot
+	step_to = foot
+	swinging = true
+
+
+## Drive one frame of a swing.
+##
+## `t` runs 0 -> 1 across the swing window. Two things make this read as a leg
+## rather than a hop:
+##
+##  - the horizontal travel is eased in AND out (smoothstep), so the foot
+##    leaves the ground and arrives at the next one with zero speed. The old
+##    curve was ease-out only, which covered most of the distance in the first
+##    few frames — that is exactly what "the legs jump" was;
+##  - `target` is re-read every frame instead of being fixed at lift-off, so
+##    the foot tracks where the ground actually is by the time it lands, and
+##    the landing is exact rather than approximate.
+func advance_swing(t: float, target: Vector3, up: Vector3, height: float) -> void:
 	step_to = target
-	step_t = 0.0
-	# fast legs when running, lazy legs when creeping
-	step_time = lerpf(0.17, 0.075, clampf(speed01, 0.0, 1.0)) + phase_jitter * 0.6
-	step_height = lerpf(0.24, 0.55, clampf(speed01, 0.0, 1.0)) * up
+	var k := clampf(t, 0.0, 1.0)
+	var e := smoothstep(0.0, 1.0, k)
+	# a slightly front-loaded arc: lifts briskly, comes down softly
+	var lift := sin(pow(k, 0.88) * PI) * height
+	foot = step_from.lerp(step_to, e) + up * lift
 
 
-## Advance the swing. Returns true on the frame the foot touches down.
-func advance(delta: float, up_vec: Vector3) -> bool:
-	if step_t >= 1.0:
-		if settled > 0.0:
-			settled = maxf(settled - delta * 5.0, 0.0)
+## Put the foot down. Returns true on the frame it actually lands.
+func plant() -> bool:
+	if not swinging:
 		return false
-	step_t = minf(step_t + delta / maxf(step_time, 0.01), 1.0)
-	# ease-out: the leg snaps out quickly and settles softly, like a real one
-	var e := 1.0 - pow(1.0 - step_t, 2.9)
-	var arc := sin(step_t * PI)
-	foot = step_from.lerp(step_to, e) + up_vec * arc * step_height
-	if step_t >= 1.0:
-		foot = step_to
-		settled = 1.0
-		return true
-	return false
+	swinging = false
+	foot = step_to
+	return true
 
 
 ## Solve the chain and move the meshes. `body_up` biases the knee upwards so the

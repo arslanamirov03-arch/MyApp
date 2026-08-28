@@ -46,6 +46,8 @@ var ceiling_anchors: Array[Dictionary] = []
 
 var _trim_wall := false
 const WAINSCOT_H := 1.60
+## How far a floor finish sits above the slab it is laid on.
+const FINISH := 0.02
 
 
 func _ready() -> void:
@@ -56,6 +58,7 @@ func _ready() -> void:
 	_build_tower()
 	_build_stairs()
 	_build_columns()
+	_build_wings()
 	_build_fixtures()
 
 
@@ -303,7 +306,8 @@ func _build_ground_floor() -> void:
 		"east": [
 			{"u0": 5.0, "u1": 5.0 + WIN_W, "y0": WIN_B, "y1": WIN_B + WIN_H, "type": "window"},
 			{"u0": 16.0, "u1": 16.0 + WIN_W, "y0": WIN_B, "y1": WIN_B + WIN_H, "type": "window"},
-			{"u0": 27.0, "u1": 27.0 + WIN_W, "y0": WIN_B, "y1": WIN_B + WIN_H, "type": "window"},
+			{"u0": 21.0, "u1": 27.0, "y0": 0.0, "y1": 6.2},          # into the east wing
+			{"u0": 31.0, "u1": 31.0 + WIN_W, "y0": WIN_B, "y1": WIN_B + WIN_H, "type": "window"},
 		],
 		# north wall (z = D) is the front: the state entrance
 		"north": [
@@ -313,7 +317,8 @@ func _build_ground_floor() -> void:
 		],
 		"west": [
 			{"u0": 8.0, "u1": 8.0 + WIN_W, "y0": WIN_B, "y1": WIN_B + WIN_H, "type": "window"},
-			{"u0": 20.0, "u1": 20.0 + WIN_W, "y0": WIN_B, "y1": WIN_B + WIN_H, "type": "window"},
+			{"u0": 13.0, "u1": 19.0, "y0": 0.0, "y1": 6.2},          # into the west wing
+			{"u0": 24.0, "u1": 24.0 + WIN_W, "y0": WIN_B, "y1": WIN_B + WIN_H, "type": "window"},
 			{"u0": 31.0, "u1": 31.0 + WIN_W, "y0": WIN_B, "y1": WIN_B + WIN_H, "type": "window"},
 		],
 	})
@@ -372,11 +377,18 @@ func _exterior_ring(y: float, height: float, by_wall: Dictionary) -> void:
 
 func _build_first_floor() -> void:
 	var y := F1
-	_slab(Rect2(2.0, 22.0, 22.0, 16.0), y, 0.03, mats["carpet"])
-	_slab(Rect2(38.0, 22.0, 20.0, 16.0), y, 0.03, mats["parquet"])
-	_slab(Rect2(2.0, 14.0, 56.0, 8.0), y, 0.03, mats["marble"], [STAIR_E, STAIR_W, STAIR_ROOF])
-	_slab(Rect2(2.0, 2.0, 20.0, 12.0), y, 0.03, mats["parquet"])
-	_slab(Rect2(24.0, 2.0, 34.0, 12.0), y, 0.03, mats["planks"])
+	# FINISH is why these sit 2 cm proud. The floor finishes used to top out at
+	# exactly y = F1, the same plane as the structural slab underneath them, and
+	# two coplanar faces z-fight: on a phone that showed up as the first floor
+	# flickering white, because the slab under it carries the pale ceiling
+	# material. Two centimetres is invisible underfoot and settles the depth
+	# test for good.
+	_slab(Rect2(2.0, 22.0, 22.0, 16.0), y + FINISH, 0.05, mats["carpet"])
+	_slab(Rect2(38.0, 22.0, 20.0, 16.0), y + FINISH, 0.05, mats["parquet"])
+	_slab(Rect2(2.0, 14.0, 56.0, 8.0), y + FINISH, 0.05, mats["marble"],
+		[STAIR_E, STAIR_W, STAIR_ROOF])
+	_slab(Rect2(2.0, 2.0, 20.0, 12.0), y + FINISH, 0.05, mats["parquet"])
+	_slab(Rect2(24.0, 2.0, 34.0, 12.0), y + FINISH, 0.05, mats["planks"])
 
 	_register_room("state_bedroom", Rect2(2.0, 22.0, 22.0, 16.0), y, "carpet")
 	_register_room("music", Rect2(38.0, 22.0, 20.0, 16.0), y, "parquet")
@@ -448,7 +460,7 @@ func _build_first_floor() -> void:
 # ---------------------------------------------------------------------------
 
 func _build_roof() -> void:
-	_slab(Rect2(0.0, 0.0, W, D), ROOF + 0.06, 0.06, mats["deck"], [STAIR_ROOF])
+	_slab(Rect2(0.0, 0.0, W, D), ROOF + 0.10, 0.12, mats["deck"], [STAIR_ROOF])
 	_register_room("roof", Rect2(0.0, 0.0, W, D), ROOF, "roof")
 
 	var stone: Material = mats["sandstone"]
@@ -620,6 +632,72 @@ func _column(base: Vector3, height: float) -> void:
 	_box(Vector3(1.4, 0.4, 1.4), base + Vector3(0.0, height - 0.45, 0.0), stone)
 	_box(Vector3(1.1, 0.25, 1.1), base + Vector3(0.0, height - 0.78, 0.0),
 		mats["gold"], false)
+
+
+# ---------------------------------------------------------------------------
+# wings
+# ---------------------------------------------------------------------------
+
+## Two great halls flanking the palace, each 26 x 26 m under a single 7 m
+## ceiling with a colonnade down the middle and a walkable roof. They are
+## additive: the core plan, its staircases and every prop position are
+## untouched, so making the palace half as big again cannot break what already
+## works.
+func _build_wings() -> void:
+	_wing(-26.0, 0.0, true)      # west: its own outer wall is the low-x side
+	_wing(W, W + 26.0, false)    # east: the low-x side is the palace's own wall
+
+
+func _wing(x0: float, x1: float, outer_is_min: bool) -> void:
+	var z0 := 10.0
+	var z1 := 36.0
+	var stone: Material = mats["sandstone"]
+	var mid := (x0 + x1) * 0.5
+
+	_slab(Rect2(x0, z0, x1 - x0, z1 - z0), F0, ST, mats["marble"])
+	_slab(Rect2(x0, z0, x1 - x0, z1 - z0), F1, ST, mats["ceiling"])
+	_slab(Rect2(x0 - 0.4, z0 - 0.4, x1 - x0 + 0.8, z1 - z0 + 0.8),
+		F1 + 0.10, 0.12, mats["deck"])
+
+	var win := [
+		{"u0": 4.0, "u1": 4.0 + WIN_W, "y0": WIN_B, "y1": WIN_B + WIN_H, "type": "window"},
+		{"u0": 11.5, "u1": 11.5 + WIN_W, "y0": WIN_B, "y1": WIN_B + WIN_H, "type": "window"},
+		{"u0": 19.0, "u1": 19.0 + WIN_W, "y0": WIN_B, "y1": WIN_B + WIN_H, "type": "window"},
+	]
+	_wall(Vector2(x0, z0), Vector2(x1, z0), F0, CH, XT, stone, win)
+	_wall(Vector2(x1, z1), Vector2(x0, z1), F0, CH, XT, stone, win)
+	# Only the outer flank gets a wall. The inner one is the palace's own
+	# exterior wall, which already has the opening through into the wing —
+	# building a second wall on the same plane would z-fight and double up the
+	# collision.
+	var ox := x0 if outer_is_min else x1
+	if outer_is_min:
+		_wall(Vector2(ox, z1), Vector2(ox, z0), F0, CH, XT, stone, win)
+	else:
+		_wall(Vector2(ox, z0), Vector2(ox, z1), F0, CH, XT, stone, win)
+
+	# parapet around the wing roof, so it is somewhere to be
+	for spec in [[Vector2(x0, z0), Vector2(x1, z0)], [Vector2(x1, z0), Vector2(x1, z1)],
+			[Vector2(x1, z1), Vector2(x0, z1)], [Vector2(x0, z1), Vector2(x0, z0)]]:
+		_wall(spec[0], spec[1], F1 + 0.22, 1.3, XT, stone, [])
+
+	# a colonnade down each side of the hall
+	for i in range(6):
+		var z := z0 + 3.0 + i * 4.0
+		_column(Vector3(x0 + 4.5, F0, z), CH)
+		_column(Vector3(x1 - 4.5, F0, z), CH)
+
+	# a raised centrepiece: stepped plinth with an obelisk on it
+	for i in range(3):
+		var s := 7.0 - i * 1.8
+		_box(Vector3(s, 0.4, s), Vector3(mid, 0.2 + i * 0.4, (z0 + z1) * 0.5),
+			mats["marble"])
+	_box(Vector3(1.4, 4.4, 1.4), Vector3(mid, 3.4, (z0 + z1) * 0.5), stone)
+	_box(Vector3(0.7, 1.4, 0.7), Vector3(mid, 6.3, (z0 + z1) * 0.5), mats["gold"], true,
+		Basis(), false)
+
+	_anchor(Vector3(mid, CH, (z0 + z1) * 0.5 - 7.0), CH, 1.8)
+	_anchor(Vector3(mid, CH, (z0 + z1) * 0.5 + 7.0), CH, 1.8)
 
 
 # ---------------------------------------------------------------------------

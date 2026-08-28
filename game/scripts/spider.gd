@@ -24,6 +24,11 @@ const MAX_STEP := 1.45
 const MIN_STEP := 0.12
 ## How far the spider can reach out and catch a surface while in mid-air.
 const GRAB_RANGE := 1.5
+## How far the body travels per swing of one leg. Cadence is derived from this
+## and the current speed, so the feet never scuff along the ground.
+const STRIDE := 1.15
+## Fraction of the gait cycle a leg spends in the air.
+const DUTY := 0.45
 
 ## Three gaits. The slow one is the default: the palace and the garden are
 ## worth looking at, and a spider that crosses a ballroom in two seconds is not
@@ -79,6 +84,7 @@ var _idle_timer := 0.0
 var _attack_timer := 0.0
 var _time := 0.0
 var _rng := RandomNumberGenerator.new()
+var _gait_phase := 0.0
 var _step_lift := 0.0
 var _wish_dir := Vector3.ZERO
 var _jump_lock := 0.0
@@ -320,12 +326,16 @@ func _build_legs(chitin: Material, joint_mat: Material) -> void:
 		leg.index = i
 		leg.side = side
 		leg.group = (slot % 2) if side < 0.0 else (1 - slot % 2)
+		# Alternating tetrapod, but as a continuous wave rather than two beats:
+		# the four legs of a set are spread across a fifth of the cycle instead
+		# of landing in unison, which is what a real spider looks like.
+		leg.phase_offset = fposmod(float(leg.group) * 0.5 + float(slot) * 0.05
+			+ _rng.randf_range(-0.012, 0.012), 1.0)
 		leg.hip_local = Vector3(absf(hips[slot].x) * side, hips[slot].y, hips[slot].z) * body_size
 		leg.rest_local = Vector3(absf(rests[slot].x) * side, -ride_height, rests[slot].z) * body_size
 		leg.femur_len = lengths[slot][0] * body_size
 		leg.tibia_len = lengths[slot][1] * body_size
 		leg.tarsus_len = lengths[slot][2] * body_size
-		leg.phase_jitter = _rng.randf_range(-0.022, 0.022)
 		leg.foot = global_position + leg.rest_local
 
 		# thin: a spider's leg is a bristle, not a sausage
@@ -430,7 +440,7 @@ func _right_self(delta: float) -> void:
 	velocity = n * 2.2
 	# throw the legs out so the flip is something the legs visibly do
 	for leg in legs:
-		leg.step_t = 1.0
+		leg.swinging = false
 		leg.foot = global_position + leg.rest_local * 1.3 + n * 0.2 * body_size
 
 
@@ -671,64 +681,60 @@ func _apply_movement(delta: float) -> void:
 
 func _update_gait(delta: float) -> void:
 	var up := surface_normal
-	var speed01 := last_speed01
 
 	if not attached:
 		_flail(delta)
 		return
 
-	var stepping := 0
-	for leg in legs:
-		if leg.advance(delta, up):
-			footstep.emit(leg.foot, speed01)
-		if leg.is_stepping():
-			stepping += 1
+	# Cadence comes from how fast the body is actually travelling, so one swing
+	# always covers about one stride and the planted feet never skate.
+	var flat := velocity - up * velocity.dot(up)
+	var speed := flat.length()
+	var speed01 := clampf(speed / run_speed, 0.0, 1.0)
+	var moving := speed > 0.18
 
-	var busy_groups := {}
+	var any_swinging := false
 	for leg in legs:
-		if leg.is_stepping():
-			busy_groups[leg.group] = true
+		if leg.swinging:
+			any_swinging = true
+			break
 
-	# tighter tolerance = the feet are re-planted more often and slide less
-	var threshold := lerpf(0.15, 0.40, speed01) * body_size
+	var cadence := 0.0
+	if moving:
+		cadence = clampf(speed / (STRIDE * body_size), 0.7, 3.4)
+	elif any_swinging:
+		cadence = 1.5        # let a swing already in the air finish smoothly
+	if cadence > 0.0:
+		_gait_phase = fposmod(_gait_phase + cadence * delta, 1.0)
+
+	var xf := rig.global_transform
+	var height := lerpf(0.20, 0.52, speed01) * body_size
 	_idle_timer += delta
-	var hip_xf := rig.global_transform
 
 	for leg in legs:
-		if leg.is_stepping():
-			continue
-		var target := _foot_target(leg, speed01)
-		var err := leg.foot.distance_to(target)
-		var wants := err > threshold
-		# A leg that is nearly out of reach re-plants at once, whatever the gait
-		# would prefer. This is what keeps the legs under the spider while it
-		# rolls from the floor onto a wall at full speed.
-		var hip: Vector3 = hip_xf * leg.hip_local
-		var urgent := hip.distance_to(leg.foot) > leg.reach() * 0.80
-		if urgent:
-			leg.begin_step(target, maxf(speed01, 0.75), body_size)
-			busy_groups[leg.group] = true
-			stepping += 1
-			continue
-		# a settled spider still fidgets: every so often one leg resets itself
-		if not wants and speed01 < 0.05 and _idle_timer > 2.2 and _rng.randf() < 0.004:
-			wants = true
-			target += Vector3(_rng.randf_range(-0.06, 0.06), 0.0,
-				_rng.randf_range(-0.06, 0.06)) * body_size
+		var hip: Vector3 = xf * leg.hip_local
+		# A leg that has been left behind re-enters the swing window now. This
+		# is also the only "emergency" case left: everything else is the clock.
+		if not leg.swinging and hip.distance_to(leg.foot) > leg.reach() * 0.86:
+			leg.phase_offset = _gait_phase
+		# and a standing spider still shifts its footing now and then
+		if not moving and not any_swinging and _idle_timer > 2.4 and _rng.randf() < 0.006:
+			leg.phase_offset = _gait_phase
 			_idle_timer = 0.0
-		if not wants:
-			continue
-		if stepping >= 4:
-			continue
-		# alternating tetrapod: the other group must have finished its swing
-		var other := 1 - leg.group
-		if busy_groups.has(other):
-			continue
-		leg.begin_step(target, speed01, body_size)
-		busy_groups[leg.group] = true
-		stepping += 1
-		if speed01 > 0.05:
-			_idle_timer = 0.0
+
+		var p := fposmod(_gait_phase - leg.phase_offset, 1.0)
+		var in_window := p < DUTY
+		if leg.swinging:
+			if in_window:
+				leg.advance_swing(p / DUTY, _foot_target(leg, speed01), up, height)
+			elif leg.plant():
+				footstep.emit(leg.foot, speed01)
+		elif in_window and (moving or p < 0.02):
+			leg.begin_swing()
+			leg.advance_swing(p / DUTY, _foot_target(leg, speed01), up, height)
+
+	if moving:
+		_idle_timer = 0.0
 
 
 ## Where this leg would like to plant its foot right now.
@@ -776,7 +782,7 @@ func _flail(delta: float) -> void:
 	var xf := Transform3D(_rig_basis, global_position)
 	for i in range(legs.size()):
 		var leg := legs[i]
-		leg.step_t = 1.0
+		leg.swinging = false
 		var wob := sin(_time * 7.5 + i * 1.3) * 0.16 * body_size
 		var splay := leg.rest_local * 1.16 + Vector3(0.0, 0.42 * body_size + wob, 0.0)
 		var target := xf * splay
@@ -908,7 +914,7 @@ func teleport(to: Vector3) -> void:
 	_sway_vel = Vector3.ZERO
 	for leg in legs:
 		leg.foot = to + leg.rest_local
-		leg.step_t = 1.0
+		leg.swinging = false
 
 
 func body_forward() -> Vector3:

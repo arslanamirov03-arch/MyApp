@@ -347,15 +347,18 @@ func _apply_quality(level: int) -> void:
 		Settings.Quality.LOW:
 			env.ssao_enabled = false
 			env.glow_enabled = false
-			vp.scaling_3d_scale = 0.80
+			vp.scaling_3d_scale = 0.90
 			vp.msaa_3d = Viewport.MSAA_DISABLED
-			vp.mesh_lod_threshold = 3.0
+			vp.mesh_lod_threshold = 2.5
 		Settings.Quality.MEDIUM:
 			env.ssao_enabled = true
 			env.glow_enabled = false
-			vp.scaling_3d_scale = 0.90
+			# Full resolution. Rendering 3D at 80% and upscaling was the real
+			# reason everything looked soft and blocky, far more than the
+			# texture resolution was.
+			vp.scaling_3d_scale = 1.0
 			vp.msaa_3d = Viewport.MSAA_DISABLED
-			vp.mesh_lod_threshold = 2.0
+			vp.mesh_lod_threshold = 1.5
 		_:
 			env.ssao_enabled = true
 			env.glow_enabled = true
