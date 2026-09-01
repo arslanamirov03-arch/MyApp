@@ -196,8 +196,8 @@ fun BlockScreen(blockId: Long, nav: NavController, vm: AppViewModel) {
 
         Box(
             Modifier
-                .align(Alignment.BottomStart)
-                .padding(start = 20.dp, bottom = 46.dp)
+                .align(Alignment.BottomEnd)
+                .padding(end = 20.dp, bottom = 46.dp)
                 .size(58.dp)
                 .shadow(10.dp, RoundedCornerShape(20.dp))
                 .clip(RoundedCornerShape(20.dp))

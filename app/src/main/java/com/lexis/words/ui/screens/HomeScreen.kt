@@ -147,8 +147,8 @@ fun HomeScreen(nav: NavController, vm: AppViewModel) {
 
         Box(
             Modifier
-                .align(Alignment.BottomStart)
-                .padding(start = 20.dp, bottom = 46.dp)
+                .align(Alignment.BottomEnd)
+                .padding(end = 20.dp, bottom = 46.dp)
                 .size(58.dp)
                 .shadow(10.dp, RoundedCornerShape(20.dp))
                 .clip(RoundedCornerShape(20.dp))
@@ -200,7 +200,15 @@ private fun BlockRow(block: BlockUi, onClick: () -> Unit) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(13.dp)) {
             Box(Modifier.size(50.dp).clip(RoundedCornerShape(16.dp)).background(color), contentAlignment = Alignment.Center) {
-                Text(block.name.take(1).uppercase(), fontFamily = Nunito, fontWeight = FontWeight.Black, fontSize = 20.sp, color = Color.White)
+                if (block.coverImagePath != null) {
+                    coil.compose.AsyncImage(
+                        model = java.io.File(block.coverImagePath), contentDescription = null,
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        modifier = Modifier.size(50.dp).clip(RoundedCornerShape(16.dp))
+                    )
+                } else {
+                    Text(block.name.take(1).uppercase(), fontFamily = Nunito, fontWeight = FontWeight.Black, fontSize = 20.sp, color = Color.White)
+                }
             }
             Column(Modifier.weight(1f)) {
                 Text(block.name, fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = Ink)
