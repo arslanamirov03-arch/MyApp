@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- "L" glyph, matches the block-tile lettering style used across the app -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M40,32 L40,68 L64,68 L64,76 L32,76 L32,32 Z" />
+</vector>

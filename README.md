@@ -1,25 +1,38 @@
-# CODING AGENTS: READ THIS FIRST
+# Lexis
 
-This is a **handoff bundle** from Claude Design (claude.ai/design).
+Android-приложение для изучения немецких слов: Блок → Список → до 500 слов,
+интервальное повторение (1 → 3 → 7 → 14 → 30 дней, очередь открывается в 6:00),
+экспорт в PDF/Word/TXT, полная резервная копия.
 
-A user mocked up designs in HTML/CSS/JS using an AI design tool, then exported this bundle so a coding agent can implement the designs for real.
+Реализовано на Kotlin + Jetpack Compose по дизайну из `design-handoff/project/Wortbox.dc.html`
+(оригинальный прототип и переписка с дизайн-инструментом лежат в `design-handoff/`).
 
-## What you should do — IMPORTANT
+## Сборка
 
-**Read the chat transcripts first.** There are 1 chat transcript(s) in `chats/`. The transcripts show the full back-and-forth between the user and the design assistant — they tell you **what the user actually wants** and **where they landed** after iterating. Don't skip them. The final HTML files are the output, but the chat is where the intent lives.
+APK собирается и подписывается автоматически в GitHub Actions
+(`.github/workflows/build-apk.yml`) при пуше в `main` — готовый файл
+прикрепляется к GitHub Release этого репозитория (прямая ссылка на скачивание).
 
-**Read `project/Wortbox.dc.html` in full.** The user had this file open when they triggered the handoff, so it's almost certainly the primary design they want built. Read it top to bottom — don't skim. Then **follow its imports**: open every file it pulls in (shared components, CSS, scripts) so you understand how the pieces fit together before you start implementing.
+Локально: `./gradlew assembleDebug` (Android SDK должен быть установлен;
+для release-сборки нужен `keystore.properties`, см. ниже).
 
-**If anything is ambiguous, ask the user to confirm before you start implementing.** It's much cheaper to clarify scope up front than to build the wrong thing.
+## Подпись релиза
 
-## About the design files
+Настоящий `.jks`-ключ **не хранится в репозитории** — он лежит в секретах
+GitHub Actions этого репозитория:
 
-The design medium is **HTML/CSS/JS** — these are prototypes, not production code. Your job is to **recreate them pixel-perfectly** in whatever technology makes sense for the target codebase (React, Vue, native, whatever fits). Match the visual output; don't copy the prototype's internal structure unless it happens to fit.
+- `RELEASE_KEYSTORE_BASE64`
+- `RELEASE_KEYSTORE_ALIAS`
+- `RELEASE_STORE_PASSWORD`
+- `RELEASE_KEY_PASSWORD`
 
-**Don't render these files in a browser or take screenshots unless the user asks you to.** Everything you need — dimensions, colors, layout rules — is spelled out in the source. Read the HTML and CSS directly; a screenshot won't tell you anything they don't.
+CI распаковывает ключ во время сборки (`release.jks`, `keystore.properties` —
+оба в `.gitignore`) и одновременно кладёт его в `app/src/main/assets/signing/`,
+откуда его достаёт функция резервного копирования в приложении (экран
+«О приложении» показывает alias/пароли/SHA-256, экран «Резервная копия»
+включает сам файл ключа и снимок исходного кода — как и было задумано в
+дизайне, чтобы обновлять приложение без потери данных).
 
-## Bundle contents
-
-- `README.md` — this file
-- `chats/` — conversation transcripts (read these!)
-- `project/` — the `Mobile app для изучения слов` project files (HTML prototypes, assets, components)
+Без этих секретов (например, при локальной сборке или pull request) сборка
+подписывается debug-ключом, а экран «О приложении» честно показывает
+«Локальная сборка» вместо настоящих данных.
