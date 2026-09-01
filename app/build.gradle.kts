@@ -1,5 +1,6 @@
 import java.util.Properties
 import java.io.FileInputStream
+import java.security.KeyStore
 import java.security.MessageDigest
 
 plugins {
@@ -25,7 +26,7 @@ if (keystorePropsFile != null) {
 
 fun sha256Fingerprint(storeFile: File, storePassword: String, alias: String, keyPassword: String): String {
     return try {
-        val ks = java.security.KeyStore.getInstance("JKS")
+        val ks = KeyStore.getInstance("JKS")
         FileInputStream(storeFile).use { ks.load(it, storePassword.toCharArray()) }
         val cert = ks.getCertificate(alias) ?: return "unavailable"
         val digest = MessageDigest.getInstance("SHA-256").digest(cert.encoded)
