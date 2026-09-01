@@ -1,5 +1,11 @@
 package com.lexis.words.ui
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
@@ -22,7 +28,7 @@ import com.lexis.words.ui.screens.HomeScreen
 import com.lexis.words.ui.screens.ListScreen
 import com.lexis.words.ui.screens.SettingsScreen
 import com.lexis.words.ui.screens.StudyScreen
-import com.lexis.words.ui.theme.CanvasBg
+import com.lexis.words.ui.theme.ScreenBg
 
 object Routes {
     const val HOME = "home"
@@ -43,8 +49,25 @@ fun LexisNavHost(modifier: Modifier = Modifier) {
     val navController = rememberNavController()
     val appViewModel: AppViewModel = viewModel()
 
-    Box(modifier.background(CanvasBg)) {
-        NavHost(navController = navController, startDestination = Routes.HOME) {
+    // The host paints the screen colour itself: during a transition there is no
+    // darker canvas showing through, which is what read as a "jump" between screens.
+    Box(modifier.background(ScreenBg)) {
+        NavHost(
+            navController = navController,
+            startDestination = Routes.HOME,
+            // Short, subtle slide + fade — the same feel as the prototype's screen-in
+            // animation, instead of Navigation's long default cross-fade.
+            enterTransition = {
+                slideInHorizontally(tween(230, easing = FastOutSlowInEasing)) { it / 12 } +
+                    fadeIn(tween(190, easing = FastOutSlowInEasing))
+            },
+            exitTransition = { fadeOut(tween(140)) },
+            popEnterTransition = { fadeIn(tween(190)) },
+            popExitTransition = {
+                slideOutHorizontally(tween(230, easing = FastOutSlowInEasing)) { it / 12 } +
+                    fadeOut(tween(170))
+            },
+        ) {
             composable(Routes.HOME) {
                 HomeScreen(nav = navController, vm = appViewModel)
             }
@@ -76,7 +99,10 @@ fun LexisNavHost(modifier: Modifier = Modifier) {
                 val mode = StudyMode.valueOf(entry.arguments!!.getString("mode")!!)
                 val studyVm: StudyViewModel = viewModel(viewModelStoreOwner = entry)
                 val settings by appViewModel.settings.collectAsState()
-                StudyScreen(blockId = blockId, mode = mode, nav = navController, vm = studyVm, imagesEnabled = settings.imagesEnabled)
+                StudyScreen(
+                    blockId = blockId, mode = mode, nav = navController, vm = studyVm,
+                    settings = settings, appVm = appViewModel,
+                )
             }
         }
     }

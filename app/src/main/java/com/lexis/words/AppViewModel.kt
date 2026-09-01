@@ -136,6 +136,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun setBatchSize(size: Int) = viewModelScope.launch { lexisApp.settingsStore.setBatchSize(size) }
+    fun setWordSize(v: Float) = viewModelScope.launch { lexisApp.settingsStore.setWordSize(v) }
+    fun setTranslationSize(v: Float) = viewModelScope.launch { lexisApp.settingsStore.setTranslationSize(v) }
+    fun setAnswerSize(v: Float) = viewModelScope.launch { lexisApp.settingsStore.setAnswerSize(v) }
+    fun setImageHeight(v: Float) = viewModelScope.launch { lexisApp.settingsStore.setImageHeight(v) }
+    fun setFontChoice(v: Int) = viewModelScope.launch { lexisApp.settingsStore.setFontChoice(v) }
+    fun resetTypography() = viewModelScope.launch { lexisApp.settingsStore.resetTypography() }
     fun setImagesEnabled(v: Boolean) = viewModelScope.launch { lexisApp.settingsStore.setImagesEnabled(v) }
     fun setSoundEnabled(v: Boolean) = viewModelScope.launch { lexisApp.settingsStore.setSoundEnabled(v) }
     fun setVibrationEnabled(v: Boolean) = viewModelScope.launch { lexisApp.settingsStore.setVibrationEnabled(v) }

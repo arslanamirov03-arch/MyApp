@@ -5,7 +5,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,39 +15,60 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.lexis.words.AnswerState
+import com.lexis.words.AppViewModel
 import com.lexis.words.StudyMode
 import com.lexis.words.StudyPhase
+import com.lexis.words.StudyUiState
 import com.lexis.words.StudyViewModel
+import com.lexis.words.data.AppSettings
+import com.lexis.words.data.TypeRanges
 import com.lexis.words.data.WordEntity
 import com.lexis.words.ui.components.IconTile
 import com.lexis.words.ui.components.PrimaryButton
 import com.lexis.words.ui.components.SecondaryButton
+import com.lexis.words.ui.components.SheetScaffold
 import com.lexis.words.ui.components.ThinProgressBar
 import com.lexis.words.ui.theme.Accent
 import com.lexis.words.ui.theme.AccentTintBg
 import com.lexis.words.ui.theme.AccentTintLabel
 import com.lexis.words.ui.theme.ErrorBg
 import com.lexis.words.ui.theme.ErrorInk
-import com.lexis.words.ui.theme.Ink
 import com.lexis.words.ui.theme.InfoBg
 import com.lexis.words.ui.theme.InfoInk
+import com.lexis.words.ui.theme.Ink
 import com.lexis.words.ui.theme.NeutralBtnBg
 import com.lexis.words.ui.theme.Nunito
 import com.lexis.words.ui.theme.ScreenBg
@@ -58,12 +78,32 @@ import com.lexis.words.ui.theme.TextMuted2
 import com.lexis.words.ui.theme.TextMuted3
 import com.lexis.words.ui.theme.TrackBg
 
+/** Card font picked in the study screen's appearance sheet. */
+fun cardFont(choice: Int): FontFamily = when (choice) {
+    1 -> FontFamily.SansSerif
+    2 -> FontFamily.Serif
+    3 -> FontFamily.Monospace
+    else -> Nunito
+}
+
 @Composable
-fun StudyScreen(blockId: Long, mode: StudyMode, nav: NavController, vm: StudyViewModel, imagesEnabled: Boolean = true) {
+fun StudyScreen(
+    blockId: Long,
+    mode: StudyMode,
+    nav: NavController,
+    vm: StudyViewModel,
+    settings: AppSettings,
+    appVm: AppViewModel,
+) {
     val state by vm.state.collectAsState()
+    var typeSheet by remember { mutableStateOf(false) }
     LaunchedEffect(blockId, mode) { vm.start(blockId, mode) }
 
-    if (state.loading) return
+    // A solid background while the deck loads keeps the screen transition from flashing.
+    if (state.loading) {
+        Box(Modifier.fillMaxSize().background(ScreenBg))
+        return
+    }
 
     if (state.finished) {
         ResultView(vm = vm, nav = nav)
@@ -77,29 +117,42 @@ fun StudyScreen(blockId: Long, mode: StudyMode, nav: NavController, vm: StudyVie
                 .verticalScroll(rememberScrollState())
                 .padding(top = 62.dp, start = 18.dp, end = 18.dp, bottom = 40.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 IconTile(onClick = { nav.popBackStack() }) {
                     Text("×", fontFamily = Nunito, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = TextMuted2)
                 }
-                val progress = if (state.phase == StudyPhase.LEARN) (state.learnIndex + 1f) / state.deck.size else state.testIndex.toFloat() / state.deck.size
+                val progress = if (state.phase == StudyPhase.LEARN) {
+                    (state.learnIndex + 1f) / state.deck.size
+                } else state.testIndex.toFloat() / state.deck.size
                 ThinProgressBar(fraction = progress, color = Accent, height = 8.dp, modifier = Modifier.weight(1f))
-                val counter = if (state.phase == StudyPhase.LEARN) "${state.learnIndex + 1} / ${state.deck.size}" else "${state.testIndex + 1} / ${state.deck.size}"
+                val counter = if (state.phase == StudyPhase.LEARN) {
+                    "${state.learnIndex + 1} / ${state.deck.size}"
+                } else "${state.testIndex + 1} / ${state.deck.size}"
                 Text(counter, fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp, color = TextMuted2)
+                IconTile(onClick = { typeSheet = true }) {
+                    Icon(Icons.Filled.Tune, contentDescription = "Вид карточки", tint = Accent, modifier = Modifier.size(18.dp))
+                }
             }
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(start = 52.dp)) {
                 val (bg, fg) = if (mode == StudyMode.NEW) AccentTintBg to AccentTintLabel else InfoBg to InfoInk
                 Box(Modifier.clip(RoundedCornerShape(9.dp)).background(bg).padding(horizontal = 10.dp, vertical = 5.dp)) {
-                    Text(if (mode == StudyMode.NEW) "Новые слова" else "Повторение", fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 10.5.sp, color = fg)
+                    Text(
+                        if (mode == StudyMode.NEW) "Новые слова" else "Повторение",
+                        fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 10.5.sp, color = fg
+                    )
                 }
-                Text("Порция ${state.batchIndex} · по ${state.deck.size} слов", fontFamily = Nunito, fontWeight = FontWeight.Bold, fontSize = 11.5.sp, color = TextMuted3)
+                Text(
+                    "Порция ${state.batchIndex} · по ${state.deck.size} слов",
+                    fontFamily = Nunito, fontWeight = FontWeight.Bold, fontSize = 11.5.sp, color = TextMuted3
+                )
             }
             Spacer(Modifier.height(6.dp))
 
             if (state.phase == StudyPhase.LEARN) {
-                LearnCard(state.deck.getOrNull(state.learnIndex), state.learnIndex, state.deck.size, vm, imagesEnabled)
+                LearnCard(state.deck.getOrNull(state.learnIndex), state.learnIndex, state.deck.size, vm, settings)
             } else {
-                TestCard(state, vm, imagesEnabled)
+                TestCard(state, vm, settings)
                 Spacer(Modifier.height(16.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     ScoreTile(state.rightCount.toString(), "верно", SuccessInk, Modifier.weight(1f))
@@ -107,12 +160,17 @@ fun StudyScreen(blockId: Long, mode: StudyMode, nav: NavController, vm: StudyVie
                 }
             }
         }
+
+        if (typeSheet) {
+            TypographySheet(settings = settings, appVm = appVm, onDismiss = { typeSheet = false })
+        }
     }
 }
 
 @Composable
-private fun LearnCard(card: WordEntity?, index: Int, total: Int, vm: StudyViewModel, imagesEnabled: Boolean) {
+private fun LearnCard(card: WordEntity?, index: Int, total: Int, vm: StudyViewModel, settings: AppSettings) {
     if (card == null) return
+    val font = cardFont(settings.fontChoice)
     Column(
         Modifier
             .fillMaxWidth()
@@ -121,29 +179,39 @@ private fun LearnCard(card: WordEntity?, index: Int, total: Int, vm: StudyViewMo
             .background(Color.White)
             .padding(22.dp)
     ) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("СЛОВО ${index + 1}", fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 11.5.sp, color = TextMuted3)
-        }
+        Text("СЛОВО ${index + 1}", fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 11.5.sp, color = TextMuted3)
         Spacer(Modifier.height(16.dp))
-        Text(card.de, fontFamily = Nunito, fontWeight = FontWeight.Black, fontSize = 36.sp, color = Ink, lineHeight = 40.sp)
-        Box(Modifier.fillMaxWidth().height(2.dp).background(Color(0xFFF4EDE3)).padding(vertical = 9.dp))
-        Spacer(Modifier.height(9.dp))
+        Text(
+            card.de, fontFamily = font, fontWeight = FontWeight.Black,
+            fontSize = settings.wordSizeSp.sp, lineHeight = (settings.wordSizeSp * 1.15f).sp, color = Ink
+        )
+        Spacer(Modifier.height(18.dp))
+        Box(Modifier.fillMaxWidth().height(2.dp).background(Color(0xFFF4EDE3)))
+        Spacer(Modifier.height(18.dp))
         Text("ПЕРЕВОД", fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 11.5.sp, color = TextMuted3)
         Spacer(Modifier.height(8.dp))
-        Text(card.ru, fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 26.sp, color = Accent)
-        if (card.imagePath != null && imagesEnabled) {
+        Text(
+            card.ru, fontFamily = font, fontWeight = FontWeight.ExtraBold,
+            fontSize = settings.translationSizeSp.sp, lineHeight = (settings.translationSizeSp * 1.2f).sp, color = Accent
+        )
+        if (card.imagePath != null && settings.imagesEnabled) {
             Spacer(Modifier.height(18.dp))
             coil.compose.AsyncImage(
                 model = java.io.File(card.imagePath), contentDescription = null,
                 contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                modifier = Modifier.fillMaxWidth().height(150.dp).clip(RoundedCornerShape(20.dp)).background(Color(0xFFEFE7DC))
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(settings.imageHeightDp.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color(0xFFEFE7DC))
             )
         }
         Spacer(Modifier.height(20.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
             if (index > 0) {
                 Box(
-                    Modifier.clip(RoundedCornerShape(17.dp)).background(NeutralBtnBg).clickable { vm.learnPrev() }.padding(horizontal = 20.dp, vertical = 16.dp)
+                    Modifier.clip(RoundedCornerShape(17.dp)).background(NeutralBtnBg)
+                        .clickable { vm.learnPrev() }.padding(horizontal = 20.dp, vertical = 16.dp)
                 ) { Text("Назад", fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 14.5.sp, color = Color(0xFF7A6B58)) }
             }
             PrimaryButton(if (index + 1 >= total) "Перейти к тесту" else "Дальше", modifier = Modifier.weight(1f)) { vm.learnNext() }
@@ -156,8 +224,9 @@ private fun LearnCard(card: WordEntity?, index: Int, total: Int, vm: StudyViewMo
 }
 
 @Composable
-private fun TestCard(state: com.lexis.words.StudyUiState, vm: StudyViewModel, imagesEnabled: Boolean) {
+private fun TestCard(state: StudyUiState, vm: StudyViewModel, settings: AppSettings) {
     val card = state.deck.getOrNull(state.testIndex) ?: return
+    val font = cardFont(settings.fontChoice)
     Column(
         Modifier
             .fillMaxWidth()
@@ -166,15 +235,23 @@ private fun TestCard(state: com.lexis.words.StudyUiState, vm: StudyViewModel, im
             .background(Color.White)
             .padding(22.dp)
     ) {
-        Text("ПЕРЕВЕДИТЕ НА РУССКИЙ", fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 11.5.sp, color = TextMuted3)
+        Text("НАПИШИТЕ ПО-НЕМЕЦКИ", fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 11.5.sp, color = TextMuted3)
         Spacer(Modifier.height(16.dp))
-        Text(card.de, fontFamily = Nunito, fontWeight = FontWeight.Black, fontSize = 36.sp, color = Ink, lineHeight = 40.sp)
-        if (card.imagePath != null && imagesEnabled) {
+        // The prompt is the translation — the German word is what gets typed in.
+        Text(
+            card.ru, fontFamily = font, fontWeight = FontWeight.Black,
+            fontSize = settings.translationSizeSp.sp, lineHeight = (settings.translationSizeSp * 1.15f).sp, color = Ink
+        )
+        if (card.imagePath != null && settings.imagesEnabled) {
             Spacer(Modifier.height(18.dp))
             coil.compose.AsyncImage(
                 model = java.io.File(card.imagePath), contentDescription = null,
                 contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                modifier = Modifier.fillMaxWidth().height(150.dp).clip(RoundedCornerShape(20.dp)).background(Color(0xFFEFE7DC))
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(settings.imageHeightDp.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color(0xFFEFE7DC))
             )
         }
 
@@ -188,18 +265,38 @@ private fun TestCard(state: com.lexis.words.StudyUiState, vm: StudyViewModel, im
                     .padding(horizontal = 17.dp, vertical = 16.dp)
             ) {
                 if (state.input.isEmpty()) {
-                    Text("ваш перевод", fontFamily = Nunito, fontWeight = FontWeight.Bold, fontSize = 19.sp, color = TextMuted3)
+                    Text(
+                        "немецкое слово", fontFamily = font, fontWeight = FontWeight.Bold,
+                        fontSize = settings.answerSizeSp.sp, color = TextMuted3
+                    )
                 }
                 BasicTextField(
-                    value = state.input, onValueChange = { vm.setInput(it) },
-                    textStyle = TextStyle(fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 19.sp, color = Ink),
+                    value = state.input,
+                    onValueChange = { vm.setInput(it) },
+                    textStyle = TextStyle(
+                        fontFamily = font, fontWeight = FontWeight.ExtraBold,
+                        fontSize = settings.answerSizeSp.sp, color = Ink
+                    ),
+                    // Password type + no visual masking: Gboard/T9 stops offering word
+                    // predictions and autocorrect, but the typed word stays readable.
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.None,
+                        autoCorrect = false,
+                        keyboardType = KeyboardType.Password,
+                        imeAction = ImeAction.Done,
+                    ),
+                    keyboardActions = KeyboardActions(onDone = { vm.checkAnswer() }),
+                    visualTransformation = VisualTransformation.None,
+                    singleLine = true,
+                    cursorBrush = SolidColor(Accent),
                     modifier = Modifier.fillMaxWidth()
                 )
             }
             Spacer(Modifier.height(14.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                 Box(
-                    Modifier.clip(RoundedCornerShape(17.dp)).background(NeutralBtnBg).clickable { vm.skipCard() }.padding(horizontal = 18.dp, vertical = 16.dp)
+                    Modifier.clip(RoundedCornerShape(17.dp)).background(NeutralBtnBg)
+                        .clickable { vm.skipCard() }.padding(horizontal = 18.dp, vertical = 16.dp)
                 ) { Text("Не помню", fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 14.5.sp, color = Color(0xFF7A6B58)) }
                 PrimaryButton("Проверить", modifier = Modifier.weight(1f), enabled = state.input.isNotBlank()) { vm.checkAnswer() }
             }
@@ -210,10 +307,17 @@ private fun TestCard(state: com.lexis.words.StudyUiState, vm: StudyViewModel, im
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(bg).padding(horizontal = 17.dp, vertical = 16.dp)) {
                 Text(if (right) "ВЕРНО" else "ПРАВИЛЬНЫЙ ОТВЕТ", fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 12.sp, color = fg)
                 Spacer(Modifier.height(7.dp))
-                Text(card.ru, fontFamily = Nunito, fontWeight = FontWeight.Black, fontSize = 22.sp, color = if (right) SuccessInk else ErrorInk)
+                Text(
+                    card.de, fontFamily = font, fontWeight = FontWeight.Black,
+                    fontSize = settings.wordSizeSp.sp, lineHeight = (settings.wordSizeSp * 1.15f).sp,
+                    color = if (right) SuccessInk else ErrorInk
+                )
                 if (!right && state.input.isNotBlank()) {
                     Spacer(Modifier.height(6.dp))
-                    Text("вы ввели: ${state.input}", fontFamily = Nunito, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = fg)
+                    Text(
+                        "вы ввели: ${state.input}", fontFamily = font, fontWeight = FontWeight.SemiBold,
+                        fontSize = settings.answerSizeSp.sp, color = fg
+                    )
                 }
             }
             Spacer(Modifier.height(12.dp))
@@ -234,6 +338,90 @@ private fun TestCard(state: com.lexis.words.StudyUiState, vm: StudyViewModel, im
                 contentAlignment = Alignment.Center
             ) { Text(if (isLast) "Итоги тренировки" else "Дальше", fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = Color.White) }
         }
+    }
+}
+
+@Composable
+private fun TypographySheet(settings: AppSettings, appVm: AppViewModel, onDismiss: () -> Unit) {
+    val font = cardFont(settings.fontChoice)
+    SheetScaffold(onDismiss = onDismiss) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text("Вид карточки", fontFamily = Nunito, fontWeight = FontWeight.Black, fontSize = 22.sp, color = Ink)
+            Box(
+                Modifier.clip(RoundedCornerShape(12.dp)).background(NeutralBtnBg)
+                    .clickable { appVm.resetTypography() }.padding(horizontal = 12.dp, vertical = 8.dp)
+            ) { Text("Сбросить", fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 12.5.sp, color = Color(0xFF7A6B58)) }
+        }
+        Spacer(Modifier.height(14.dp))
+
+        // Live preview at the current settings.
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White).padding(16.dp)) {
+            Text(
+                "das Beispiel", fontFamily = font, fontWeight = FontWeight.Black,
+                fontSize = settings.wordSizeSp.sp, lineHeight = (settings.wordSizeSp * 1.15f).sp, color = Ink, maxLines = 1
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "пример", fontFamily = font, fontWeight = FontWeight.ExtraBold,
+                fontSize = settings.translationSizeSp.sp, lineHeight = (settings.translationSizeSp * 1.2f).sp, color = Accent, maxLines = 1
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "ваш ответ", fontFamily = font, fontWeight = FontWeight.SemiBold,
+                fontSize = settings.answerSizeSp.sp, color = TextMuted2, maxLines = 1
+            )
+        }
+        Spacer(Modifier.height(16.dp))
+
+        SizeSlider("Немецкое слово", settings.wordSizeSp, TypeRanges.WORD, "sp") { appVm.setWordSize(it) }
+        SizeSlider("Перевод", settings.translationSizeSp, TypeRanges.TRANSLATION, "sp") { appVm.setTranslationSize(it) }
+        SizeSlider("Поле ответа", settings.answerSizeSp, TypeRanges.ANSWER, "sp") { appVm.setAnswerSize(it) }
+        SizeSlider("Картинка", settings.imageHeightDp, TypeRanges.IMAGE, "dp") { appVm.setImageHeight(it) }
+
+        Spacer(Modifier.height(6.dp))
+        Text("ШРИФТ", fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 11.5.sp, color = TextMuted3)
+        Spacer(Modifier.height(9.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            TypeRanges.FONT_NAMES.forEachIndexed { i, name ->
+                val selected = settings.fontChoice == i
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(13.dp))
+                        .background(if (selected) Accent else NeutralBtnBg)
+                        .clickable { appVm.setFontChoice(i) }
+                        .padding(vertical = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        name, fontFamily = cardFont(i), fontWeight = FontWeight.ExtraBold, fontSize = 11.5.sp,
+                        color = if (selected) Color.White else Color(0xFF7A6B58), maxLines = 1
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(18.dp))
+        PrimaryButton("Готово") { onDismiss() }
+    }
+}
+
+@Composable
+private fun SizeSlider(label: String, value: Float, range: ClosedFloatingPointRange<Float>, unit: String, onChange: (Float) -> Unit) {
+    var local by remember(value) { mutableStateOf(value) }
+    Column(Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(label, fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp, color = Ink)
+            Text("${local.toInt()} $unit", fontFamily = Nunito, fontWeight = FontWeight.Black, fontSize = 14.sp, color = Accent)
+        }
+        Slider(
+            value = local,
+            onValueChange = { local = it },
+            onValueChangeFinished = { onChange(local) },
+            valueRange = range,
+            colors = SliderDefaults.colors(
+                thumbColor = Accent, activeTrackColor = Accent, inactiveTrackColor = TrackBg
+            ),
+        )
     }
 }
 
@@ -307,8 +495,14 @@ private fun ResultView(vm: StudyViewModel, nav: NavController) {
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(if (canContinue) "Следующие ${minOf(state.deck.size, state.remainingAfterBatch)} слов" else "Начать порцию заново", fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = Color.White)
-                    Text(if (canContinue) "Осталось ${state.remainingAfterBatch} слов в очереди" else "Очередь на сегодня пройдена", fontFamily = Nunito, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color.White.copy(alpha = 0.78f))
+                    Text(
+                        if (canContinue) "Следующие ${minOf(state.deck.size, state.remainingAfterBatch)} слов" else "Начать порцию заново",
+                        fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = Color.White
+                    )
+                    Text(
+                        if (canContinue) "Осталось ${state.remainingAfterBatch} слов в очереди" else "Очередь на сегодня пройдена",
+                        fontFamily = Nunito, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color.White.copy(alpha = 0.78f)
+                    )
                 }
             }
             Spacer(Modifier.height(9.dp))

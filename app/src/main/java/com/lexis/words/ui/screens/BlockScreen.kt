@@ -70,7 +70,13 @@ fun BlockScreen(blockId: Long, nav: NavController, vm: AppViewModel) {
     val toast by vm.toast.collectAsState()
     var sheetOpen by remember { mutableStateOf(false) }
 
-    val b = block ?: return
+    // Paint the background while the block loads — rendering nothing for the first
+    // frames made the screen flash during the navigation transition.
+    val b = block
+    if (b == null) {
+        Box(Modifier.fillMaxSize().background(ScreenBg))
+        return
+    }
 
     val coverLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) vm.setBlockCover(blockId, uri)

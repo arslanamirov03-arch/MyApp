@@ -83,14 +83,28 @@ class StudyViewModel(app: Application) : AndroidViewModel(app) {
 
     fun skipToTest() { _state.update { it.copy(phase = StudyPhase.TEST, testIndex = 0, input = "", answerState = AnswerState.ASKING) } }
 
-    private fun norm(s: String) = s.trim().lowercase().replace('ё', 'е').replace(Regex("[.,!?]"), "")
+    private fun base(s: String) = s.trim().lowercase()
+        .replace('ё', 'е')
+        .replace(Regex("[.,!?]"), "")
+        .replace(Regex("\\s+"), " ")
+
+    /** Umlauts folded to plain letters: "Löffel" == "loffel". */
+    private fun normStrip(s: String) = base(s)
+        .replace("ß", "ss").replace("ä", "a").replace("ö", "o").replace("ü", "u")
+
+    /** Umlauts spelled out: "Löffel" == "loeffel" — how you type without a German keyboard. */
+    private fun normExpand(s: String) = base(s)
+        .replace("ß", "ss").replace("ä", "ae").replace("ö", "oe").replace("ü", "ue")
+
+    private fun answerMatches(input: String, expected: String) =
+        normStrip(input) == normStrip(expected) || normExpand(input) == normExpand(expected)
 
     fun checkAnswer() = viewModelScope.launch {
         val s = _state.value
         if (s.input.isBlank()) return@launch
         val card = s.deck.getOrNull(s.testIndex) ?: return@launch
-        val ok = norm(s.input) == norm(card.ru)
-        applyAnswer(card, ok)
+        // The prompt is the translation; the answer typed in is the German word.
+        applyAnswer(card, answerMatches(s.input, card.de))
     }
 
     fun skipCard() = viewModelScope.launch {
