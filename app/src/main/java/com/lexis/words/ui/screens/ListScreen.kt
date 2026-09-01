@@ -23,6 +23,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -101,7 +104,7 @@ fun ListScreen(listId: Long, nav: NavController, vm: AppViewModel) {
                         Text("$blockName · ${words.size} / ${settings.wordLimitPerList}", fontFamily = Nunito, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = TextMuted3)
                     }
                     IconTile(onClick = { sheet = "export" }) {
-                        androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Share, contentDescription = "Экспорт", tint = TextMuted2, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Filled.Share, contentDescription = "Экспорт", tint = TextMuted2, modifier = Modifier.size(18.dp))
                     }
                 }
                 Spacer(Modifier.height(18.dp))
