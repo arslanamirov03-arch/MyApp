@@ -1,0 +1,9 @@
+name: hello
+on:
+  push:
+    branches: [ci-test]
+jobs:
+  hello:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo hello
