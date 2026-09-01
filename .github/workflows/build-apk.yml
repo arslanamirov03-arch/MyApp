@@ -2,7 +2,7 @@ name: Build & release APK
 
 on:
   push:
-    branches: [main]
+    branches: [lexis-app]
   workflow_dispatch: {}
 
 permissions:
