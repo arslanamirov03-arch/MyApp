@@ -14,13 +14,29 @@ android {
         versionName "1.0"
     }
 
+    /* Ключ подписи лежит рядом с проектом и не меняется никогда.
+       Раньше сборка подписывалась случайным отладочным ключом, который
+       создаётся на машине сборщика заново, — и обновление, подписанное
+       другим ключом, Android отказывается ставить поверх установленного
+       приложения. Со своим постоянным ключом обновления встают всегда. */
+    signingConfigs {
+        lexis {
+            storeFile file('../keys/lexis.keystore')
+            storePassword 'lexis-keystore'
+            keyAlias 'lexis'
+            keyPassword 'lexis-keystore'
+        }
+    }
+
     buildTypes {
         debug {
             /* Отладочная сборка ставится на телефон без ключа разработчика. */
             minifyEnabled false
+            signingConfig signingConfigs.lexis
         }
         release {
             minifyEnabled false
+            signingConfig signingConfigs.lexis
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }

@@ -1856,8 +1856,8 @@
     openForm({
       title: 'Резервная копия',
       hint: storageNote + '<br><br>Копия — это один файл со всеми блоками, списками, ' +
-        'словами и расписанием разбора. Сохраните его, чтобы не потерять картотеку ' +
-        'при смене устройства.',
+        'словами, картинками и расписанием разбора. Сохраните его, чтобы не потерять ' +
+        'картотеку при смене устройства или переустановке.',
       fields: [],
       cancelText: 'Закрыть',
       extra: '<div class="btn-row" style="margin-top:4px">' +
@@ -1878,7 +1878,10 @@
 
     modalRoot.querySelector('[data-archive-save]').addEventListener('click', function () {
       var name = 'lexis-' + new Date().toISOString().slice(0, 10) + '.json';
-      saveArchive(name, new TextEncoder().encode(Store.exportJson()));
+      toast('Собираю копию вместе с картинками…');
+      Store.exportArchive().then(function (json) {
+        saveArchive(name, new TextEncoder().encode(json));
+      }, function () { toast('Копию собрать не удалось'); });
     });
 
     modalRoot.querySelector('[data-archive-load]').addEventListener('click', function () {
@@ -1890,14 +1893,14 @@
         if (!file) return;
         var reader = new FileReader();
         reader.onload = function () {
-          try {
-            var added = Store.importJson(String(reader.result), 'merge');
+          toast('Читаю копию…');
+          Store.importArchive(String(reader.result), 'merge').then(function (added) {
             closeModal();
             go({ name: 'blocks' }, true);
             toast('Загружено блоков: ' + added);
-          } catch (error) {
+          }, function (error) {
             toast('Файл не подошёл: ' + error.message);
-          }
+          });
         };
         reader.readAsText(file);
       });

@@ -913,10 +913,76 @@ window.Store = (function () {
     }, null, 2);
   }
 
+  /* Полная копия — вместе с картинками. Раньше в файл уходили только слова,
+     а сами картинки оставались в базе устройства: при переносе на другой
+     телефон или переустановке они пропадали. Теперь копия самодостаточна. */
+  function imageRefs() {
+    var refs = [];
+    state.blocks.forEach(function (block) {
+      block.sets.forEach(function (set) {
+        set.words.forEach(function (word) {
+          if (word.image && word.image.id) refs.push({ word: word, id: word.image.id });
+        });
+      });
+    });
+    return refs;
+  }
+
+  function exportArchive() {
+    var refs = imageRefs();
+    return Promise.all(refs.map(function (ref) { return imageLoad(ref.id); }))
+      .then(function (urls) {
+        var images = {};
+        refs.forEach(function (ref, i) { if (urls[i]) images[ref.id] = urls[i]; });
+        return JSON.stringify({
+          version: 3,
+          exportedAt: now(),
+          settings: state.settings,
+          blocks: state.blocks,
+          images: images
+        });
+      });
+  }
+
+  /* Ссылки на картинки, которых в базе нет, убираем — иначе в списке
+     останутся пустые рамки. Копия, снятая старой сборкой, картинок
+     не содержит, и это как раз тот случай. */
+  function pruneMissingImages() {
+    var refs = imageRefs();
+    if (!refs.length) return Promise.resolve(0);
+    return Promise.all(refs.map(function (ref) { return imageLoad(ref.id); }))
+      .then(function (urls) {
+        var dropped = 0;
+        refs.forEach(function (ref, i) {
+          if (!urls[i]) { ref.word.image = null; dropped++; }
+        });
+        if (dropped) save();
+        return dropped;
+      });
+  }
+
+  function importArchive(text, mode) {
+    var parsed = JSON.parse(text);
+    if (!parsed || !Array.isArray(parsed.blocks)) throw new Error('в файле нет блоков');
+
+    var images = parsed.images || {};
+    var ids = Object.keys(images);
+    return Promise.all(ids.map(function (id) { return imageSave(id, images[id]); }))
+      .then(function () {
+        var added = applyImport(parsed, mode);
+        return pruneMissingImages().then(function () { return added; });
+      });
+  }
+
   function importJson(text, mode) {
     var parsed = JSON.parse(text);
     if (!parsed || !Array.isArray(parsed.blocks)) throw new Error('в файле нет блоков');
+    return applyImport(parsed, mode);
+  }
+
+  function applyImport(parsed, mode) {
     var incoming = normalize(parsed);
+    version++;
     if (mode === 'replace') {
       state = incoming;
     } else {
@@ -969,6 +1035,7 @@ window.Store = (function () {
     nextDueAt: nextDueAt, checkAnswer: checkAnswer, reviewWord: reviewWord,
     dueLabel: dueLabel, isDue: isDue,
 
-    exportJson: exportJson, importJson: importJson
+    exportJson: exportJson, importJson: importJson,
+    exportArchive: exportArchive, importArchive: importArchive
   };
 })();
