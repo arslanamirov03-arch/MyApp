@@ -24,9 +24,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -54,6 +57,7 @@ import com.lexis.words.ui.components.IconTile
 import com.lexis.words.ui.components.PrimaryButton
 import com.lexis.words.ui.components.SecondaryButton
 import com.lexis.words.ui.components.SheetScaffold
+import com.lexis.words.ui.components.SheetTextField
 import com.lexis.words.ui.components.ToastHost
 import com.lexis.words.ui.theme.Accent
 import com.lexis.words.ui.theme.BorderDashed
@@ -91,6 +95,7 @@ fun ListScreen(listId: Long, nav: NavController, vm: AppViewModel) {
     var pickedImage by remember { mutableStateOf<Uri?>(null) }
     var wordsOpen by remember { mutableStateOf(true) }
     var sheet by remember { mutableStateOf<String?>(null) } // "bulk" | "export" | null
+    var editing by remember { mutableStateOf<WordUi?>(null) }
 
     val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> if (uri != null) pickedImage = uri }
 
@@ -188,7 +193,7 @@ fun ListScreen(listId: Long, nav: NavController, vm: AppViewModel) {
                     }
                     if (wordsOpen) {
                         Column(Modifier.fillMaxWidth()) {
-                            words.forEach { w -> WordRow(w) }
+                            words.forEach { w -> WordRow(w, onEdit = { editing = w }) }
                         }
                     }
                 }
@@ -200,6 +205,10 @@ fun ListScreen(listId: Long, nav: NavController, vm: AppViewModel) {
         when (sheet) {
             "bulk" -> BulkSheet(listId = listId, vm = vm, wordLimit = settings.wordLimitPerList, currentCount = words.size, onDismiss = { sheet = null })
             "export" -> ExportSheet(listId = listId, listName = listName, vm = vm, onDismiss = { sheet = null })
+        }
+
+        editing?.let { word ->
+            EditWordSheet(word = word, vm = vm, onDismiss = { editing = null })
         }
     }
 }
@@ -253,13 +262,14 @@ private fun DashedAction(text: String, modifier: Modifier = Modifier, onClick: (
 }
 
 @Composable
-private fun WordRow(w: WordUi) {
+private fun WordRow(w: WordUi, onEdit: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 17.dp, vertical = 12.dp),
+            .clickable(onClick = onEdit)
+            .padding(start = 17.dp, end = 9.dp, top = 12.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         if (w.imagePath != null) {
             coil.compose.AsyncImage(
@@ -282,8 +292,122 @@ private fun WordRow(w: WordUi) {
         Box(Modifier.clip(RoundedCornerShape(8.dp)).background(bg).padding(horizontal = 9.dp, vertical = 4.dp)) {
             Text(label, fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 10.5.sp, color = fg)
         }
+        Box(
+            Modifier
+                .size(32.dp)
+                .clip(RoundedCornerShape(11.dp))
+                .background(NeutralBtnBg)
+                .clickable(onClick = onEdit),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Filled.Edit, contentDescription = "Изменить слово", tint = Color(0xFF7A6B58), modifier = Modifier.size(15.dp))
+        }
     }
     Box(Modifier.fillMaxWidth().height(1.dp).background(DividerFaint))
+}
+
+@Composable
+private fun EditWordSheet(word: WordUi, vm: AppViewModel, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    var de by remember { mutableStateOf(word.de) }
+    var ru by remember { mutableStateOf(word.ru) }
+    var newImage by remember { mutableStateOf<Uri?>(null) }
+    var removeImage by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
+
+    val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) { newImage = uri; removeImage = false }
+    }
+    val currentImage: Any? = when {
+        newImage != null -> newImage
+        !removeImage && word.imagePath != null -> java.io.File(word.imagePath)
+        else -> null
+    }
+
+    SheetScaffold(onDismiss = onDismiss) {
+        Text("Изменить слово", fontFamily = Nunito, fontWeight = FontWeight.Black, fontSize = 22.sp, color = Ink)
+        Spacer(Modifier.height(16.dp))
+
+        Text("НЕМЕЦКОЕ СЛОВО", fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 11.5.sp, color = TextMuted3)
+        Spacer(Modifier.height(7.dp))
+        SheetTextField(value = de, onValueChange = { de = it }, placeholder = "das Wort")
+        Spacer(Modifier.height(14.dp))
+        Text("ПЕРЕВОД", fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 11.5.sp, color = TextMuted3)
+        Spacer(Modifier.height(7.dp))
+        SheetTextField(value = ru, onValueChange = { ru = it }, placeholder = "перевод")
+        Spacer(Modifier.height(16.dp))
+
+        Text("КАРТИНКА", fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 11.5.sp, color = TextMuted3)
+        Spacer(Modifier.height(9.dp))
+        if (currentImage != null) {
+            coil.compose.AsyncImage(
+                model = currentImage, contentDescription = null,
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(140.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Color(0xFFEFE7DC))
+            )
+            Spacer(Modifier.height(9.dp))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            DashedAction(if (currentImage != null) "Заменить" else "Картинка", Modifier.weight(1f)) { pickImage.launch("image/*") }
+            DashedAction("Из буфера", Modifier.weight(1f)) {
+                val uri = clipboardImageUri(context)
+                if (uri != null) { newImage = uri; removeImage = false } else vm.showToast("В буфере нет картинки")
+            }
+            if (currentImage != null) {
+                DashedAction("Убрать", Modifier.weight(1f)) { newImage = null; removeImage = true }
+            }
+        }
+        Spacer(Modifier.height(20.dp))
+
+        PrimaryButton("Сохранить", enabled = de.isNotBlank() && ru.isNotBlank()) {
+            vm.updateWord(word.id, de, ru, newImage, removeImage) { onDismiss() }
+        }
+        Spacer(Modifier.height(9.dp))
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(ErrorBg)
+                .clickable { confirmDelete = true }
+                .padding(vertical = 15.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("Удалить слово", fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 14.5.sp, color = ErrorInk)
+        }
+    }
+
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(24.dp),
+            title = {
+                Text("Удалить слово?", fontFamily = Nunito, fontWeight = FontWeight.Black, fontSize = 19.sp, color = Ink)
+            },
+            text = {
+                Text(
+                    "«${word.de}» и его картинка будут удалены навсегда. Прогресс по этому слову тоже пропадёт.",
+                    fontFamily = Nunito, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = TextMuted2, lineHeight = 20.sp
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDelete = false
+                    vm.deleteWord(word.id)
+                    onDismiss()
+                }) { Text("Удалить", fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, color = ErrorInk) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDelete = false }) {
+                    Text("Отмена", fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, color = TextMuted2)
+                }
+            },
+        )
+    }
 }
 
 @Composable

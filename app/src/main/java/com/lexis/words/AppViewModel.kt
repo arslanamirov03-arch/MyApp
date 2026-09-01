@@ -129,6 +129,34 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         showToast("${toAdd.size} слов добавлено")
     }
 
+    /**
+     * Edits an existing word. Learning progress (stage, due date, counters) is kept —
+     * only the text and picture change. Replacing or clearing the picture also deletes
+     * the old file, so storage doesn't fill up with orphans.
+     */
+    fun updateWord(id: Long, de: String, ru: String, newImage: Uri?, removeImage: Boolean, onDone: () -> Unit) = viewModelScope.launch {
+        if (de.isBlank() || ru.isBlank()) { showToast("Заполните слово и перевод"); return@launch }
+        val word = repo.wordDao.getById(id) ?: return@launch
+        val newPath = when {
+            newImage != null -> repo.importImage(newImage)
+            removeImage -> null
+            else -> word.imagePath
+        }
+        if (word.imagePath != null && word.imagePath != newPath) {
+            runCatching { java.io.File(word.imagePath).delete() }
+        }
+        repo.wordDao.update(word.copy(de = de.trim(), ru = ru.trim(), imagePath = newPath))
+        showToast("«${de.trim()}» сохранено")
+        onDone()
+    }
+
+    fun deleteWord(id: Long) = viewModelScope.launch {
+        val word = repo.wordDao.getById(id) ?: return@launch
+        word.imagePath?.let { path -> runCatching { java.io.File(path).delete() } }
+        repo.wordDao.delete(word)
+        showToast("«${word.de}» удалено")
+    }
+
     fun setBlockCover(blockId: Long, uri: Uri?) = viewModelScope.launch {
         val block = repo.blockDao.getById(blockId) ?: return@launch
         val path = uri?.let { repo.importImage(it) }
