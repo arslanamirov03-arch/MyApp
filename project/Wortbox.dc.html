@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#EFEAE2;font-family:Nunito,system-ui,sans-serif}
+a{color:#C25E10;text-decoration:none}a:hover{color:#8F420A}
+@keyframes scrIn{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:none}}
+@keyframes sheetIn{from{transform:translateY(100%)}to{transform:none}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes popIn{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}
+.dv-turn{padding:40px 44px 32px;border-bottom:1px solid rgba(0,0,0,.08)}
+.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 20px}
+.dv-tid{font:800 10px ui-monospace,Menlo,monospace;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:4px;text-decoration:none}
+.dv-tname{font:700 13px/1.2 Nunito,sans-serif;color:#1a1a1a}
+.dv-opts{display:flex;flex-wrap:wrap;gap:34px;align-items:flex-start}
+.dv-opt{flex:none;display:flex;flex-direction:column;gap:10px}
+.dv-oid{font:800 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(0,0,0,.08);color:#1a1a1a;border-radius:5px;text-decoration:none}
+.dv-olabel{display:flex;align-items:baseline;gap:8px;font:600 11.5px/1.3 Nunito,sans-serif;color:rgba(0,0,0,.55)}
+.dv-opt:target .dv-oid{background:#F5822B;color:#fff}
+.dv-next{margin:22px 0 0;font:600 12px/1.5 Nunito,sans-serif;color:rgba(0,0,0,.5)}
+</style></helmet>
+
+<div style="padding:34px 44px 26px;max-width:940px">
+<div style="font:800 11px ui-monospace,Menlo,monospace;letter-spacing:.14em;color:#A2907A;text-transform:uppercase">Lexis · прототип</div>
+<h1 style="font:900 30px/1.15 Nunito,sans-serif;color:#241C13;margin:10px 0 12px">Приложение для изучения немецких слов</h1>
+<p style="font:400 14.5px/1.6 Nunito,sans-serif;color:#5E5245;margin:0 0 14px;text-wrap:pretty">Структура по вашему описанию: <b>Блок → Список → до 500 слов</b>. Настройки — вверху справа, «плюс» — внизу слева (на главном добавляет блок, внутри блока — список). Учить слова можно только из блока. Ввод перевода с клавиатуры, необязательная картинка на карточке, интервалы 1 → 3 → 7 → 14 → 30 дней, очередь открывается ровно в 6:00.</p>
+<p style="font:400 13px/1.6 Nunito,sans-serif;color:#8B7F70;margin:0">Тёплые карточки, один акцент (мандарин) и цветные иконки. Собран весь флоу: главный, создание блока, блок, список со вводом слов, вставка списком, тренировка, итоги, настройки, экспорт. Всё нажимается.</p>
+</div>
+
+<section class="dv-turn" id="t1">
+<div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">Прототип · 9 экранов</span></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="1a"><div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a>Тёплые карточки · Nunito · акцент мандарин</div>
+<x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402px,874px">
+
+<sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
+<div style="height:874px;position:relative;overflow:hidden;display:flex;flex-direction:column;background:#FBF7F1;font-family:Nunito,system-ui,sans-serif;animation:scrIn .22s cubic-bezier(.22,1,.36,1)">
+<div style="flex:1;overflow:auto;padding:62px 18px 104px">
+<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:22px">
+<div><div style="font:900 30px/1.1 Nunito,sans-serif;color:#241C13">Lexis</div></div>
+<div onClick="{{ goSettings }}" style="width:44px;height:44px;flex:none;border-radius:14px;background:#fff;box-shadow:0 2px 8px rgba(120,90,50,.09);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .15s" style-active="transform:scale(.92)">
+<svg width="20" height="20" viewBox="0 0 20 20"><rect x="2" y="5.2" width="16" height="1.7" rx=".85" fill="#8B7F70"></rect><rect x="2" y="13.2" width="16" height="1.7" rx=".85" fill="#8B7F70"></rect><circle cx="13" cy="6.05" r="3.1" fill="#fff" stroke="#F5822B" stroke-width="1.8"></circle><circle cx="7" cy="14.05" r="3.1" fill="#fff" stroke="#F5822B" stroke-width="1.8"></circle></svg></div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px">
+<div style="background:#fff;border-radius:18px;padding:15px 12px 13px;box-shadow:0 2px 10px rgba(120,90,50,.06)">
+<div style="font:900 27px/1 Nunito,sans-serif;color:#2E9BF0">473</div>
+<div style="font:700 11.5px/1.25 Nunito,sans-serif;color:#8B7F70;margin-top:6px">слова<br>всего</div></div>
+<div style="background:#fff;border-radius:18px;padding:15px 12px 13px;box-shadow:0 2px 10px rgba(120,90,50,.06)">
+<div style="font:900 27px/1 Nunito,sans-serif;color:#F5822B">62</div>
+<div style="font:700 11.5px/1.25 Nunito,sans-serif;color:#8B7F70;margin-top:6px">новых<br>учить</div></div>
+<div style="background:#fff;border-radius:18px;padding:15px 12px 13px;box-shadow:0 2px 10px rgba(120,90,50,.06)">
+<div style="font:900 27px/1 Nunito,sans-serif;color:#10B393">249</div>
+<div style="font:700 11.5px/1.25 Nunito,sans-serif;color:#8B7F70;margin-top:6px">освоено<br>полностью</div></div>
+</div>
+
+<div style="background:#FEEEE0;border-radius:20px;padding:16px 16px 15px;margin-bottom:24px;display:flex;align-items:center;gap:14px">
+<div style="width:46px;height:46px;flex:none;border-radius:15px;background:#F5822B;display:flex;align-items:center;justify-content:center;font:900 19px Nunito,sans-serif;color:#fff">24</div>
+<div style="flex:1;min-width:0"><div style="font:800 15px/1.2 Nunito,sans-serif;color:#7A3A05">На повторение сегодня</div>
+<div style="font:600 12.5px/1.3 Nunito,sans-serif;color:#B0763F;margin-top:3px">Открылось в 6:00 · Alltag, Goethe B1, Beruf</div></div>
+<div onClick="{{ goStudy }}" style="flex:none;padding:11px 16px;border-radius:14px;background:#F5822B;font:800 13px Nunito,sans-serif;color:#fff;cursor:pointer;transition:transform .15s" style-active="transform:scale(.94)">Повторить</div>
+</div>
+
+<div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px">
+<div style="font:800 17px Nunito,sans-serif;color:#241C13">Блоки</div>
+<div style="font:700 12.5px Nunito,sans-serif;color:#A2907A">{{ blockCountLabel }}</div></div>
+
+<div style="display:flex;flex-direction:column;gap:10px">
+<div onClick="{{ open1 }}" style="background:#fff;border-radius:20px;padding:14px;display:flex;align-items:center;gap:13px;box-shadow:0 2px 10px rgba(120,90,50,.06);cursor:pointer;transition:transform .16s,box-shadow .16s" style-active="transform:scale(.985)" style-hover="box-shadow:0 6px 18px rgba(120,90,50,.12)">
+<div style="width:50px;height:50px;flex:none;border-radius:16px;background:#F5822B;display:flex;align-items:center;justify-content:center;font:900 20px Nunito,sans-serif;color:#fff">A</div>
+<div style="flex:1;min-width:0"><div style="font:800 16px/1.2 Nunito,sans-serif;color:#241C13">Alltag</div>
+<div style="font:600 12.5px Nunito,sans-serif;color:#8B7F70;margin:4px 0 7px">3 списка · 141 слово</div>
+<div style="height:6px;border-radius:3px;background:#F1EAE0;overflow:hidden"><div style="width:64%;height:100%;border-radius:3px;background:#F5822B"></div></div></div>
+<div style="font:700 22px Nunito,sans-serif;color:#D6C9B8;flex:none">›</div></div>
+
+<div onClick="{{ open2 }}" style="background:#fff;border-radius:20px;padding:14px;display:flex;align-items:center;gap:13px;box-shadow:0 2px 10px rgba(120,90,50,.06);cursor:pointer;transition:transform .16s,box-shadow .16s" style-active="transform:scale(.985)" style-hover="box-shadow:0 6px 18px rgba(120,90,50,.12)">
+<div style="width:50px;height:50px;flex:none;border-radius:16px;background:#6A5AE0;display:flex;align-items:center;justify-content:center;font:900 20px Nunito,sans-serif;color:#fff">B</div>
+<div style="flex:1;min-width:0"><div style="font:800 16px/1.2 Nunito,sans-serif;color:#241C13">Beruf</div>
+<div style="font:600 12.5px Nunito,sans-serif;color:#8B7F70;margin:4px 0 7px">2 списка · 77 слов</div>
+<div style="height:6px;border-radius:3px;background:#F1EAE0;overflow:hidden"><div style="width:41%;height:100%;border-radius:3px;background:#6A5AE0"></div></div></div>
+<div style="font:700 22px Nunito,sans-serif;color:#D6C9B8;flex:none">›</div></div>
+
+<div onClick="{{ open3 }}" style="background:#fff;border-radius:20px;padding:14px;display:flex;align-items:center;gap:13px;box-shadow:0 2px 10px rgba(120,90,50,.06);cursor:pointer;transition:transform .16s,box-shadow .16s" style-active="transform:scale(.985)" style-hover="box-shadow:0 6px 18px rgba(120,90,50,.12)">
+<div style="width:50px;height:50px;flex:none;border-radius:16px;background:#10B393;display:flex;align-items:center;justify-content:center;font:900 20px Nunito,sans-serif;color:#fff">R</div>
+<div style="flex:1;min-width:0"><div style="font:800 16px/1.2 Nunito,sans-serif;color:#241C13">Reisen</div>
+<div style="font:600 12.5px Nunito,sans-serif;color:#8B7F70;margin:4px 0 7px">1 список · 37 слов</div>
+<div style="height:6px;border-radius:3px;background:#F1EAE0;overflow:hidden"><div style="width:18%;height:100%;border-radius:3px;background:#10B393"></div></div></div>
+<div style="font:700 22px Nunito,sans-serif;color:#D6C9B8;flex:none">›</div></div>
+
+<div onClick="{{ open4 }}" style="background:#fff;border-radius:20px;padding:14px;display:flex;align-items:center;gap:13px;box-shadow:0 2px 10px rgba(120,90,50,.06);cursor:pointer;transition:transform .16s,box-shadow .16s" style-active="transform:scale(.985)" style-hover="box-shadow:0 6px 18px rgba(120,90,50,.12)">
+<div style="width:50px;height:50px;flex:none;border-radius:16px;background:#EC4C8C;display:flex;align-items:center;justify-content:center;font:900 20px Nunito,sans-serif;color:#fff">G</div>
+<div style="flex:1;min-width:0"><div style="font:800 16px/1.2 Nunito,sans-serif;color:#241C13">Goethe B1</div>
+<div style="font:600 12.5px Nunito,sans-serif;color:#8B7F70;margin:4px 0 7px">2 списка · 218 слов</div>
+<div style="height:6px;border-radius:3px;background:#F1EAE0;overflow:hidden"><div style="width:82%;height:100%;border-radius:3px;background:#EC4C8C"></div></div></div>
+<div style="font:700 22px Nunito,sans-serif;color:#D6C9B8;flex:none">›</div></div>
+
+<sc-for list="{{ addedBlocks }}" as="nb" hint-placeholder-count="0">
+<div style="background:#fff;border-radius:20px;padding:14px;display:flex;align-items:center;gap:13px;box-shadow:0 2px 10px rgba(120,90,50,.06);animation:popIn .2s ease-out">
+<div style="width:50px;height:50px;flex:none;border-radius:16px;background:{{ nb.color }};display:flex;align-items:center;justify-content:center;font:900 20px Nunito,sans-serif;color:#fff">{{ nb.initial }}</div>
+<div style="flex:1;min-width:0"><div style="font:800 16px/1.2 Nunito,sans-serif;color:#241C13">{{ nb.name }}</div>
+<div style="font:600 12.5px Nunito,sans-serif;color:#8B7F70;margin:4px 0 0">Пустой блок · создайте список</div></div>
+<div style="font:700 22px Nunito,sans-serif;color:#D6C9B8;flex:none">›</div></div>
+</sc-for>
+</div>
+</div>
+
+<div onClick="{{ openNewBlock }}" style="position:absolute;left:20px;bottom:46px;width:58px;height:58px;border-radius:20px;background:#F5822B;box-shadow:0 8px 22px rgba(245,130,43,.42);display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:30;transition:transform .16s" style-active="transform:scale(.9)" style-hover="transform:translateY(-2px)">
+<div style="font:300 34px/1 Nunito,sans-serif;color:#fff;margin-top:-3px">+</div></div>
+
+<sc-if value="{{ sheetNewBlock }}">
+<div style="position:absolute;inset:0;z-index:40;background:rgba(36,28,19,.38);display:flex;flex-direction:column;justify-content:flex-end;animation:fadeIn .16s ease-out" onClick="{{ closeSheet }}">
+<div onClick="{{ stop }}" style="background:#FBF7F1;border-radius:28px 28px 0 0;padding:22px 20px 34px;animation:sheetIn .24s cubic-bezier(.22,1,.36,1)">
+<div style="width:38px;height:4px;border-radius:2px;background:#E1D6C7;margin:0 auto 18px"></div>
+<div style="font:900 22px Nunito,sans-serif;color:#241C13;margin-bottom:16px">Новый блок</div>
+<div style="font:700 12px Nunito,sans-serif;color:#A2907A;margin-bottom:7px">НАЗВАНИЕ</div>
+<input value="{{ nbName }}" onChange="{{ setNbName }}" placeholder="например, Essen &amp; Trinken" style="width:100%;box-sizing:border-box;border:1.5px solid #E9DFD1;background:#fff;border-radius:16px;padding:15px 16px;font:700 16px Nunito,sans-serif;color:#241C13;outline:none" style-focus="border-color:#F5822B">
+<div style="font:700 12px Nunito,sans-serif;color:#A2907A;margin:18px 0 9px">ЦВЕТ БЛОКА</div>
+<div style="display:flex;gap:10px;margin-bottom:22px">
+<div onClick="{{ pickC1 }}" style="width:44px;height:44px;border-radius:15px;background:#F5822B;cursor:pointer;box-shadow:0 0 0 3px #FBF7F1,0 0 0 5px {{ ringC1 }}"></div>
+<div onClick="{{ pickC2 }}" style="width:44px;height:44px;border-radius:15px;background:#6A5AE0;cursor:pointer;box-shadow:0 0 0 3px #FBF7F1,0 0 0 5px {{ ringC2 }}"></div>
+<div onClick="{{ pickC3 }}" style="width:44px;height:44px;border-radius:15px;background:#10B393;cursor:pointer;box-shadow:0 0 0 3px #FBF7F1,0 0 0 5px {{ ringC3 }}"></div>
+<div onClick="{{ pickC4 }}" style="width:44px;height:44px;border-radius:15px;background:#EC4C8C;cursor:pointer;box-shadow:0 0 0 3px #FBF7F1,0 0 0 5px {{ ringC4 }}"></div>
+<div onClick="{{ pickC5 }}" style="width:44px;height:44px;border-radius:15px;background:#F0B400;cursor:pointer;box-shadow:0 0 0 3px #FBF7F1,0 0 0 5px {{ ringC5 }}"></div>
+<div onClick="{{ pickC6 }}" style="width:44px;height:44px;border-radius:15px;background:#2E9BF0;cursor:pointer;box-shadow:0 0 0 3px #FBF7F1,0 0 0 5px {{ ringC6 }}"></div>
+</div>
+<div style="font:700 12px Nunito,sans-serif;color:#A2907A;margin:0 0 9px">ОБЛОЖКА · НЕОБЯЗАТЕЛЬНО</div>
+<div onClick="{{ toggleNbCover }}" style="display:flex;align-items:center;gap:11px;padding:12px 14px;border-radius:16px;border:1.5px dashed {{ nbCoverBorder }};background:{{ nbCoverBg }};cursor:pointer;margin-bottom:22px;transition:background .15s,border-color .15s">
+<div style="width:40px;height:40px;flex:none;border-radius:12px;background:{{ nbCoverTile }};display:flex;align-items:center;justify-content:center">
+<svg width="16" height="16" viewBox="0 0 18 18"><rect x="1.5" y="4.5" width="15" height="11" rx="3.5" fill="none" stroke="#8B7F70" stroke-width="1.6"></rect><circle cx="9" cy="10" r="3" fill="#F5822B"></circle></svg></div>
+<div style="flex:1"><div style="font:800 13.5px Nunito,sans-serif;color:#241C13">{{ nbCoverLabel }}</div>
+<div style="font:600 11.5px Nunito,sans-serif;color:#A2907A;margin-top:2px">своя картинка вместо буквы</div></div></div>
+<div onClick="{{ createBlock }}" style="padding:17px;border-radius:18px;background:#F5822B;text-align:center;font:800 16px Nunito,sans-serif;color:#fff;cursor:pointer;transition:transform .15s" style-active="transform:scale(.98)">Создать блок</div>
+</div></div>
+</sc-if>
+<sc-if value="{{ hasToast }}">
+<div style="position:absolute;left:18px;right:18px;bottom:56px;z-index:50;padding:15px 18px;border-radius:18px;background:#241C13;font:800 14px Nunito,sans-serif;color:#fff;text-align:center;animation:popIn .18s ease-out">{{ toast }}</div>
+</sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{ isBlock }}">
+<div style="height:874px;position:relative;overflow:hidden;display:flex;flex-direction:column;background:#FBF7F1;font-family:Nunito,system-ui,sans-serif;animation:scrIn .22s cubic-bezier(.22,1,.36,1)">
+<div style="flex:1;overflow:auto;padding:62px 18px 104px">
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+<div onClick="{{ goHome }}" style="width:40px;height:40px;border-radius:14px;background:#fff;box-shadow:0 2px 8px rgba(120,90,50,.09);display:flex;align-items:center;justify-content:center;cursor:pointer;font:700 22px Nunito,sans-serif;color:#5E5245;padding-bottom:3px">‹</div>
+<div onClick="{{ goSettings }}" style="width:40px;height:40px;border-radius:14px;background:#fff;box-shadow:0 2px 8px rgba(120,90,50,.09);display:flex;align-items:center;justify-content:center;cursor:pointer">
+<svg width="18" height="18" viewBox="0 0 20 20"><rect x="2" y="5.2" width="16" height="1.7" rx=".85" fill="#8B7F70"></rect><rect x="2" y="13.2" width="16" height="1.7" rx=".85" fill="#8B7F70"></rect><circle cx="13" cy="6.05" r="3.1" fill="#fff" stroke="#F5822B" stroke-width="1.8"></circle><circle cx="7" cy="14.05" r="3.1" fill="#fff" stroke="#F5822B" stroke-width="1.8"></circle></svg></div>
+</div>
+
+<div style="display:flex;align-items:center;gap:14px;margin-bottom:18px">
+<div style="width:58px;height:58px;flex:none;border-radius:19px;background:{{ blkCovBg }};display:flex;align-items:center;justify-content:center;font:900 {{ blkCovFont }} Nunito,sans-serif;color:{{ blkCovFg }}">{{ blkCovLabel }}</div>
+<div style="flex:1;min-width:0"><div style="font:900 27px/1.1 Nunito,sans-serif;color:#241C13">{{ blk.name }}</div>
+<div style="font:700 13px Nunito,sans-serif;color:#A2907A;margin-top:4px">{{ blk.meta }}</div>
+<div onClick="{{ changeCover }}" style="display:inline-flex;align-items:center;gap:7px;margin-top:9px;padding:8px 12px;border-radius:12px;background:#F6F0E7;cursor:pointer;transition:background .15s" style-hover="background:#EFE7DC">
+<svg width="14" height="14" viewBox="0 0 18 18"><rect x="1.5" y="4.5" width="15" height="11" rx="3.5" fill="none" stroke="#7A6B58" stroke-width="1.7"></rect><circle cx="9" cy="10" r="3" fill="#F5822B"></circle></svg>
+<div style="font:800 12.5px Nunito,sans-serif;color:#7A6B58">{{ coverBtnLabel }}</div></div></div>
+</div>
+
+<div style="background:#fff;border-radius:20px;padding:16px;margin-bottom:12px;box-shadow:0 2px 10px rgba(120,90,50,.06);display:flex;gap:8px">
+<div style="flex:1;text-align:center"><div style="font:900 21px Nunito,sans-serif;color:#F5822B">{{ blk.newCount }}</div><div style="font:700 11px Nunito,sans-serif;color:#8B7F70;margin-top:4px">новых</div></div>
+<div style="width:1px;background:#F1EAE0"></div>
+<div style="flex:1;text-align:center"><div style="font:900 21px Nunito,sans-serif;color:#2E9BF0">{{ blk.repeatCount }}</div><div style="font:700 11px Nunito,sans-serif;color:#8B7F70;margin-top:4px">на повтор</div></div>
+<div style="width:1px;background:#F1EAE0"></div>
+<div style="flex:1;text-align:center"><div style="font:900 21px Nunito,sans-serif;color:#10B393">{{ blk.masteredCount }}</div><div style="font:700 11px Nunito,sans-serif;color:#8B7F70;margin-top:4px">освоено</div></div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:26px">
+<div onClick="{{ goLearnNew }}" style="border-radius:22px;padding:20px;background:#241C13;display:flex;align-items:center;gap:14px;cursor:pointer;transition:transform .16s" style-active="transform:scale(.985)" style-hover="transform:translateY(-2px)">
+<div style="flex:1"><div style="font:900 19px/1.1 Nunito,sans-serif;color:#fff">Учить новые слова</div>
+<div style="font:600 12.5px Nunito,sans-serif;color:rgba(255,255,255,.62);margin-top:5px">{{ newLabel }} · {{ newSub }}</div></div>
+<div style="width:44px;height:44px;flex:none;border-radius:15px;background:#F5822B;display:flex;align-items:center;justify-content:center;font:700 20px Nunito,sans-serif;color:#fff;padding-bottom:2px">›</div>
+</div>
+<div onClick="{{ goRepeat }}" style="border-radius:22px;padding:20px;background:#fff;box-shadow:0 2px 10px rgba(120,90,50,.06);display:flex;align-items:center;gap:14px;cursor:pointer;transition:transform .16s" style-active="transform:scale(.985)" style-hover="transform:translateY(-2px)">
+<div style="flex:1"><div style="font:900 19px/1.1 Nunito,sans-serif;color:#241C13">Повторять</div>
+<div style="font:600 12.5px Nunito,sans-serif;color:#8B7F70;margin-top:5px">{{ repeatLabel }} · {{ repeatSub }}</div></div>
+<div style="width:44px;height:44px;flex:none;border-radius:15px;background:{{ repeatBg }};display:flex;align-items:center;justify-content:center;font:700 20px Nunito,sans-serif;color:#fff;padding-bottom:2px">›</div>
+</div>
+</div>
+
+<div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px">
+<div style="font:800 17px Nunito,sans-serif;color:#241C13">Списки</div>
+<div style="font:700 12.5px Nunito,sans-serif;color:#A2907A">{{ blk.listLabel }}</div></div>
+
+<div style="display:flex;flex-direction:column;gap:10px">
+<sc-for list="{{ blk.lists }}" as="ls" hint-placeholder-count="3">
+<div onClick="{{ ls.open }}" style="background:#fff;border-radius:18px;padding:15px 16px;box-shadow:0 2px 10px rgba(120,90,50,.06);cursor:pointer;transition:transform .16s" style-active="transform:scale(.985)">
+<div style="display:flex;align-items:center;gap:12px">
+<div style="flex:1;min-width:0"><div style="font:800 15.5px/1.2 Nunito,sans-serif;color:#241C13">{{ ls.name }}</div>
+<div style="font:600 12px Nunito,sans-serif;color:#8B7F70;margin-top:4px">{{ ls.meta }}</div></div>
+<div style="font:700 20px Nunito,sans-serif;color:#D6C9B8">›</div></div>
+<div style="height:5px;border-radius:3px;background:#F1EAE0;overflow:hidden;margin-top:10px"><div style="width:{{ ls.pctW }};height:100%;border-radius:3px;background:{{ blk.color }}"></div></div>
+</div>
+</sc-for>
+</div>
+</div>
+
+<div onClick="{{ openNewList }}" style="position:absolute;left:20px;bottom:46px;width:58px;height:58px;border-radius:20px;background:#F5822B;box-shadow:0 8px 22px rgba(245,130,43,.42);display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:30;transition:transform .16s" style-active="transform:scale(.9)" style-hover="transform:translateY(-2px)">
+<div style="font:300 34px/1 Nunito,sans-serif;color:#fff;margin-top:-3px">+</div></div>
+
+<sc-if value="{{ sheetNewList }}">
+<div style="position:absolute;inset:0;z-index:40;background:rgba(36,28,19,.38);display:flex;flex-direction:column;justify-content:flex-end;animation:fadeIn .16s ease-out" onClick="{{ closeSheet }}">
+<div onClick="{{ stop }}" style="background:#FBF7F1;border-radius:28px 28px 0 0;padding:22px 20px 34px;animation:sheetIn .24s cubic-bezier(.22,1,.36,1)">
+<div style="width:38px;height:4px;border-radius:2px;background:#E1D6C7;margin:0 auto 18px"></div>
+<div style="font:900 22px Nunito,sans-serif;color:#241C13;margin-bottom:6px">Новый список</div>
+<div style="font:600 13px Nunito,sans-serif;color:#8B7F70;margin-bottom:16px">В блоке «{{ blk.name }}» · до {{ limit }} слов в списке</div>
+<input value="{{ nlName }}" onChange="{{ setNlName }}" placeholder="например, Im Supermarkt" style="width:100%;box-sizing:border-box;border:1.5px solid #E9DFD1;background:#fff;border-radius:16px;padding:15px 16px;font:700 16px Nunito,sans-serif;color:#241C13;outline:none;margin-bottom:20px" style-focus="border-color:#F5822B">
+<div onClick="{{ createList }}" style="padding:17px;border-radius:18px;background:#F5822B;text-align:center;font:800 16px Nunito,sans-serif;color:#fff;cursor:pointer;transition:transform .15s" style-active="transform:scale(.98)">Создать список</div>
+</div></div>
+</sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{ isList }}">
+<div style="height:874px;position:relative;overflow:hidden;display:flex;flex-direction:column;background:#FBF7F1;font-family:Nunito,system-ui,sans-serif;animation:scrIn .22s cubic-bezier(.22,1,.36,1)">
+<div style="flex:1;overflow:auto;padding:62px 18px 40px">
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:18px">
+<div onClick="{{ goBlock }}" style="width:40px;height:40px;flex:none;border-radius:14px;background:#fff;box-shadow:0 2px 8px rgba(120,90,50,.09);display:flex;align-items:center;justify-content:center;cursor:pointer;font:700 22px Nunito,sans-serif;color:#5E5245;padding-bottom:3px">‹</div>
+<div style="flex:1;min-width:0"><div style="font:900 22px/1.1 Nunito,sans-serif;color:#241C13">{{ listName }}</div>
+<div style="font:700 12px Nunito,sans-serif;color:#A2907A;margin-top:3px">{{ blk.name }} · {{ countLabel }}</div></div>
+<div onClick="{{ openExport }}" style="width:40px;height:40px;flex:none;border-radius:14px;background:#fff;box-shadow:0 2px 8px rgba(120,90,50,.09);display:flex;align-items:center;justify-content:center;cursor:pointer">
+<svg width="18" height="18" viewBox="0 0 18 18"><rect x="8.1" y="1.5" width="1.8" height="9" rx=".9" fill="#8B7F70"></rect><rect x="3.4" y="6.6" width="1.8" height="5.4" rx=".9" fill="#8B7F70" transform="rotate(-45 4.3 9.3)"></rect><rect x="12.8" y="6.6" width="1.8" height="5.4" rx=".9" fill="#8B7F70" transform="rotate(45 13.7 9.3)"></rect><rect x="2" y="14.2" width="14" height="1.8" rx=".9" fill="#F5822B"></rect></svg></div>
+</div>
+
+<div style="background:#fff;border-radius:22px;padding:16px;box-shadow:0 2px 12px rgba(120,90,50,.07);margin-bottom:12px">
+<div style="font:800 11.5px Nunito,sans-serif;color:#A2907A;letter-spacing:.08em;margin-bottom:8px">НОВОЕ СЛОВО</div>
+<input value="{{ de }}" onChange="{{ setDe }}" placeholder="das Wort" style="width:100%;box-sizing:border-box;border:none;border-bottom:2px solid #F1EAE0;background:transparent;padding:0 0 11px;font:800 21px Nunito,sans-serif;color:#241C13;outline:none" style-focus="border-color:#F5822B">
+<div style="font:800 11.5px Nunito,sans-serif;color:#A2907A;letter-spacing:.08em;margin:18px 0 8px">ПЕРЕВОД</div>
+<input value="{{ ru }}" onChange="{{ setRu }}" placeholder="перевод" style="width:100%;box-sizing:border-box;border:none;border-bottom:2px solid #F1EAE0;background:transparent;padding:0 0 11px;font:700 19px Nunito,sans-serif;color:#241C13;outline:none" style-focus="border-color:#F5822B">
+
+<div style="display:flex;gap:9px;margin:16px 0 0">
+<div onClick="{{ pickImage }}" style="flex:1;padding:13px 10px;border-radius:15px;border:1.5px dashed #E1D6C7;background:#FDFBF8;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;transition:border-color .15s,background .15s" style-hover="border-color:#F5822B;background:#FEEEE0">
+<svg width="17" height="17" viewBox="0 0 18 18"><rect x="1.6" y="3.4" width="14.8" height="11.2" rx="3" fill="none" stroke="#8B7F70" stroke-width="1.6"></rect><circle cx="6.3" cy="7.4" r="1.5" fill="#F5822B"></circle><path d="M2.6 13.2 7.4 9.4l3.1 2.6 2.4-2 2.3 2.2" fill="none" stroke="#8B7F70" stroke-width="1.6" stroke-linecap="round"></path></svg>
+<div style="font:800 13px Nunito,sans-serif;color:#5E5245">Картинка</div></div>
+<div onClick="{{ pasteImage }}" style="flex:1;padding:13px 10px;border-radius:15px;border:1.5px dashed #E1D6C7;background:#FDFBF8;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;transition:border-color .15s,background .15s" style-hover="border-color:#F5822B;background:#FEEEE0">
+<svg width="17" height="17" viewBox="0 0 18 18"><rect x="3.6" y="2.4" width="10.8" height="13.2" rx="3" fill="none" stroke="#8B7F70" stroke-width="1.6"></rect><rect x="6.4" y="1" width="5.2" height="3.2" rx="1.4" fill="#F5822B"></rect></svg>
+<div style="font:800 13px Nunito,sans-serif;color:#5E5245">Из буфера</div></div>
+</div>
+
+<sc-if value="{{ hasImg }}">
+<div style="margin-top:12px;display:flex;align-items:center;gap:11px;padding:10px;border-radius:15px;background:#FDFBF8;border:1.5px solid #F1EAE0;animation:popIn .18s ease-out">
+<div style="width:52px;height:52px;flex:none;border-radius:12px;background:repeating-linear-gradient(135deg,#EFE7DC 0 6px,#F7F1E8 6px 12px);display:flex;align-items:center;justify-content:center;font:600 8px ui-monospace,monospace;color:#A2907A">фото</div>
+<div style="flex:1;min-width:0"><div style="font:800 13px Nunito,sans-serif;color:#241C13">{{ imgLabel }}</div>
+<div style="font:600 11.5px Nunito,sans-serif;color:#A2907A;margin-top:2px">будет показана на карточке</div></div>
+<div onClick="{{ dropImage }}" style="font:700 19px Nunito,sans-serif;color:#C0B2A0;cursor:pointer;padding:0 6px">×</div></div>
+</sc-if>
+
+<div onClick="{{ addWord }}" style="margin-top:16px;padding:17px;border-radius:18px;background:{{ addBg }};text-align:center;font:800 16px Nunito,sans-serif;color:#fff;cursor:pointer;transition:transform .15s,background .2s" style-active="transform:scale(.98)">Добавить слово</div>
+<div onClick="{{ openBulk }}" style="margin-top:9px;padding:15px;border-radius:18px;background:#F6F0E7;text-align:center;font:800 14.5px Nunito,sans-serif;color:#7A6B58;cursor:pointer;transition:background .15s" style-hover="background:#EFE7DC">Вставить списком</div>
+</div>
+
+<div style="background:#fff;border-radius:22px;box-shadow:0 2px 12px rgba(120,90,50,.07);overflow:hidden">
+<div onClick="{{ toggleWords }}" style="padding:16px 17px;display:flex;align-items:center;gap:10px;cursor:pointer">
+<div style="flex:1"><div style="font:800 15.5px Nunito,sans-serif;color:#241C13">Слова в списке</div>
+<div style="font:600 12px Nunito,sans-serif;color:#8B7F70;margin-top:3px">{{ countLabel }} · осталось {{ remaining }} мест</div></div>
+<div style="width:30px;height:30px;border-radius:10px;background:#F6F0E7;display:flex;align-items:center;justify-content:center;font:700 15px Nunito,sans-serif;color:#7A6B58;transform:{{ chevRot }};transition:transform .2s">⌄</div>
+</div>
+<sc-if value="{{ wordsOpen }}" hint-placeholder-val="{{ true }}">
+<div style="border-top:1px solid #F4EDE3">
+<sc-for list="{{ words }}" as="w" hint-placeholder-count="6">
+<div style="padding:12px 17px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #FAF5EE">
+<div style="width:34px;height:34px;flex:none;border-radius:11px;background:{{ w.tileBg }};display:flex;align-items:center;justify-content:center;font:600 7.5px ui-monospace,monospace;color:#A2907A">{{ w.tile }}</div>
+<div style="flex:1;min-width:0"><div style="font:800 14.5px/1.25 Nunito,sans-serif;color:#241C13">{{ w.de }}</div>
+<div style="font:600 12.5px Nunito,sans-serif;color:#8B7F70;margin-top:2px">{{ w.ru }}</div></div>
+<div style="padding:4px 9px;border-radius:8px;background:{{ w.stBg }};font:800 10.5px Nunito,sans-serif;color:{{ w.stFg }}">{{ w.st }}</div>
+</div>
+</sc-for>
+</div>
+</sc-if>
+</div>
+<div style="height:26px"></div>
+</div>
+
+<sc-if value="{{ sheetBulk }}">
+<div style="position:absolute;inset:0;z-index:40;background:rgba(36,28,19,.38);display:flex;flex-direction:column;justify-content:flex-end;animation:fadeIn .16s ease-out" onClick="{{ closeSheet }}">
+<div onClick="{{ stop }}" style="background:#FBF7F1;border-radius:28px 28px 0 0;padding:22px 20px 34px;animation:sheetIn .24s cubic-bezier(.22,1,.36,1)">
+<div style="width:38px;height:4px;border-radius:2px;background:#E1D6C7;margin:0 auto 18px"></div>
+<div style="font:900 22px Nunito,sans-serif;color:#241C13;margin-bottom:6px">Вставить списком</div>
+<div style="font:600 12.5px/1.5 Nunito,sans-serif;color:#8B7F70;margin-bottom:14px">Одна пара на строку. Разделитель: тире, точка с запятой или таб.</div>
+<textarea value="{{ bulk }}" onChange="{{ setBulk }}" placeholder="der Löffel — ложка&#10;das Messer — нож&#10;die Serviette — салфетка" style="width:100%;height:150px;box-sizing:border-box;border:1.5px solid #E9DFD1;background:#fff;border-radius:18px;padding:15px 16px;font:600 14.5px/1.7 ui-monospace,Menlo,monospace;color:#241C13;outline:none;resize:none" style-focus="border-color:#F5822B"></textarea>
+<div style="display:flex;align-items:center;gap:8px;margin:12px 0 18px;padding:12px 14px;border-radius:14px;background:{{ bulkBg }}">
+<div style="font:800 13px Nunito,sans-serif;color:{{ bulkFg }}">{{ bulkLabel }}</div></div>
+<div onClick="{{ applyBulk }}" style="padding:17px;border-radius:18px;background:{{ bulkBtnBg }};text-align:center;font:800 16px Nunito,sans-serif;color:#fff;cursor:pointer;transition:transform .15s" style-active="transform:scale(.98)">{{ bulkBtnLabel }}</div>
+</div></div>
+</sc-if>
+
+<sc-if value="{{ sheetExport }}">
+<div style="position:absolute;inset:0;z-index:40;background:rgba(36,28,19,.38);display:flex;flex-direction:column;justify-content:flex-end;animation:fadeIn .16s ease-out" onClick="{{ closeSheet }}">
+<div onClick="{{ stop }}" style="background:#FBF7F1;border-radius:28px 28px 0 0;padding:22px 20px 34px;animation:sheetIn .24s cubic-bezier(.22,1,.36,1)">
+<div style="width:38px;height:4px;border-radius:2px;background:#E1D6C7;margin:0 auto 18px"></div>
+<div style="font:900 22px Nunito,sans-serif;color:#241C13;margin-bottom:6px">Скачать список</div>
+<div style="font:600 12.5px Nunito,sans-serif;color:#8B7F70;margin-bottom:16px">{{ listName }} · {{ countLabel }}</div>
+<div style="display:flex;flex-direction:column;gap:9px">
+<div onClick="{{ dlPdf }}" style="background:#fff;border-radius:18px;padding:15px 16px;display:flex;align-items:center;gap:13px;cursor:pointer;box-shadow:0 2px 8px rgba(120,90,50,.06);transition:transform .15s" style-active="transform:scale(.98)">
+<div style="width:42px;height:42px;flex:none;border-radius:13px;background:#EC4C8C;display:flex;align-items:center;justify-content:center;font:900 12px Nunito,sans-serif;color:#fff">PDF</div>
+<div style="flex:1"><div style="font:800 15px Nunito,sans-serif;color:#241C13">PDF</div><div style="font:600 12px Nunito,sans-serif;color:#8B7F70;margin-top:2px">две колонки, с картинками</div></div>
+<div style="font:700 20px Nunito,sans-serif;color:#D6C9B8">›</div></div>
+<div onClick="{{ dlDoc }}" style="background:#fff;border-radius:18px;padding:15px 16px;display:flex;align-items:center;gap:13px;cursor:pointer;box-shadow:0 2px 8px rgba(120,90,50,.06);transition:transform .15s" style-active="transform:scale(.98)">
+<div style="width:42px;height:42px;flex:none;border-radius:13px;background:#2E9BF0;display:flex;align-items:center;justify-content:center;font:900 12px Nunito,sans-serif;color:#fff">DOC</div>
+<div style="flex:1"><div style="font:800 15px Nunito,sans-serif;color:#241C13">Word</div><div style="font:600 12px Nunito,sans-serif;color:#8B7F70;margin-top:2px">таблица, можно править</div></div>
+<div style="font:700 20px Nunito,sans-serif;color:#D6C9B8">›</div></div>
+<div onClick="{{ dlTxt }}" style="background:#fff;border-radius:18px;padding:15px 16px;display:flex;align-items:center;gap:13px;cursor:pointer;box-shadow:0 2px 8px rgba(120,90,50,.06);transition:transform .15s" style-active="transform:scale(.98)">
+<div style="width:42px;height:42px;flex:none;border-radius:13px;background:#7A6B58;display:flex;align-items:center;justify-content:center;font:900 12px Nunito,sans-serif;color:#fff">TXT</div>
+<div style="flex:1"><div style="font:800 15px Nunito,sans-serif;color:#241C13">Текст</div><div style="font:600 12px Nunito,sans-serif;color:#8B7F70;margin-top:2px">слово — перевод, по строке</div></div>
+<div style="font:700 20px Nunito,sans-serif;color:#D6C9B8">›</div></div>
+</div>
+</div></div>
+</sc-if>
+
+<sc-if value="{{ hasToast }}">
+<div style="position:absolute;left:18px;right:18px;bottom:56px;z-index:50;padding:15px 18px;border-radius:18px;background:#241C13;font:800 14px Nunito,sans-serif;color:#fff;text-align:center;animation:popIn .18s ease-out">{{ toast }}</div>
+</sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{ isStudy }}">
+<div style="height:874px;position:relative;overflow:hidden;display:flex;flex-direction:column;background:#FBF7F1;font-family:Nunito,system-ui,sans-serif;animation:scrIn .22s cubic-bezier(.22,1,.36,1)">
+<div style="flex:1;overflow:auto;padding:62px 18px 40px;display:flex;flex-direction:column">
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:26px">
+<div onClick="{{ goBlock }}" style="width:40px;height:40px;flex:none;border-radius:14px;background:#fff;box-shadow:0 2px 8px rgba(120,90,50,.09);display:flex;align-items:center;justify-content:center;cursor:pointer;font:700 20px Nunito,sans-serif;color:#5E5245">×</div>
+<div style="flex:1;height:8px;border-radius:4px;background:#EFE7DC;overflow:hidden"><div style="width:{{ sProgressW }};height:100%;border-radius:4px;background:#F5822B;transition:width .3s cubic-bezier(.22,1,.36,1)"></div></div>
+<div style="font:800 13px Nunito,sans-serif;color:#8B7F70;flex:none">{{ sCounter }}</div>
+</div>
+<div style="display:flex;align-items:center;gap:8px;margin:-14px 0 20px 52px">
+<div style="padding:5px 10px;border-radius:9px;background:{{ modeTagBg }};font:800 10.5px Nunito,sans-serif;color:{{ modeTagFg }}">{{ modeTitle }}</div>
+<div style="font:700 11.5px Nunito,sans-serif;color:#A2907A">{{ batchLine }} · {{ batchHint }}</div>
+</div>
+
+<sc-if value="{{ isLearn }}">
+<div>
+<div style="display:flex;align-items:center;gap:9px;margin-bottom:14px">
+<div style="padding:6px 12px;border-radius:11px;background:#241C13;font:800 11px Nunito,sans-serif;color:#fff;letter-spacing:.06em">ШАГ 1 · ЗНАКОМСТВО</div>
+<div style="font:700 12px Nunito,sans-serif;color:#A2907A">{{ learnHint }}</div>
+</div>
+<div style="background:#fff;border-radius:26px;padding:26px 22px;box-shadow:0 6px 24px rgba(120,90,50,.09)">
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+<div style="font:800 11.5px Nunito,sans-serif;color:#A2907A;letter-spacing:.08em">СЛОВО {{ lCounter }}</div>
+<div style="padding:5px 10px;border-radius:9px;background:{{ lTagBg }};font:800 10.5px Nunito,sans-serif;color:{{ lTagFg }}">{{ lTag }}</div>
+</div>
+<div style="font:900 36px/1.15 Nunito,sans-serif;color:#241C13">{{ lWord }}</div>
+<div style="height:2px;background:#F4EDE3;margin:18px 0"></div>
+<div style="font:800 11.5px Nunito,sans-serif;color:#A2907A;letter-spacing:.08em;margin-bottom:8px">ПЕРЕВОД</div>
+<div style="font:800 26px/1.2 Nunito,sans-serif;color:#F5822B">{{ lTrans }}</div>
+<sc-if value="{{ lHasImg }}">
+<div style="margin-top:18px;height:150px;border-radius:20px;background:repeating-linear-gradient(135deg,#EFE7DC 0 8px,#F7F1E8 8px 16px);display:flex;align-items:center;justify-content:center;font:600 10px ui-monospace,monospace;color:#A2907A">фото · {{ lWord }}</div>
+</sc-if>
+<div style="display:flex;gap:9px;margin-top:20px">
+<sc-if value="{{ lPrevVisible }}">
+<div onClick="{{ lPrev }}" style="padding:16px 20px;border-radius:17px;background:#F6F0E7;font:800 14.5px Nunito,sans-serif;color:#7A6B58;cursor:pointer;transition:background .15s" style-hover="background:#EFE7DC">Назад</div>
+</sc-if>
+<div onClick="{{ lNext }}" style="flex:1;padding:16px;border-radius:17px;background:#F5822B;text-align:center;font:800 15.5px Nunito,sans-serif;color:#fff;cursor:pointer;transition:transform .15s" style-active="transform:scale(.98)">{{ lNextLabel }}</div>
+</div>
+</div>
+<div style="height:4px;border-radius:2px;background:#EFE7DC;overflow:hidden;margin-top:14px"><div style="width:{{ lProgressW }};height:100%;border-radius:2px;background:#241C13;transition:width .3s cubic-bezier(.22,1,.36,1)"></div></div>
+<div onClick="{{ lSkipToTest }}" style="margin-top:14px;padding:14px;border-radius:16px;background:#F6F0E7;text-align:center;font:800 14px Nunito,sans-serif;color:#7A6B58;cursor:pointer;transition:background .15s" style-hover="background:#EFE7DC">Я готов, сразу к тесту</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isTest }}">
+
+<div style="background:#fff;border-radius:26px;padding:26px 22px;box-shadow:0 6px 24px rgba(120,90,50,.09)">
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+<div style="font:800 11.5px Nunito,sans-serif;color:#A2907A;letter-spacing:.08em">ПЕРЕВЕДИТЕ НА РУССКИЙ</div>
+<div style="padding:5px 10px;border-radius:9px;background:{{ sTagBg }};font:800 10.5px Nunito,sans-serif;color:{{ sTagFg }}">{{ sTag }}</div>
+</div>
+<div style="font:900 36px/1.15 Nunito,sans-serif;color:#241C13">{{ sWord }}</div>
+<sc-if value="{{ sHasImg }}">
+<div style="margin-top:18px;height:150px;border-radius:20px;background:repeating-linear-gradient(135deg,#EFE7DC 0 8px,#F7F1E8 8px 16px);display:flex;align-items:center;justify-content:center;font:600 10px ui-monospace,monospace;color:#A2907A">фото · {{ sWord }}</div>
+</sc-if>
+<sc-if value="{{ sAsking }}">
+<div>
+<input value="{{ sInput }}" onChange="{{ setSInput }}" placeholder="ваш перевод" style="width:100%;box-sizing:border-box;margin-top:22px;border:2px solid #F1EAE0;background:#FDFBF8;border-radius:18px;padding:16px 17px;font:700 19px Nunito,sans-serif;color:#241C13;outline:none;transition:border-color .16s" style-focus="border-color:#F5822B;background:#fff">
+<div style="display:flex;gap:9px;margin-top:14px">
+<div onClick="{{ skipCard }}" style="padding:16px 18px;border-radius:17px;background:#F6F0E7;font:800 14.5px Nunito,sans-serif;color:#7A6B58;cursor:pointer;transition:background .15s" style-hover="background:#EFE7DC">Не помню</div>
+<div onClick="{{ checkAnswer }}" style="flex:1;padding:16px;border-radius:17px;background:#F5822B;text-align:center;font:800 15.5px Nunito,sans-serif;color:#fff;cursor:pointer;transition:transform .15s" style-active="transform:scale(.98)">Проверить</div>
+</div></div>
+</sc-if>
+<sc-if value="{{ sAnswered }}">
+<div style="animation:popIn .2s ease-out">
+<div style="margin-top:20px;padding:16px 17px;border-radius:18px;background:{{ sResBg }}">
+<div style="font:800 12px Nunito,sans-serif;color:{{ sResFg }};letter-spacing:.06em">{{ sResTitle }}</div>
+<div style="font:900 22px Nunito,sans-serif;color:{{ sResInk }};margin-top:7px">{{ sAnswer }}</div>
+<sc-if value="{{ sShowYours }}">
+<div style="font:600 13px Nunito,sans-serif;color:{{ sResFg }};margin-top:6px">вы ввели: {{ sYours }}</div>
+</sc-if>
+</div>
+<div style="display:flex;align-items:center;gap:9px;margin-top:12px;padding:13px 15px;border-radius:15px;background:#FDFBF8;border:1.5px solid #F1EAE0">
+<div style="width:9px;height:9px;border-radius:5px;background:{{ sResInk }};flex:none"></div>
+<div style="font:700 13px Nunito,sans-serif;color:#5E5245">{{ sInterval }}</div></div>
+<div onClick="{{ nextCard }}" style="margin-top:14px;padding:17px;border-radius:18px;background:#241C13;text-align:center;font:800 16px Nunito,sans-serif;color:#fff;cursor:pointer;transition:transform .15s" style-active="transform:scale(.98)">{{ nextLabel }}</div>
+</div>
+</sc-if>
+</div>
+
+<div style="display:flex;gap:10px;margin-top:16px">
+<div style="flex:1;background:#fff;border-radius:16px;padding:13px 15px;box-shadow:0 2px 8px rgba(120,90,50,.05);display:flex;align-items:baseline;gap:8px">
+<div style="font:900 20px Nunito,sans-serif;color:#10B393">{{ sRight }}</div>
+<div style="font:700 12px Nunito,sans-serif;color:#8B7F70">верно</div></div>
+<div style="flex:1;background:#fff;border-radius:16px;padding:13px 15px;box-shadow:0 2px 8px rgba(120,90,50,.05);display:flex;align-items:baseline;gap:8px">
+<div style="font:900 20px Nunito,sans-serif;color:#EC4C8C">{{ sWrong }}</div>
+<div style="font:700 12px Nunito,sans-serif;color:#8B7F70">ошибок</div></div>
+</div>
+</sc-if>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isResult }}">
+<div style="height:874px;position:relative;overflow:hidden;display:flex;flex-direction:column;background:#FBF7F1;font-family:Nunito,system-ui,sans-serif;animation:scrIn .22s cubic-bezier(.22,1,.36,1)">
+<div style="flex:1;overflow:auto;padding:96px 18px 40px">
+<div style="font:900 12px Nunito,sans-serif;color:#A2907A;letter-spacing:.1em;margin-bottom:10px;text-transform:uppercase">{{ batchLine }} завершена</div>
+<div style="font:900 34px/1.1 Nunito,sans-serif;color:#241C13;margin-bottom:24px">{{ resTitle }}</div>
+
+<div style="background:#fff;border-radius:26px;padding:24px 22px;box-shadow:0 4px 18px rgba(120,90,50,.08);margin-bottom:12px">
+<div style="display:flex;align-items:flex-end;gap:6px;margin-bottom:18px">
+<div style="font:900 54px/1 Nunito,sans-serif;color:#F5822B">{{ resPct }}</div>
+<div style="font:800 15px Nunito,sans-serif;color:#A2907A;padding-bottom:8px">точность</div></div>
+<div style="height:12px;border-radius:6px;background:#EFE7DC;overflow:hidden;display:flex">
+<div style="width:{{ resRightW }};background:#10B393"></div><div style="width:{{ resWrongW }};background:#EC4C8C"></div></div>
+<div style="display:flex;gap:18px;margin-top:14px">
+<div style="display:flex;align-items:center;gap:7px"><div style="width:10px;height:10px;border-radius:5px;background:#10B393"></div><div style="font:700 13px Nunito,sans-serif;color:#5E5245">{{ sRight }} верно</div></div>
+<div style="display:flex;align-items:center;gap:7px"><div style="width:10px;height:10px;border-radius:5px;background:#EC4C8C"></div><div style="font:700 13px Nunito,sans-serif;color:#5E5245">{{ sWrong }} ошибок</div></div>
+</div>
+</div>
+
+<div style="background:#fff;border-radius:22px;padding:18px;box-shadow:0 2px 12px rgba(120,90,50,.06);margin-bottom:12px">
+<div style="font:800 15px Nunito,sans-serif;color:#241C13;margin-bottom:14px">Когда повторим</div>
+<div style="display:flex;flex-direction:column;gap:11px">
+<div style="display:flex;align-items:center;gap:11px"><div style="width:38px;height:38px;flex:none;border-radius:12px;background:#FEEEE0;display:flex;align-items:center;justify-content:center;font:900 13px Nunito,sans-serif;color:#F5822B">{{ sWrong }}</div><div style="font:700 13.5px Nunito,sans-serif;color:#5E5245">завтра в 6:00 · с ошибками</div></div>
+<div style="display:flex;align-items:center;gap:11px"><div style="width:38px;height:38px;flex:none;border-radius:12px;background:#E6F6F1;display:flex;align-items:center;justify-content:center;font:900 13px Nunito,sans-serif;color:#10B393">{{ sRight }}</div><div style="font:700 13.5px Nunito,sans-serif;color:#5E5245">через 3 дня в 6:00 · шаг вперёд</div></div>
+<div style="display:flex;align-items:center;gap:11px"><div style="width:38px;height:38px;flex:none;border-radius:12px;background:#EEF6FE;display:flex;align-items:center;justify-content:center;font:900 12px Nunito,sans-serif;color:#2E9BF0">7·14</div><div style="font:700 13.5px Nunito,sans-serif;color:#5E5245">дальше 7 → 14 → 30 дней</div></div>
+</div></div>
+
+<div onClick="{{ nextBatch }}" style="padding:16px 17px;border-radius:18px;background:#F5822B;text-align:center;cursor:pointer;margin-bottom:9px;transition:transform .15s" style-active="transform:scale(.98)">
+<div style="font:800 16px Nunito,sans-serif;color:#fff">{{ nextBatchLabel }}</div>
+<div style="font:700 12px Nunito,sans-serif;color:rgba(255,255,255,.78);margin-top:3px">{{ nextBatchNote }}</div></div>
+<div onClick="{{ goBlock }}" style="padding:16px;border-radius:18px;background:#F6F0E7;text-align:center;font:800 15px Nunito,sans-serif;color:#7A6B58;cursor:pointer;transition:background .15s" style-hover="background:#EFE7DC">В блок «{{ blk.name }}»</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isBackup }}">
+<div style="height:874px;position:relative;overflow:hidden;display:flex;flex-direction:column;background:#FBF7F1;font-family:Nunito,system-ui,sans-serif;animation:scrIn .22s cubic-bezier(.22,1,.36,1)">
+<div style="flex:1;overflow:auto;padding:62px 18px 40px">
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+<div onClick="{{ goSettings }}" style="width:40px;height:40px;flex:none;border-radius:14px;background:#fff;box-shadow:0 2px 8px rgba(120,90,50,.09);display:flex;align-items:center;justify-content:center;cursor:pointer;font:700 22px Nunito,sans-serif;color:#5E5245;padding-bottom:3px">‹</div>
+<div style="font:900 24px Nunito,sans-serif;color:#241C13">Резервная копия</div></div>
+
+<div style="background:#241C13;border-radius:24px;padding:20px;margin-bottom:14px">
+<div style="font:700 12px Nunito,sans-serif;color:rgba(255,255,255,.6);letter-spacing:.08em">ОДИН ФАЙЛ · ВСЁ ЦЕЛИКОМ</div>
+<div style="font:900 34px/1 Nunito,sans-serif;color:#fff;margin:12px 0 8px">{{ bkSize }}</div>
+<div style="font:600 12.5px/1.5 Nunito,sans-serif;color:rgba(255,255,255,.62)">{{ bkFile }} · восстанавливает приложение полностью, без потери прогресса</div>
+</div>
+
+<div style="background:#fff;border-radius:22px;box-shadow:0 2px 12px rgba(120,90,50,.06);overflow:hidden;margin-bottom:12px">
+<div style="padding:15px 17px 13px;font:800 14.5px Nunito,sans-serif;color:#241C13;border-bottom:1px solid #FAF5EE">Что внутри копии</div>
+<sc-for list="{{ bkParts }}" as="p" hint-placeholder-count="7">
+<div style="padding:13px 17px;display:flex;align-items:flex-start;gap:12px;border-bottom:1px solid #FAF5EE">
+<div style="width:9px;height:9px;border-radius:5px;background:{{ p.c }};margin-top:5px;flex:none"></div>
+<div style="flex:1;min-width:0"><div style="font:800 14px/1.25 Nunito,sans-serif;color:#241C13">{{ p.t }}</div>
+<div style="font:600 12px/1.45 Nunito,sans-serif;color:#8B7F70;margin-top:3px">{{ p.d }}</div></div>
+<div style="font:800 11.5px ui-monospace,Menlo,monospace;color:#A2907A;flex:none;padding-top:2px">{{ p.s }}</div>
+</div>
+</sc-for>
+</div>
+
+<div style="background:#FEEEE0;border-radius:18px;padding:14px 16px;margin-bottom:14px">
+<div style="font:800 13px Nunito,sans-serif;color:#7A3A05">По каждому слову сохраняется</div>
+<div style="font:600 12.5px/1.6 Nunito,sans-serif;color:#B0763F;margin-top:5px">блок и список · ступень интервала (1 / 3 / 7 / 14 / 30) · дата последнего повтора · сколько дней осталось · число верных и ошибок · картинка</div></div>
+
+<div onClick="{{ doBackup }}" style="padding:17px;border-radius:18px;background:#F5822B;text-align:center;font:800 16px Nunito,sans-serif;color:#fff;cursor:pointer;margin-bottom:9px;transition:transform .15s" style-active="transform:scale(.98)">Скачать резервную копию</div>
+<div onClick="{{ doRestore }}" style="padding:16px;border-radius:18px;background:#F6F0E7;text-align:center;font:800 15px Nunito,sans-serif;color:#7A6B58;cursor:pointer;transition:background .15s" style-hover="background:#EFE7DC">Восстановить из копии</div>
+<div style="font:600 12px Nunito,sans-serif;color:#A2907A;text-align:center;margin-top:12px">{{ bkLast }}</div>
+</div>
+
+<sc-if value="{{ hasToast }}">
+<div style="position:absolute;left:18px;right:18px;bottom:56px;z-index:50;padding:15px 18px;border-radius:18px;background:#241C13;font:800 14px Nunito,sans-serif;color:#fff;text-align:center;animation:popIn .18s ease-out">{{ toast }}</div>
+</sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{ isAbout }}">
+<div style="height:874px;position:relative;overflow:hidden;display:flex;flex-direction:column;background:#FBF7F1;font-family:Nunito,system-ui,sans-serif;animation:scrIn .22s cubic-bezier(.22,1,.36,1)">
+<div style="flex:1;overflow:auto;padding:62px 18px 40px">
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+<div onClick="{{ goSettings }}" style="width:40px;height:40px;flex:none;border-radius:14px;background:#fff;box-shadow:0 2px 8px rgba(120,90,50,.09);display:flex;align-items:center;justify-content:center;cursor:pointer;font:700 22px Nunito,sans-serif;color:#5E5245;padding-bottom:3px">‹</div>
+<div style="font:900 24px Nunito,sans-serif;color:#241C13">О приложении</div></div>
+
+<div style="background:#fff;border-radius:22px;padding:18px;box-shadow:0 2px 12px rgba(120,90,50,.06);margin-bottom:14px;display:flex;align-items:center;gap:14px">
+<div style="width:54px;height:54px;flex:none;border-radius:17px;background:#F5822B;display:flex;align-items:center;justify-content:center;font:900 22px Nunito,sans-serif;color:#fff">L</div>
+<div><div style="font:900 20px Nunito,sans-serif;color:#241C13">Lexis</div>
+<div style="font:700 12.5px Nunito,sans-serif;color:#A2907A;margin-top:3px">Версия {{ appVersion }} · Android</div></div>
+</div>
+
+<div style="display:flex;align-items:center;gap:9px;margin:0 0 10px 4px">
+<div style="font:800 11.5px Nunito,sans-serif;color:#A2907A;letter-spacing:.1em">ПОДПИСЬ СБОРКИ</div>
+<div style="padding:4px 9px;border-radius:8px;background:#F1EAE0;font:800 10px Nunito,sans-serif;color:#7A6B58">ТОЛЬКО ЧТЕНИЕ</div></div>
+
+<div style="background:#fff;border-radius:22px;box-shadow:0 2px 12px rgba(120,90,50,.06);overflow:hidden;margin-bottom:12px">
+<div style="padding:15px 17px;display:flex;align-items:center;gap:13px;border-bottom:1px solid #FAF5EE">
+<div style="width:44px;height:44px;flex:none;border-radius:14px;background:#241C13;display:flex;align-items:center;justify-content:center;font:900 10.5px ui-monospace,monospace;color:#fff">.jks</div>
+<div style="flex:1;min-width:0"><div style="font:800 14.5px Nunito,sans-serif;color:#241C13">lexis-release.jks</div>
+<div style="font:600 11.5px Nunito,sans-serif;color:#8B7F70;margin-top:3px">загружен 14 марта 2026 · 2,7 КБ</div></div>
+<svg width="16" height="16" viewBox="0 0 18 18"><rect x="3.4" y="7.6" width="11.2" height="8.4" rx="2.6" fill="#A2907A"></rect><path d="M5.9 7.6V5.4a3.1 3.1 0 0 1 6.2 0v2.2" fill="none" stroke="#A2907A" stroke-width="1.8"></path></svg>
+</div>
+<div style="padding:13px 17px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #FAF5EE">
+<div style="flex:1;font:700 13px Nunito,sans-serif;color:#8B7F70">Key alias</div>
+<div style="font:800 13.5px ui-monospace,Menlo,monospace;color:#241C13">lexis-upload</div></div>
+<div style="padding:13px 17px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #FAF5EE">
+<div style="flex:1;font:700 13px Nunito,sans-serif;color:#8B7F70">Store password</div>
+<div style="font:800 13.5px ui-monospace,Menlo,monospace;color:#241C13">{{ sigStore }}</div></div>
+<div style="padding:13px 17px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #FAF5EE">
+<div style="flex:1;font:700 13px Nunito,sans-serif;color:#8B7F70">Key password</div>
+<div style="font:800 13.5px ui-monospace,Menlo,monospace;color:#241C13">{{ sigKey }}</div></div>
+<div style="padding:13px 17px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #FAF5EE">
+<div style="flex:1;font:700 13px Nunito,sans-serif;color:#8B7F70">Package name</div>
+<div style="font:800 13.5px ui-monospace,Menlo,monospace;color:#241C13">com.lexis.words</div></div>
+<div style="padding:13px 17px;display:flex;align-items:center;gap:12px">
+<div style="flex:1;font:700 13px Nunito,sans-serif;color:#8B7F70">SHA-256</div>
+<div style="font:800 12px ui-monospace,Menlo,monospace;color:#241C13">9F:2C:41:D8:…:7B:A0</div></div>
+</div>
+
+<div style="display:flex;gap:9px;margin-bottom:14px">
+<div onClick="{{ toggleSig }}" style="flex:1;padding:14px;border-radius:16px;background:#F6F0E7;text-align:center;font:800 13.5px Nunito,sans-serif;color:#7A6B58;cursor:pointer;transition:background .15s" style-hover="background:#EFE7DC">{{ sigToggleLabel }}</div>
+<div onClick="{{ copySig }}" style="flex:1;padding:14px;border-radius:16px;background:#F6F0E7;text-align:center;font:800 13.5px Nunito,sans-serif;color:#7A6B58;cursor:pointer;transition:background .15s" style-hover="background:#EFE7DC">Скопировать</div>
+</div>
+
+<div style="background:#FEEEE0;border-radius:18px;padding:15px 16px;margin-bottom:12px">
+<div style="font:800 13px Nunito,sans-serif;color:#7A3A05">Эти данные менять нельзя</div>
+<div style="font:600 12.5px/1.6 Nunito,sans-serif;color:#B0763F;margin-top:5px">Обновления собираются тем же ключом и тем же package name, поэтому приложение обновляется поверх старого и все слова, картинки и прогресс остаются на месте. Смена ключа или имени пакета сделает обновление невозможным.</div></div>
+
+<div style="background:#fff;border-radius:22px;padding:16px 17px;box-shadow:0 2px 12px rgba(120,90,50,.06)">
+<div style="font:800 14.5px Nunito,sans-serif;color:#241C13;margin-bottom:5px">Исходный код приложения</div>
+<div style="font:600 12.5px/1.5 Nunito,sans-serif;color:#8B7F70">Полный код версии {{ appVersion }} лежит внутри резервной копии вместе с ключом подписи — по нему можно пересобрать и обновить приложение.</div>
+<div onClick="{{ goBackup }}" style="margin-top:13px;padding:14px;border-radius:16px;background:#241C13;text-align:center;font:800 14px Nunito,sans-serif;color:#fff;cursor:pointer;transition:transform .15s" style-active="transform:scale(.98)">Открыть резервную копию</div>
+</div>
+<div style="height:20px"></div>
+</div>
+
+<sc-if value="{{ hasToast }}">
+<div style="position:absolute;left:18px;right:18px;bottom:56px;z-index:50;padding:15px 18px;border-radius:18px;background:#241C13;font:800 14px Nunito,sans-serif;color:#fff;text-align:center;animation:popIn .18s ease-out">{{ toast }}</div>
+</sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{ isSettings }}">
+<div style="height:874px;position:relative;overflow:hidden;display:flex;flex-direction:column;background:#FBF7F1;font-family:Nunito,system-ui,sans-serif;animation:scrIn .22s cubic-bezier(.22,1,.36,1)">
+<div style="flex:1;overflow:auto;padding:62px 18px 40px">
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:22px">
+<div onClick="{{ goHome }}" style="width:40px;height:40px;flex:none;border-radius:14px;background:#fff;box-shadow:0 2px 8px rgba(120,90,50,.09);display:flex;align-items:center;justify-content:center;cursor:pointer;font:700 22px Nunito,sans-serif;color:#5E5245;padding-bottom:3px">‹</div>
+<div style="font:900 26px Nunito,sans-serif;color:#241C13">Настройки</div></div>
+
+<div style="background:#fff;border-radius:22px;padding:18px;box-shadow:0 2px 12px rgba(120,90,50,.06);margin-bottom:12px">
+<div style="font:800 15px Nunito,sans-serif;color:#241C13;margin-bottom:5px">Интервалы повторения</div>
+<div style="font:600 12.5px Nunito,sans-serif;color:#8B7F70;margin-bottom:14px">Через сколько дней слово вернётся</div>
+<div style="display:flex;gap:7px">
+<div style="flex:1;padding:13px 0;border-radius:14px;background:#FEEEE0;text-align:center"><div style="font:900 17px Nunito,sans-serif;color:#F5822B">1</div><div style="font:700 10px Nunito,sans-serif;color:#B0763F;margin-top:3px">день</div></div>
+<div style="flex:1;padding:13px 0;border-radius:14px;background:#FEEEE0;text-align:center"><div style="font:900 17px Nunito,sans-serif;color:#F5822B">3</div><div style="font:700 10px Nunito,sans-serif;color:#B0763F;margin-top:3px">дня</div></div>
+<div style="flex:1;padding:13px 0;border-radius:14px;background:#FEEEE0;text-align:center"><div style="font:900 17px Nunito,sans-serif;color:#F5822B">7</div><div style="font:700 10px Nunito,sans-serif;color:#B0763F;margin-top:3px">дней</div></div>
+<div style="flex:1;padding:13px 0;border-radius:14px;background:#FEEEE0;text-align:center"><div style="font:900 17px Nunito,sans-serif;color:#F5822B">14</div><div style="font:700 10px Nunito,sans-serif;color:#B0763F;margin-top:3px">дней</div></div>
+<div style="flex:1;padding:13px 0;border-radius:14px;background:#FEEEE0;text-align:center"><div style="font:900 17px Nunito,sans-serif;color:#F5822B">30</div><div style="font:700 10px Nunito,sans-serif;color:#B0763F;margin-top:3px">дней</div></div>
+</div>
+<div style="display:flex;align-items:center;gap:11px;margin-top:14px;padding:13px 15px;border-radius:15px;background:#FDFBF8;border:1.5px solid #F1EAE0">
+<div style="width:38px;height:38px;flex:none;border-radius:12px;background:#241C13;display:flex;align-items:center;justify-content:center;font:900 12.5px Nunito,sans-serif;color:#fff">6:00</div>
+<div style="flex:1"><div style="font:800 13.5px Nunito,sans-serif;color:#241C13">Слова возвращаются ровно в 6:00</div>
+<div style="font:600 11.5px/1.4 Nunito,sans-serif;color:#8B7F70;margin-top:2px">все повторы за день открываются утром, одной очередью</div></div></div></div>
+
+<div style="background:#fff;border-radius:22px;box-shadow:0 2px 12px rgba(120,90,50,.06);overflow:hidden;margin-bottom:12px">
+<div onClick="{{ tgImages }}" style="padding:16px 17px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #FAF5EE;cursor:pointer">
+<div style="flex:1"><div style="font:800 14.5px Nunito,sans-serif;color:#241C13">Картинки на карточках</div>
+<div style="font:600 12px Nunito,sans-serif;color:#8B7F70;margin-top:3px">если картинка добавлена к слову</div></div>
+<div style="width:50px;height:30px;flex:none;border-radius:15px;background:{{ swImagesBg }};position:relative;transition:background .2s"><div style="position:absolute;top:3px;left:{{ swImagesX }};width:24px;height:24px;border-radius:12px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:left .2s cubic-bezier(.22,1,.36,1)"></div></div>
+</div>
+<div onClick="{{ tgSound }}" style="padding:16px 17px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #FAF5EE;cursor:pointer">
+<div style="flex:1"><div style="font:800 14.5px Nunito,sans-serif;color:#241C13">Звук ответа</div>
+<div style="font:600 12px Nunito,sans-serif;color:#8B7F70;margin-top:3px">звуковой сигнал при проверке</div></div>
+<div style="width:50px;height:30px;flex:none;border-radius:15px;background:{{ swSoundBg }};position:relative;transition:background .2s"><div style="position:absolute;top:3px;left:{{ swSoundX }};width:24px;height:24px;border-radius:12px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:left .2s cubic-bezier(.22,1,.36,1)"></div></div>
+</div>
+<div onClick="{{ tgBig }}" style="padding:16px 17px;display:flex;align-items:center;gap:12px;cursor:pointer">
+<div style="flex:1"><div style="font:800 14.5px Nunito,sans-serif;color:#241C13">Вибрация</div>
+<div style="font:600 12px Nunito,sans-serif;color:#8B7F70;margin-top:3px">короткий отклик при ответе</div></div>
+<div style="width:50px;height:30px;flex:none;border-radius:15px;background:{{ swBigBg }};position:relative;transition:background .2s"><div style="position:absolute;top:3px;left:{{ swBigX }};width:24px;height:24px;border-radius:12px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:left .2s cubic-bezier(.22,1,.36,1)"></div></div>
+</div>
+</div>
+
+<div style="background:#fff;border-radius:22px;box-shadow:0 2px 12px rgba(120,90,50,.06);overflow:hidden">
+<div style="padding:16px 17px;border-bottom:1px solid #FAF5EE">
+<div style="display:flex;align-items:center;gap:12px">
+<div style="flex:1;font:800 14.5px Nunito,sans-serif;color:#241C13">Слов за один подход</div>
+<div style="font:900 16px Nunito,sans-serif;color:#F5822B">{{ deckSize }}</div></div>
+<div style="display:flex;gap:7px;margin-top:12px">
+<div onClick="{{ setBatch10 }}" style="flex:1;padding:11px 0;border-radius:13px;background:{{ b10Bg }};text-align:center;font:800 14px Nunito,sans-serif;color:{{ b10Fg }};cursor:pointer;transition:background .15s">10</div>
+<div onClick="{{ setBatch20 }}" style="flex:1;padding:11px 0;border-radius:13px;background:{{ b20Bg }};text-align:center;font:800 14px Nunito,sans-serif;color:{{ b20Fg }};cursor:pointer;transition:background .15s">20</div>
+<div onClick="{{ setBatch50 }}" style="flex:1;padding:11px 0;border-radius:13px;background:{{ b50Bg }};text-align:center;font:800 14px Nunito,sans-serif;color:{{ b50Fg }};cursor:pointer;transition:background .15s">50</div>
+<input value="{{ batchCustom }}" onChange="{{ setBatchCustom }}" placeholder="своё" style="width:70px;box-sizing:border-box;padding:11px 12px;border-radius:13px;border:1.5px solid {{ bcBorder }};background:#fff;font:800 14px Nunito,sans-serif;color:#241C13;text-align:center;outline:none">
+</div></div>
+<div style="padding:16px 17px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #FAF5EE">
+<div style="flex:1;font:800 14.5px Nunito,sans-serif;color:#241C13">Язык интерфейса</div>
+<div style="font:800 14px Nunito,sans-serif;color:#8B7F70">Русский</div>
+<div style="font:700 20px Nunito,sans-serif;color:#D6C9B8">›</div></div>
+<div style="padding:16px 17px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #FAF5EE">
+<div style="flex:1;font:800 14.5px Nunito,sans-serif;color:#241C13">Лимит слов в списке</div>
+<div style="font:800 14px Nunito,sans-serif;color:#8B7F70">{{ limit }}</div></div>
+<div style="padding:16px 17px;display:flex;align-items:center;gap:12px">
+<div style="flex:1;font:800 14.5px Nunito,sans-serif;color:#241C13">Скачать все слова</div>
+<div style="font:700 12px Nunito,sans-serif;color:#A2907A">PDF · Word · TXT</div>
+<div style="font:700 20px Nunito,sans-serif;color:#D6C9B8">›</div></div>
+</div>
+
+<div style="font:800 11.5px Nunito,sans-serif;color:#A2907A;letter-spacing:.1em;margin:22px 0 10px 4px">СОХРАННОСТЬ ДАННЫХ</div>
+<div style="background:#fff;border-radius:22px;box-shadow:0 2px 12px rgba(120,90,50,.06);overflow:hidden">
+<div onClick="{{ goBackup }}" style="padding:16px 17px;display:flex;align-items:center;gap:13px;border-bottom:1px solid #FAF5EE;cursor:pointer">
+<div style="width:40px;height:40px;flex:none;border-radius:13px;background:#E6F6F1;display:flex;align-items:center;justify-content:center">
+<svg width="18" height="18" viewBox="0 0 18 18"><rect x="8.1" y="1.6" width="1.8" height="8.6" rx=".9" fill="#0E9C80"></rect><path d="M5 8.2 9 12l4-3.8" fill="none" stroke="#0E9C80" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path><rect x="2" y="14" width="14" height="1.8" rx=".9" fill="#10B393"></rect></svg></div>
+<div style="flex:1"><div style="font:800 14.5px Nunito,sans-serif;color:#241C13">Резервная копия</div>
+<div style="font:600 12px Nunito,sans-serif;color:#8B7F70;margin-top:3px">Всё целиком: слова, картинки, интервалы, ключ</div></div>
+<div style="font:700 20px Nunito,sans-serif;color:#D6C9B8">›</div></div>
+<div onClick="{{ goAbout }}" style="padding:16px 17px;display:flex;align-items:center;gap:13px;cursor:pointer">
+<div style="width:40px;height:40px;flex:none;border-radius:13px;background:#EEF6FE;display:flex;align-items:center;justify-content:center">
+<svg width="18" height="18" viewBox="0 0 18 18"><rect x="3.4" y="7.6" width="11.2" height="8.4" rx="2.6" fill="#2E9BF0"></rect><path d="M5.9 7.6V5.4a3.1 3.1 0 0 1 6.2 0v2.2" fill="none" stroke="#1B7FCC" stroke-width="1.8"></path><circle cx="9" cy="11.6" r="1.5" fill="#fff"></circle></svg></div>
+<div style="flex:1"><div style="font:800 14.5px Nunito,sans-serif;color:#241C13">О приложении и подпись</div>
+<div style="font:600 12px Nunito,sans-serif;color:#8B7F70;margin-top:3px">Keystore, alias, package · только чтение</div></div>
+<div style="font:700 20px Nunito,sans-serif;color:#D6C9B8">›</div></div>
+</div>
+<div style="height:20px"></div>
+</div>
+</div>
+</sc-if>
+
+</x-import>
+</div>
+
+</div>
+<p class="dv-next">Дальше можно: «добавь экран статистики» · «сделай тёмную тему» · «покажи, как выглядит список на 500 слов»</p>
+</section>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;wordLimit&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:500,&quot;tsType&quot;:&quot;number&quot;,&quot;min&quot;:50,&quot;max&quot;:2000,&quot;step&quot;:50,&quot;section&quot;:&quot;Правила&quot;,&quot;label&quot;:&quot;Лимит слов в списке&quot;},&quot;deckSize&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:10,&quot;tsType&quot;:&quot;number&quot;,&quot;min&quot;:5,&quot;max&quot;:200,&quot;step&quot;:5,&quot;section&quot;:&quot;Правила&quot;,&quot;label&quot;:&quot;Слов за один подход по умолчанию&quot;}}">
+const BLOCKS = {
+  1: { name: 'Alltag', initial: 'A', color: '#F5822B', meta: '3 списка · 141 слово', newCount: 18, repeatCount: 11, masteredCount: 90,
+       lists: [ { name: 'Küche', count: 48, nw: 6, pct: 64 }, { name: 'Kleidung', count: 32, nw: 4, pct: 51 }, { name: 'Wohnung', count: 61, nw: 8, pct: 38 } ] },
+  2: { name: 'Beruf', initial: 'B', color: '#6A5AE0', meta: '2 списка · 77 слов', newCount: 12, repeatCount: 5, masteredCount: 31,
+       lists: [ { name: 'Büro', count: 54, nw: 7, pct: 44 }, { name: 'Bewerbung', count: 23, nw: 5, pct: 36 } ] },
+  3: { name: 'Reisen', initial: 'R', color: '#10B393', meta: '1 список · 37 слов', newCount: 9, repeatCount: 3, masteredCount: 7,
+       lists: [ { name: 'Am Flughafen', count: 37, nw: 9, pct: 18 } ] },
+  4: { name: 'Goethe B1', initial: 'G', color: '#EC4C8C', meta: '2 списка · 218 слов', newCount: 23, repeatCount: 5, masteredCount: 121,
+       lists: [ { name: 'Verben', count: 120, nw: 14, pct: 86 }, { name: 'Nomen', count: 98, nw: 9, pct: 78 } ] }
+};
+const WORDS = [
+  { de: 'der Kühlschrank', ru: 'холодильник', st: 'освоено', img: true },
+  { de: 'die Pfanne', ru: 'сковорода', st: 'новое', img: true },
+  { de: 'abwaschen', ru: 'мыть посуду', st: 'повтор', img: false },
+  { de: 'der Löffel', ru: 'ложка', st: 'освоено', img: false },
+  { de: 'das Messer', ru: 'нож', st: 'новое', img: true },
+  { de: 'die Serviette', ru: 'салфетка', st: 'новое', img: false },
+  { de: 'der Wasserkocher', ru: 'электрочайник', st: 'повтор', img: false },
+  { de: 'die Schüssel', ru: 'миска', st: 'освоено', img: false }
+];
+const DECK = [
+  { de: 'die Pfanne', ru: 'сковорода', img: true, tag: 'НОВОЕ' },
+  { de: 'abwaschen', ru: 'мыть посуду', img: false, tag: 'ПОВТОР · 3 ДНЯ' },
+  { de: 'der Wasserkocher', ru: 'электрочайник', img: false, tag: 'ПОВТОР · 7 ДНЕЙ' },
+  { de: 'die Serviette', ru: 'салфетка', img: true, tag: 'НОВОЕ' },
+  { de: 'das Messer', ru: 'нож', img: true, tag: 'НОВОЕ' },
+  { de: 'die Schüssel', ru: 'миска', img: false, tag: 'ПОВТОР · 1 ДЕНЬ' },
+  { de: 'der Löffel', ru: 'ложка', img: false, tag: 'ПОВТОР · 30 ДНЕЙ' },
+  { de: 'der Kühlschrank', ru: 'холодильник', img: true, tag: 'ПОВТОР · 7 ДНЕЙ' },
+  { de: 'die Tasse', ru: 'чашка', img: false, tag: 'НОВОЕ' },
+  { de: 'der Teller', ru: 'тарелка', img: false, tag: 'НОВОЕ' },
+  { de: 'die Gabel', ru: 'вилка', img: false, tag: 'ПОВТОР · 14 ДНЕЙ' },
+  { de: 'kochen', ru: 'варить', img: false, tag: 'ПОВТОР · 1 ДЕНЬ' }
+];
+const norm = (s) => (s || '').trim().toLowerCase().replace(/ё/g, 'е').replace(/[.,!?]/g, '');
+
+class Component extends DCLogic {
+  state = {
+    screen: 'home', blockId: 1, listIdx: 0, sheet: null,
+    words: WORDS, wordsOpen: true, de: '', ru: '', img: null, toast: '',
+    bulk: '', added: [], nbName: '', nbColor: '#6A5AE0', nlName: '',
+    mode: 'new', phase: 'learn', lIdx: 0, sIdx: 0, sInput: '', sState: 'ask', sRight: 0, sWrong: 0, studied: 0,
+    setImages: true, setSound: true, setBig: false, covers: {}, batch: 10, batchCustom: '', sigShow: false
+  };
+
+  go = (screen) => this.setState({ screen, sheet: null });
+  flash = (toast) => {
+    this.setState({ toast });
+    clearTimeout(this._t);
+    this._t = setTimeout(() => this.setState({ toast: '' }), 1900);
+  };
+  openBlock = (id) => this.setState({ screen: 'block', blockId: id, sheet: null });
+  parseBulk = (text) => (text || '').split('\n').map((l) => l.trim()).filter(Boolean)
+    .map((l) => {
+      const p = l.split(/\s+[—–-]\s+|\t|;/);
+      return { de: (p[0] || '').trim(), ru: (p[1] || '').trim(), st: 'новое', img: false };
+    }).filter((w) => w.de && w.ru);
+
+  renderVals() {
+    const s = this.state;
+    const limit = this.props.wordLimit ?? 500;
+    const batchSize = Math.max(1, s.batch || this.props.deckSize || 10);
+    const blk = BLOCKS[s.blockId];
+    const isNewMode = s.mode === 'new';
+    const source = DECK.filter((c) => (isNewMode ? c.tag === 'НОВОЕ' : c.tag !== 'НОВОЕ'));
+    const pool = isNewMode ? blk.newCount : blk.repeatCount;
+    const remainingBefore = Math.max(0, pool - s.studied);
+    const curBatch = Math.max(1, Math.min(batchSize, remainingBefore));
+    const deck = [];
+    for (let i = 0; i < curBatch; i++) deck.push(source[i % source.length]);
+    const batchIdx = Math.floor(s.studied / batchSize) + 1;
+    const batchTotal = Math.max(1, Math.ceil(pool / batchSize));
+    const remainingAfter = Math.max(0, remainingBefore - curBatch);
+    const deckSize = batchSize;
+    const list = blk.lists[Math.min(s.listIdx, blk.lists.length - 1)];
+    const card = deck[Math.min(s.sIdx, deck.length - 1)];
+    const lCard = deck[Math.min(s.lIdx, deck.length - 1)];
+    const answered = s.sState !== 'ask';
+    const right = s.sState === 'right';
+    const total = s.sRight + s.sWrong;
+    const parsed = this.parseBulk(s.bulk);
+    const stTint = { 'освоено': ['#E6F6F1', '#0E9C80'], 'новое': ['#FEEEE0', '#C25E10'], 'повтор': ['#EEF6FE', '#1B7FCC'] };
+    const ring = (c) => (s.nbColor === c ? c : 'transparent');
+    const cov = (id) => {
+      const b = BLOCKS[id], on = !!s.covers[id];
+      return {
+        bg: on ? 'repeating-linear-gradient(135deg,#EFE7DC 0 6px,#F7F1E8 6px 12px)' : b.color,
+        label: on ? 'фото' : b.initial,
+        font: on ? '8.5px' : '20px',
+        fg: on ? '#A2907A' : '#fff',
+        pick: (e) => {
+          e.stopPropagation();
+          const next = Object.assign({}, s.covers);
+          next[id] = !on;
+          this.setState({ covers: next });
+          this.flash(on ? 'Обложка «' + b.name + '» убрана' : 'Картинка из галереи · ' + b.name);
+        }
+      };
+    };
+    const cur = cov(s.blockId);
+
+    return {
+      blkCovBg: cur.bg, blkCovLabel: cur.label, blkCovFg: cur.fg,
+      blkCovFont: s.covers[s.blockId] ? '9.5px' : '24px',
+      coverBtnLabel: s.covers[s.blockId] ? 'Заменить фото' : 'Добавить фото',
+      changeCover: cur.pick,
+      limit, deckSize,
+      isHome: s.screen === 'home', isBlock: s.screen === 'block', isList: s.screen === 'list',
+      isStudy: s.screen === 'study', isResult: s.screen === 'result', isSettings: s.screen === 'settings',
+      sheetNewBlock: s.sheet === 'newBlock', sheetNewList: s.sheet === 'newList',
+      sheetBulk: s.sheet === 'bulk', sheetExport: s.sheet === 'export',
+      blockCountLabel: (4 + s.added.length) + ' блока',
+      addedBlocks: s.added,
+      goHome: () => this.go('home'), goSettings: () => this.go('settings'),
+      isBackup: s.screen === 'backup', isAbout: s.screen === 'about',
+      goBackup: () => this.go('backup'), goAbout: () => this.go('about'),
+      bkParts: [
+        { t: 'Слова и переводы', d: '473 слова в 4 блоках и 8 списках', s: '212 КБ', c: '#F5822B' },
+        { t: 'Картинки к словам', d: '96 изображений в оригинальном размере', s: '38,4 МБ', c: '#EC4C8C' },
+        { t: 'Прогресс повторений', d: 'Ступень, дата последнего ответа, дата возврата, число ошибок', s: '54 КБ', c: '#2E9BF0' },
+        { t: 'Структура', d: 'Блоки, списки, цвета, обложки, порядок', s: '11 КБ', c: '#10B393' },
+        { t: 'Настройки', d: 'Интервалы, время 6:00, размер подхода, переключатели', s: '3 КБ', c: '#6A5AE0' },
+        { t: 'Ключ подписи и данные сборки', d: 'lexis-release.jks, alias, пароли, package name', s: '4 КБ', c: '#241C13' },
+        { t: 'Исходный код приложения', d: 'Полный код текущей версии 1.4.0 (build ytt)', s: '9,8 МБ', c: '#7A6B58' }
+      ],
+      bkSize: '48,3 МБ', bkFile: 'lexis-backup-2026-09-01.lexis',
+      bkLast: 'Последняя копия: 28 августа 2026, 06:12',
+      doBackup: () => this.flash('Резервная копия сохранена · 48,3 МБ'),
+      doRestore: () => this.flash('Выберите файл .lexis для восстановления'),
+      sigRows: [
+        { k: 'Файл ключа', v: 'lexis-release.jks', m: false },
+        { k: 'Key alias', v: 'lexis-upload', m: false },
+        { k: 'Store password', v: '••••••••••••', m: true },
+        { k: 'Key password', v: '••••••••••••', m: true },
+        { k: 'Package name', v: 'com.lexis.words', m: false },
+        { k: 'SHA-256', v: '9F:2C:41:D8:… :7B:A0', m: false }
+      ],
+      sigShown: s.sigShow,
+      sigToggleLabel: s.sigShow ? 'Скрыть пароли' : 'Показать пароли',
+      toggleSig: () => this.setState({ sigShow: !s.sigShow }),
+      sigStore: s.sigShow ? 'Lx!9m2-Store' : '••••••••••••',
+      sigKey: s.sigShow ? 'Lx!9m2-Key77' : '••••••••••••',
+      appVersion: '1.4.0 (build 41)',
+      copySig: () => this.flash('Данные подписи скопированы'),
+      goBlock: () => this.setState({ screen: 'block', sheet: null }),
+      goStudy: () => this.setState({ screen: 'study', sheet: null, mode: 'repeat', phase: 'test', lIdx: 0, sIdx: 0, sInput: '', sState: 'ask', sRight: 0, sWrong: 0, studied: 0 }),
+      goLearnNew: () => this.setState({ screen: 'study', sheet: null, mode: 'new', phase: 'learn', lIdx: 0, sIdx: 0, sInput: '', sState: 'ask', sRight: 0, sWrong: 0, studied: 0 }),
+      goRepeat: () => this.setState({ screen: 'study', sheet: null, mode: 'repeat', phase: 'test', lIdx: 0, sIdx: 0, sInput: '', sState: 'ask', sRight: 0, sWrong: 0, studied: 0 }),
+      newLabel: blk.newCount + ' новых слов',
+      repeatLabel: blk.repeatCount + ' слов на повтор',
+      repeatSub: blk.repeatCount ? 'Открылись в 6:00 · сразу тест' : 'Сегодня повторов нет',
+      repeatBg: blk.repeatCount ? '#2E9BF0' : '#D6C9B8',
+      modeTitle: isNewMode ? 'Новые слова' : 'Повторение',
+      modeTagBg: isNewMode ? '#FEEEE0' : '#EEF6FE',
+      modeTagFg: isNewMode ? '#C25E10' : '#1B7FCC',
+      open1: () => this.openBlock(1), open2: () => this.openBlock(2), open3: () => this.openBlock(3), open4: () => this.openBlock(4),
+      openNewBlock: () => this.setState({ sheet: 'newBlock' }), openNewList: () => this.setState({ sheet: 'newList' }),
+      openBulk: () => this.setState({ sheet: 'bulk' }), openExport: () => this.setState({ sheet: 'export' }),
+      closeSheet: () => this.setState({ sheet: null }), stop: (e) => e.stopPropagation(),
+
+      blk: {
+        name: blk.name, initial: blk.initial, color: blk.color, meta: blk.meta,
+        newCount: blk.newCount, repeatCount: blk.repeatCount, masteredCount: blk.masteredCount,
+        listLabel: blk.lists.length + (blk.lists.length === 1 ? ' список' : ' списка'),
+        lists: blk.lists.map((l, i) => ({
+          name: l.name, pctW: l.pct + '%',
+          meta: l.count + ' слов · ' + l.nw + ' новых · освоено ' + l.pct + '%',
+          open: () => this.setState({ screen: 'list', listIdx: i, sheet: null })
+        }))
+      },
+      deckLabel: 'Порция ' + batchIdx + ' из ' + batchTotal + ' · ' + curBatch + ' слов из ' + pool,
+      newSub: 'Сначала знакомство, потом тест',
+      batchLine: 'Порция ' + batchIdx + ' из ' + batchTotal,
+      batchHint: 'по ' + batchSize + ' слов за подход',
+      nextBatchLabel: remainingAfter > 0 ? 'Следующие ' + Math.min(batchSize, remainingAfter) + ' слов' : 'Начать порцию заново',
+      nextBatchNote: remainingAfter > 0 ? 'Осталось ' + remainingAfter + ' слов в очереди' : 'Очередь на сегодня пройдена',
+      nextBatch: () => this.setState({
+        studied: remainingAfter > 0 ? s.studied + curBatch : s.studied,
+        screen: 'study', phase: isNewMode ? 'learn' : 'test', lIdx: 0, sIdx: 0, sInput: '', sState: 'ask', sRight: 0, sWrong: 0
+      }),
+
+      listName: list.name,
+      countLabel: s.words.length + ' / ' + limit,
+      remaining: limit - s.words.length,
+      words: s.words.map((w) => ({
+        de: w.de, ru: w.ru, st: w.st,
+        stBg: (stTint[w.st] || stTint['новое'])[0], stFg: (stTint[w.st] || stTint['новое'])[1],
+        tile: w.img ? 'фото' : '—',
+        tileBg: w.img ? 'repeating-linear-gradient(135deg,#EFE7DC 0 5px,#F7F1E8 5px 10px)' : '#F6F0E7'
+      })),
+      wordsOpen: s.wordsOpen, chevRot: s.wordsOpen ? 'rotate(180deg)' : 'none',
+      toggleWords: () => this.setState({ wordsOpen: !s.wordsOpen }),
+      de: s.de, ru: s.ru,
+      setDe: (e) => this.setState({ de: e.target.value }), setRu: (e) => this.setState({ ru: e.target.value }),
+      artDer: () => this.setState({ de: 'der ' + s.de.replace(/^(der|die|das)\s+/, '') }),
+      artDie: () => this.setState({ de: 'die ' + s.de.replace(/^(der|die|das)\s+/, '') }),
+      artDas: () => this.setState({ de: 'das ' + s.de.replace(/^(der|die|das)\s+/, '') }),
+      artDerBg: /^der\s/.test(s.de) ? '#2E9BF0' : '#F6F0E7', artDerFg: /^der\s/.test(s.de) ? '#fff' : '#7A6B58',
+      artDieBg: /^die\s/.test(s.de) ? '#EC4C8C' : '#F6F0E7', artDieFg: /^die\s/.test(s.de) ? '#fff' : '#7A6B58',
+      artDasBg: /^das\s/.test(s.de) ? '#10B393' : '#F6F0E7', artDasFg: /^das\s/.test(s.de) ? '#fff' : '#7A6B58',
+      hasImg: !!s.img, imgLabel: s.img === 'paste' ? 'Картинка из буфера' : 'Картинка из галереи',
+      pickImage: () => this.setState({ img: 'file' }), pasteImage: () => this.setState({ img: 'paste' }),
+      dropImage: () => this.setState({ img: null }),
+      addBg: s.de && s.ru ? '#F5822B' : '#E1D6C7',
+      addWord: () => {
+        if (!s.de || !s.ru) return this.flash('Заполните слово и перевод');
+        if (s.words.length >= limit) return this.flash('В списке уже ' + limit + ' слов');
+        this.setState({ words: [{ de: s.de, ru: s.ru, st: 'новое', img: !!s.img }].concat(s.words), de: '', ru: '', img: null, wordsOpen: true });
+        this.flash('«' + s.de + '» добавлено');
+      },
+      bulk: s.bulk, setBulk: (e) => this.setState({ bulk: e.target.value }),
+      bulkLabel: parsed.length
+        ? 'Найдено ' + parsed.length + ' слов · останется ' + (limit - s.words.length - parsed.length) + ' мест'
+        : 'Пока ничего не распознано',
+      bulkBg: parsed.length ? '#E6F6F1' : '#F6F0E7', bulkFg: parsed.length ? '#0E9C80' : '#8B7F70',
+      bulkBtnBg: parsed.length ? '#F5822B' : '#E1D6C7',
+      bulkBtnLabel: parsed.length ? 'Добавить ' + parsed.length + ' слов' : 'Добавить',
+      applyBulk: () => {
+        if (!parsed.length) return;
+        this.setState({ words: parsed.concat(s.words), bulk: '', sheet: null, wordsOpen: true });
+        this.flash(parsed.length + ' слов добавлено');
+      },
+      dlPdf: () => { this.setState({ sheet: null }); this.flash('PDF сохранён в «Файлы»'); },
+      dlDoc: () => { this.setState({ sheet: null }); this.flash('Word-файл сохранён'); },
+      dlTxt: () => { this.setState({ sheet: null }); this.flash('Текстовый файл сохранён'); },
+      hasToast: !!s.toast, toast: s.toast,
+
+      isLearn: s.phase === 'learn', isTest: s.phase === 'test',
+      lWord: lCard.de, lTrans: lCard.ru, lTag: lCard.tag,
+      lTagBg: lCard.tag === 'НОВОЕ' ? '#FEEEE0' : '#EEF6FE',
+      lTagFg: lCard.tag === 'НОВОЕ' ? '#C25E10' : '#1B7FCC',
+      lHasImg: lCard.img && s.setImages,
+      lCounter: (s.lIdx + 1) + ' / ' + deck.length,
+      lProgressW: Math.round(((s.lIdx + 1) / deck.length) * 100) + '%',
+      lNextLabel: s.lIdx + 1 >= deck.length ? 'Перейти к тесту' : 'Дальше',
+      lPrevVisible: s.lIdx > 0,
+      lPrev: () => this.setState({ lIdx: Math.max(0, s.lIdx - 1) }),
+      lNext: () => {
+        if (s.lIdx + 1 >= deck.length) return this.setState({ phase: 'test', sIdx: 0, sInput: '', sState: 'ask' });
+        this.setState({ lIdx: s.lIdx + 1 });
+      },
+      lSkipToTest: () => this.setState({ phase: 'test', sIdx: 0, sInput: '', sState: 'ask' }),
+      learnHint: 'Сначала читаем все ' + deck.length + ' слов, потом тест',
+      sWord: card.de, sHasImg: card.img && s.setImages, sTag: card.tag,
+      sTagBg: card.tag === 'НОВОЕ' ? '#FEEEE0' : '#EEF6FE', sTagFg: card.tag === 'НОВОЕ' ? '#C25E10' : '#1B7FCC',
+      sCounter: (s.sIdx + 1) + ' / ' + deck.length, sProgressW: Math.round((s.sIdx / deck.length) * 100) + '%',
+      sInput: s.sInput, setSInput: (e) => this.setState({ sInput: e.target.value }),
+      sAsking: !answered, sAnswered: answered,
+      sResBg: right ? '#E6F6F1' : '#FDEBF2', sResFg: right ? '#0E9C80' : '#C63069',
+      sResInk: right ? '#0E9C80' : '#EC4C8C',
+      sResTitle: right ? 'ВЕРНО' : 'ПРАВИЛЬНЫЙ ОТВЕТ',
+      sAnswer: card.ru, sShowYours: !right && !!s.sInput.trim(), sYours: s.sInput,
+      sInterval: right ? 'Слово вернётся через 3 дня, в 6:00' : 'Слово вернётся завтра в 6:00',
+      sRight: s.sRight, sWrong: s.sWrong,
+      nextLabel: s.sIdx + 1 >= deck.length ? 'Итоги тренировки' : 'Дальше',
+      checkAnswer: () => {
+        if (!s.sInput.trim()) return;
+        const ok = norm(s.sInput) === norm(card.ru);
+        this.setState({ sState: ok ? 'right' : 'wrong', sRight: s.sRight + (ok ? 1 : 0), sWrong: s.sWrong + (ok ? 0 : 1) });
+      },
+      skipCard: () => this.setState({ sState: 'wrong', sWrong: s.sWrong + 1 }),
+      nextCard: () => {
+        if (s.sIdx + 1 >= deck.length) return this.setState({ screen: 'result' });
+        this.setState({ sIdx: s.sIdx + 1, sInput: '', sState: 'ask' });
+      },
+      restartStudy: () => this.setState({ screen: 'study', phase: isNewMode ? 'learn' : 'test', lIdx: 0, sIdx: 0, sInput: '', sState: 'ask', sRight: 0, sWrong: 0 }),
+      resTitle: s.sRight >= s.sWrong ? 'Хороший подход' : 'Есть над чем поработать',
+      resPct: total ? Math.round((s.sRight / total) * 100) + '%' : '0%',
+      resRightW: total ? (s.sRight / total) * 100 + '%' : '0%',
+      resWrongW: total ? (s.sWrong / total) * 100 + '%' : '0%',
+
+      nbName: s.nbName, setNbName: (e) => this.setState({ nbName: e.target.value }),
+      toggleNbCover: () => this.setState({ nbCover: !s.nbCover }),
+      nbCoverLabel: s.nbCover ? 'Картинка выбрана · заменить' : 'Выбрать из галереи',
+      nbCoverBorder: s.nbCover ? '#F5822B' : '#E1D6C7',
+      nbCoverBg: s.nbCover ? '#FEEEE0' : '#fff',
+      nbCoverTile: s.nbCover ? 'repeating-linear-gradient(135deg,#EFE7DC 0 6px,#F7F1E8 6px 12px)' : '#F6F0E7',
+      pickC1: () => this.setState({ nbColor: '#F5822B' }), pickC2: () => this.setState({ nbColor: '#6A5AE0' }),
+      pickC3: () => this.setState({ nbColor: '#10B393' }), pickC4: () => this.setState({ nbColor: '#EC4C8C' }),
+      pickC5: () => this.setState({ nbColor: '#F0B400' }), pickC6: () => this.setState({ nbColor: '#2E9BF0' }),
+      ringC1: ring('#F5822B'), ringC2: ring('#6A5AE0'), ringC3: ring('#10B393'),
+      ringC4: ring('#EC4C8C'), ringC5: ring('#F0B400'), ringC6: ring('#2E9BF0'),
+      createBlock: () => {
+        const name = s.nbName.trim();
+        if (!name) return this.flash('Введите название блока');
+        this.setState({ added: s.added.concat([{ name, color: s.nbColor, initial: name[0].toUpperCase() }]), nbName: '', sheet: null });
+        this.flash('Блок «' + name + '» создан');
+      },
+      nlName: s.nlName, setNlName: (e) => this.setState({ nlName: e.target.value }),
+      createList: () => {
+        const name = s.nlName.trim();
+        if (!name) return this.flash('Введите название списка');
+        this.setState({ nlName: '', sheet: null, screen: 'list', words: [] });
+        this.flash('Список «' + name + '» создан');
+      },
+
+      batchCustom: s.batchCustom,
+      setBatch10: () => this.setState({ batch: 10, batchCustom: '' }),
+      setBatch20: () => this.setState({ batch: 20, batchCustom: '' }),
+      setBatch50: () => this.setState({ batch: 50, batchCustom: '' }),
+      setBatchCustom: (e) => {
+        const v = e.target.value.replace(/[^0-9]/g, '');
+        this.setState({ batchCustom: v, batch: v ? parseInt(v, 10) : 10 });
+      },
+      b10Bg: !s.batchCustom && s.batch === 10 ? '#F5822B' : '#F6F0E7',
+      b10Fg: !s.batchCustom && s.batch === 10 ? '#fff' : '#7A6B58',
+      b20Bg: !s.batchCustom && s.batch === 20 ? '#F5822B' : '#F6F0E7',
+      b20Fg: !s.batchCustom && s.batch === 20 ? '#fff' : '#7A6B58',
+      b50Bg: !s.batchCustom && s.batch === 50 ? '#F5822B' : '#F6F0E7',
+      b50Fg: !s.batchCustom && s.batch === 50 ? '#fff' : '#7A6B58',
+      bcBorder: s.batchCustom ? '#F5822B' : '#E9DFD1',
+      tgImages: () => this.setState({ setImages: !s.setImages }),
+      tgSound: () => this.setState({ setSound: !s.setSound }),
+      tgBig: () => this.setState({ setBig: !s.setBig }),
+      swImagesBg: s.setImages ? '#F5822B' : '#E1D6C7', swImagesX: s.setImages ? '23px' : '3px',
+      swSoundBg: s.setSound ? '#F5822B' : '#E1D6C7', swSoundX: s.setSound ? '23px' : '3px',
+      swBigBg: s.setBig ? '#F5822B' : '#E1D6C7', swBigX: s.setBig ? '23px' : '3px',
+
+      restartBatch: () => this.setState({ sIdx: 0, sInput: '', sState: 'ask', sRight: 0, sWrong: 0 })
+    };
+  }
+}
+
+</script>
+</body>
+</html>
