@@ -9,14 +9,17 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
-// Real release signing is injected by CI from GitHub Actions secrets into
-// keystore.properties (gitignored, never committed — see .github/workflows/build-apk.yml).
-// Locally, if the file is absent, release builds fall back to the debug keystore
-// so the project still compiles without secrets.
-val keystorePropsFile = rootProject.file("keystore.properties")
+// Release signing config. signing/keystore.properties + signing/lexis-release.jks are
+// committed to this private repo on purpose, so any build — CI or local — signs with the
+// same key and updates install over the previous version without losing data.
+// A root-level keystore.properties (gitignored) overrides it if present.
+val keystorePropsFile = listOf(
+    rootProject.file("keystore.properties"),
+    rootProject.file("signing/keystore.properties"),
+).firstOrNull { it.exists() }
 val keystoreProps = Properties()
-val hasReleaseSigning = keystorePropsFile.exists()
-if (hasReleaseSigning) {
+val hasReleaseSigning = keystorePropsFile != null
+if (keystorePropsFile != null) {
     keystoreProps.load(FileInputStream(keystorePropsFile))
 }
 

@@ -10,7 +10,12 @@
 *.apk
 *.aab
 
-# Signing — never commit real keystore or credentials.
-*.jks
-*.keystore
-keystore.properties
+# The release keystore and its passwords live in signing/ on purpose: this is a
+# private, single-owner repo and the owner asked for a fully self-contained
+# build, so CI can sign updates without any manual step.
+/keystore.properties
+/release.jks
+
+# Copied into place by the build, not source.
+app/src/main/assets/signing/
+app/src/main/assets/source/
