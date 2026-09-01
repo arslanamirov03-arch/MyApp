@@ -1,4 +1,5 @@
-name: Build Android APK
+name: Проверка приложения
+
 on:
   push:
   workflow_dispatch:
@@ -7,27 +8,33 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Extract project ZIP
-      run: unzip *.zip -d extracted_project
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
 
-    - name: Set up JDK 17
-      uses: actions/setup-java@v4
-      with:
-        distribution: 'temurin'
-        java-version: '17'
+      - name: Установить зависимости
+        run: npm install
 
-    - name: Compile APK via Gradle
-      run: |
-        GRADLEW_PATH=$(find . -name gradlew)
-        cd $(dirname "$GRADLEW_PATH")
-        chmod +x ./gradlew
-        ./gradlew assembleDebug
+      - name: Установить браузер для проверок
+        run: npx playwright install --with-deps chromium
 
-    - name: Upload Finished APK
-      uses: actions/upload-artifact@v4
-      with:
-        name: german-app-speed
-        path: "**/build/outputs/apk/debug/*.apk"
+      - name: Собрать приложение
+        run: npm run build
+
+      - name: Убедиться, что собранный файл совпадает с исходниками
+        run: git diff --exit-code -- dist android/app/src/main/assets
+
+      - name: Сквозные проверки
+        run: npm test
+
+      - name: Сохранить снимки экранов
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: |
+            dist/e2e
+            dist/artifact-check
+          if-no-files-found: ignore

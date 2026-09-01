@@ -1,0 +1,9 @@
+node_modules/
+dist/e2e/
+dist/verify/
+dist/artifact-check/
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/local.properties

@@ -1,0 +1,1041 @@
+/* Хранилище и расписание повторений.
+
+   Учебный день начинается в 6 утра, а не в полночь: слово, добавленное
+   вечером, ждёт не «того же часа» на следующие сутки, а появляется
+   в 6:00 следующего учебного дня. Так же считаются и все остальные
+   ступени лестницы — от 1 дня до 90.
+
+   Всё лежит в памяти устройства, интернет не нужен. */
+window.Store = (function () {
+  'use strict';
+
+  var KEY = 'wortschatz.state';
+  var KEY_SPARE = 'wortschatz.state.spare';
+  var LEGACY_KEY = 'wortkabinett.v1';
+  var DB_NAME = 'wortschatz';
+  var DB_STORE = 'state';
+  var DB_IMAGES = 'images';
+  var DB_VERSION = 2;
+
+  var MAX_WORDS = 500;
+
+  /* Лестница повторений в днях. Слово поднимается на ступень после каждого
+     верного ответа; пройденная последняя ступень означает, что слово освоено. */
+  var INTERVALS = [1, 2, 3, 7, 14, 30, 90];
+  var MAX_LEVEL = INTERVALS.length;
+
+  var DAY = 24 * 60 * 60 * 1000;
+  var DAY_START_HOUR = 6;
+
+  /* Размеры в карточке проверки. Каждая часть тянется сама по себе:
+     картинка, поле ввода, само слово и перевод — четыре независимых
+     множителя, потому что удобный размер у каждого свой. */
+  var SCALE_KINDS = ['image', 'input', 'word', 'translation'];
+
+  var DEFAULT_SETTINGS = {
+    collapsed: {},
+    scales: { image: 1, input: 1, word: 1, translation: 1 },
+    imageModel: 'gemini-3.1-flash-lite-image',
+    customModels: [],
+    promptTemplate: '',
+    thinkModel: 'gemini-3.6-flash',
+    customThinkModels: [],
+    thinkTemplate: ''
+  };
+
+  var state = { version: 2, blocks: [], settings: cloneSettings(DEFAULT_SETTINGS) };
+  /* Растёт при каждом изменении картотеки — по нему видно,
+     что посчитанное раньше можно брать готовым. */
+  var version = 0;
+  var listeners = [];
+  var memoryOnly = false;
+  var lastSavedAt = 0;
+  var clockWentBack = false;
+
+  function cloneSettings(source) {
+    return {
+      collapsed: Object.assign({}, source.collapsed),
+      scales: Object.assign({}, source.scales),
+      imageModel: source.imageModel,
+      customModels: (source.customModels || []).slice(),
+      promptTemplate: source.promptTemplate || '',
+      thinkModel: source.thinkModel,
+      customThinkModels: (source.customThinkModels || []).slice(),
+      thinkTemplate: source.thinkTemplate || ''
+    };
+  }
+
+  function clampScale(value, fallback) {
+    var number = Number(value);
+    if (!isFinite(number)) return fallback;
+    return Math.min(2.4, Math.max(0.6, number));
+  }
+
+  function uid() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  }
+
+  function now() { return Date.now(); }
+
+  /* ---------- Время ---------- */
+
+  /* Начало учебного дня, которому принадлежит момент ts.
+     До 6 утра идёт ещё вчерашний учебный день — ночь принадлежит вечеру. */
+  function studyDayStart(ts) {
+    var d = new Date(ts == null ? now() : ts);
+    if (d.getHours() < DAY_START_HOUR) d.setDate(d.getDate() - 1);
+    d.setHours(DAY_START_HOUR, 0, 0, 0);
+    return d.getTime();
+  }
+
+  /* Момент, когда слово всплывёт: 6:00 через указанное число дней.
+     Считаем через календарь, чтобы перевод часов не сдвигал время. */
+  function dueAfterDays(days, from) {
+    var d = new Date(studyDayStart(from));
+    d.setDate(d.getDate() + days);
+    d.setHours(DAY_START_HOUR, 0, 0, 0);
+    return d.getTime();
+  }
+
+  function studyDaysBetween(fromTs, toTs) {
+    return Math.round((studyDayStart(toTs) - studyDayStart(fromTs)) / DAY);
+  }
+
+  /* ---------- Чтение и запись ---------- */
+
+  function readKey(key) {
+    try {
+      var raw = localStorage.getItem(key);
+      if (!raw) return null;
+      var parsed = JSON.parse(raw);
+      if (!parsed || !Array.isArray(parsed.blocks)) return null;
+      return parsed;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function load() {
+    var candidates = [];
+    try {
+      var main = readKey(KEY);
+      var spare = readKey(KEY_SPARE);
+      var legacy = readKey(LEGACY_KEY);
+      if (main) candidates.push(main);
+      if (spare) candidates.push(spare);
+      if (legacy) candidates.push(legacy);
+    } catch (e) {
+      memoryOnly = true;
+      console.warn('Хранилище недоступно, данные будут жить только до закрытия', e);
+      return state;
+    }
+
+    if (candidates.length) {
+      /* Две копии пишутся по очереди: если запись оборвалась, целой
+         останется хотя бы одна — берём ту, что новее. */
+      candidates.sort(function (a, b) { return (b.savedAt || 0) - (a.savedAt || 0); });
+      state = normalize(candidates[0]);
+      version++;
+      lastSavedAt = candidates[0].savedAt || 0;
+    }
+
+    /* Что лежит в основной ячейке сейчас — это и будет запасной копией
+       при первой записи. */
+    try { lastPayload = localStorage.getItem(KEY); } catch (e) { lastPayload = null; }
+
+    /* Часы устройства ушли назад — расписание могло съехать. */
+    if (lastSavedAt && now() < lastSavedAt - 12 * 60 * 60 * 1000) clockWentBack = true;
+
+    restoreFromDatabase();
+    return state;
+  }
+
+  function normalize(data) {
+    var settings = data.settings || {};
+    return {
+      version: 2,
+      settings: {
+        collapsed: settings.collapsed || {},
+        scales: normalizeScales(settings),
+        imageModel: settings.imageModel || DEFAULT_SETTINGS.imageModel,
+        customModels: normalizeModels(settings.customModels),
+        promptTemplate: String(settings.promptTemplate || ''),
+        thinkModel: settings.thinkModel || DEFAULT_SETTINGS.thinkModel,
+        customThinkModels: normalizeModels(settings.customThinkModels),
+        thinkTemplate: String(settings.thinkTemplate || '')
+      },
+      blocks: (data.blocks || []).filter(Boolean).map(function (b) {
+        return {
+          id: b.id || uid(),
+          title: String(b.title || 'Без названия'),
+          createdAt: b.createdAt || now(),
+          sets: (b.sets || []).filter(Boolean).map(function (s) {
+            return {
+              id: s.id || uid(),
+              title: String(s.title || 'Список'),
+              createdAt: s.createdAt || now(),
+              words: (s.words || []).filter(Boolean).map(normalizeWord)
+            };
+          })
+        };
+      })
+    };
+  }
+
+  /* Раньше размер был общий на весь текст — переносим его на все три
+     текстовые части, чтобы карточка выглядела как прежде. */
+  function normalizeScales(settings) {
+    var saved = settings.scales || {};
+    var oldText = settings.drillTextScale;
+    var oldImage = settings.drillImageScale;
+    var result = {};
+    SCALE_KINDS.forEach(function (kind) {
+      var fallback = kind === 'image' ? oldImage : oldText;
+      var value = saved[kind] != null ? saved[kind] : fallback;
+      result[kind] = clampScale(value, 1);
+    });
+    return result;
+  }
+
+  function normalizeModels(list) {
+    return (list || []).filter(function (m) { return m && m.id; }).map(function (m) {
+      return { id: String(m.id), title: String(m.title || m.id) };
+    });
+  }
+
+  function normalizeWord(w) {
+    var created = w.createdAt || now();
+    return {
+      id: w.id || uid(),
+      de: String(w.de || ''),
+      ru: String(w.ru || ''),
+      createdAt: created,
+      level: typeof w.level === 'number' ? w.level : 0,
+      due: typeof w.due === 'number' ? w.due : created,
+      reps: w.reps || 0,
+      lapses: w.lapses || 0,
+      lastReviewed: w.lastReviewed || null,
+      mastered: !!w.mastered,
+      image: w.image && w.image.id ? { id: w.image.id, kind: w.image.kind || 'photo' } : null
+    };
+  }
+
+  function serialize() {
+    return JSON.stringify({
+      version: 2,
+      savedAt: now(),
+      settings: state.settings,
+      blocks: state.blocks
+    });
+  }
+
+  /* Запись идёт в две ячейки по очереди, чтобы обрыв на середине
+     не оставил приложение вообще без данных. Прошлую запись держим
+     в памяти: перечитывать её из хранилища на каждое изменение —
+     лишний проход по всей картотеке. */
+  var lastPayload = null;
+
+  function writeNow(immediate) {
+    if (memoryOnly) return;
+    var payload = serialize();
+    try {
+      localStorage.setItem(KEY_SPARE, lastPayload || payload);
+      localStorage.setItem(KEY, payload);
+      lastPayload = payload;
+      lastSavedAt = now();
+      mirrorToDatabase(payload, immediate);
+    } catch (e) {
+      memoryOnly = true;
+      console.warn('Не удалось сохранить данные', e);
+    }
+  }
+
+  var saveTimer = null;
+  function save() {
+    version++;
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(function () { saveTimer = null; writeNow(); }, 250);
+  }
+
+  /* Немедленная запись: вызывается перед уходом со страницы. */
+  function flush() {
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    writeNow(true);
+  }
+
+  /* ---------- Второй экземпляр в базе данных ---------- */
+
+  function openDatabase(callback) {
+    try {
+      if (!window.indexedDB) { callback(null); return; }
+      var request = indexedDB.open(DB_NAME, DB_VERSION);
+      request.onupgradeneeded = function () {
+        var db = request.result;
+        if (!db.objectStoreNames.contains(DB_STORE)) db.createObjectStore(DB_STORE);
+        /* Картинки живут отдельно от состояния: их много и они тяжёлые. */
+        if (!db.objectStoreNames.contains(DB_IMAGES)) db.createObjectStore(DB_IMAGES);
+      };
+      request.onsuccess = function () { callback(request.result); };
+      request.onerror = function () { callback(null); };
+    } catch (e) {
+      callback(null);
+    }
+  }
+
+  /* Зеркало в базе — запасной путь на случай, если хранилище вычистят.
+     Оно не обязано поспевать за каждым нажатием, поэтому пишется редко,
+     а перед уходом со страницы — сразу. */
+  var mirrorTimer = null;
+  var mirrorPayload = null;
+
+  function mirrorToDatabase(payload, immediate) {
+    mirrorPayload = payload;
+    if (immediate) {
+      if (mirrorTimer) { clearTimeout(mirrorTimer); mirrorTimer = null; }
+      writeMirror();
+      return;
+    }
+    if (mirrorTimer) return;
+    mirrorTimer = setTimeout(function () { mirrorTimer = null; writeMirror(); }, 4000);
+  }
+
+  function writeMirror() {
+    var payload = mirrorPayload;
+    if (!payload) return;
+    mirrorPayload = null;
+    openDatabase(function (db) {
+      if (!db) return;
+      try {
+        db.transaction(DB_STORE, 'readwrite').objectStore(DB_STORE).put(payload, 'main');
+      } catch (e) { /* зеркало не критично */ }
+    });
+  }
+
+  /* Если хранилище браузера почистили, а база уцелела — поднимаем оттуда. */
+  function restoreFromDatabase() {
+    openDatabase(function (db) {
+      if (!db) return;
+      try {
+        var request = db.transaction(DB_STORE, 'readonly').objectStore(DB_STORE).get('main');
+        request.onsuccess = function () {
+          var raw = request.result;
+          if (!raw) return;
+          var parsed;
+          try { parsed = JSON.parse(raw); } catch (e) { return; }
+          if (!parsed || !Array.isArray(parsed.blocks)) return;
+          if ((parsed.savedAt || 0) <= lastSavedAt) return;
+
+          state = normalize(parsed);
+          version++;
+          lastSavedAt = parsed.savedAt || 0;
+          listeners.forEach(function (fn) { fn(state); });
+        };
+      } catch (e) { /* восстановление не удалось — работаем с тем, что есть */ }
+    });
+  }
+
+  /* ---------- Картинки ---------- */
+
+  /* Картинки лежат в базе данных, а не в обычном хранилище: их сотни,
+     и в localStorage они бы просто не поместились. */
+  function imageSave(id, dataUrl) {
+    return new Promise(function (resolve, reject) {
+      openDatabase(function (db) {
+        if (!db) { reject(new Error('хранилище картинок недоступно')); return; }
+        try {
+          var tx = db.transaction(DB_IMAGES, 'readwrite');
+          tx.objectStore(DB_IMAGES).put(dataUrl, id);
+          tx.oncomplete = function () { resolve(id); };
+          tx.onerror = function () { reject(tx.error || new Error('не удалось сохранить картинку')); };
+        } catch (e) { reject(e); }
+      });
+    });
+  }
+
+  /* Картинки читаются пачкой: на списке их просят сразу десятками, а
+     каждая отдельная сделка с базой стоит дороже самой картинки. */
+  var imageQueue = [];
+  var imageQueueTimer = null;
+
+  function imageLoad(id) {
+    return new Promise(function (resolve) {
+      if (!id) { resolve(null); return; }
+      imageQueue.push({ id: id, resolve: resolve });
+      if (!imageQueueTimer) imageQueueTimer = setTimeout(flushImageQueue, 0);
+    });
+  }
+
+  function flushImageQueue() {
+    imageQueueTimer = null;
+    var batch = imageQueue;
+    imageQueue = [];
+    if (!batch.length) return;
+
+    openDatabase(function (db) {
+      function giveUp() { batch.forEach(function (item) { item.resolve(null); }); }
+      if (!db) { giveUp(); return; }
+      try {
+        var store = db.transaction(DB_IMAGES, 'readonly').objectStore(DB_IMAGES);
+        batch.forEach(function (item) {
+          var request = store.get(item.id);
+          request.onsuccess = function () { item.resolve(request.result || null); };
+          request.onerror = function () { item.resolve(null); };
+        });
+      } catch (e) { giveUp(); }
+    });
+  }
+
+  function imageRemove(id) {
+    if (!id) return;
+    openDatabase(function (db) {
+      if (!db) return;
+      try {
+        db.transaction(DB_IMAGES, 'readwrite').objectStore(DB_IMAGES).delete(id);
+      } catch (e) { /* картинка останется висеть, но данным это не вредит */ }
+    });
+  }
+
+  /* Слово получает картинку; прежняя, если была, стирается. */
+  function setWordImage(wordId, imageId, kind) {
+    var word = findWord(wordId);
+    if (!word) return;
+    if (word.image && word.image.id && word.image.id !== imageId) imageRemove(word.image.id);
+    word.image = imageId ? { id: imageId, kind: kind || 'photo' } : null;
+    save();
+  }
+
+  /* ---------- Ключ доступа к генерации ---------- */
+
+  var API_KEY_STORAGE = 'wortschatz.apikey';
+
+  /* Ключ хранится отдельно от картотеки и не попадает в резервную копию. */
+  function getApiKey() {
+    try { return localStorage.getItem(API_KEY_STORAGE) || ''; } catch (e) { return ''; }
+  }
+
+  function setApiKey(value) {
+    try {
+      if (value) localStorage.setItem(API_KEY_STORAGE, String(value).trim());
+      else localStorage.removeItem(API_KEY_STORAGE);
+    } catch (e) { /* хранилище закрыто — ключ проживёт только сеанс */ }
+  }
+
+  /* Подписка нужна только для случая, когда данные пришли со стороны —
+     из запасной копии в базе. Обычные изменения экран перерисовывает сам. */
+  function subscribe(fn) { listeners.push(fn); }
+  function getState() { return state; }
+  function isMemoryOnly() { return memoryOnly; }
+  function clockSuspicious() { return clockWentBack; }
+  function savedAt() { return lastSavedAt; }
+
+  /* ---------- Настройки ---------- */
+
+  function isCollapsed(setId) { return !!state.settings.collapsed[setId]; }
+
+  /* Размеры в карточке проверки. Каждая часть настраивается отдельно:
+     кому-то нужен крупный перевод при маленькой картинке, кому-то наоборот,
+     а поле ввода вообще живёт своей жизнью. */
+  function getScale(kind) { return clampScale(state.settings.scales[kind], 1); }
+
+  function setScale(kind, value) {
+    if (SCALE_KINDS.indexOf(kind) < 0) return;
+    state.settings.scales[kind] = clampScale(value, 1);
+    save();
+  }
+
+  /* ---------- Модели ---------- */
+
+  /* Рисующие модели и модель, пишущая промпт, устроены одинаково:
+     список готовых, свои сверх них и одна выбранная. */
+  var BUILTIN_MODELS = [
+    { id: 'gemini-3.1-flash-image', title: 'Nano Banana 2' },
+    { id: 'gemini-3.1-flash-lite-image', title: 'Nano Banana 2 Lite' },
+    { id: 'gemini-3-pro-image', title: 'Nano Banana Pro' }
+  ];
+
+  /* Промпт пишет обычная текстовая модель — она разбирает слово
+     и сочиняет описание картинки. Тяжёлая Pro для этого не нужна. */
+  var BUILTIN_THINK_MODELS = [
+    { id: 'gemini-3.6-flash', title: 'Gemini 3.6 Flash' },
+    { id: 'gemini-3.5-flash', title: 'Gemini 3.5 Flash' },
+    { id: 'gemini-3.5-flash-lite', title: 'Gemini 3.5 Flash Lite' }
+  ];
+
+  function modelFamily(builtin, chosenKey, customKey) {
+    function list() {
+      return builtin.concat(state.settings[customKey].map(function (m) {
+        return { id: m.id, title: m.title, custom: true };
+      }));
+    }
+
+    return {
+      list: list,
+      get: function () { return state.settings[chosenKey] || DEFAULT_SETTINGS[chosenKey]; },
+      set: function (id) {
+        if (!id) return;
+        state.settings[chosenKey] = String(id).trim();
+        save();
+      },
+      add: function (id, title) {
+        id = String(id || '').trim();
+        if (!id) return false;
+        var known = list().some(function (m) { return m.id === id; });
+        if (!known) {
+          state.settings[customKey].push({ id: id, title: String(title || '').trim() || id });
+        }
+        state.settings[chosenKey] = id;
+        save();
+        return !known;
+      },
+      remove: function (id) {
+        state.settings[customKey] = state.settings[customKey].filter(function (m) {
+          return m.id !== id;
+        });
+        if (state.settings[chosenKey] === id) state.settings[chosenKey] = DEFAULT_SETTINGS[chosenKey];
+        save();
+      }
+    };
+  }
+
+  var imageModels = modelFamily(BUILTIN_MODELS, 'imageModel', 'customModels');
+  var thinkModels = modelFamily(BUILTIN_THINK_MODELS, 'thinkModel', 'customThinkModels');
+
+  /* ---------- Свой промпт ---------- */
+
+  function getPromptTemplate() { return state.settings.promptTemplate || ''; }
+
+  function setPromptTemplate(text) {
+    state.settings.promptTemplate = String(text || '').trim();
+    save();
+  }
+
+  function getThinkTemplate() { return state.settings.thinkTemplate || ''; }
+
+  function setThinkTemplate(text) {
+    state.settings.thinkTemplate = String(text || '').trim();
+    save();
+  }
+
+  function toggleCollapsed(setId) {
+    if (state.settings.collapsed[setId]) delete state.settings.collapsed[setId];
+    else state.settings.collapsed[setId] = true;
+    save();
+    return isCollapsed(setId);
+  }
+
+  /* ---------- Доступ ---------- */
+
+  function getBlock(blockId) {
+    return state.blocks.find(function (b) { return b.id === blockId; }) || null;
+  }
+
+  function getSet(blockId, setId) {
+    var block = getBlock(blockId);
+    if (!block) return null;
+    return block.sets.find(function (s) { return s.id === setId; }) || null;
+  }
+
+  function countWords(block) {
+    return block.sets.reduce(function (sum, s) { return sum + s.words.length; }, 0);
+  }
+
+  /* ---------- Блоки ---------- */
+
+  function addBlock(title) {
+    var block = {
+      id: uid(),
+      title: String(title || '').trim() || 'Новый блок',
+      createdAt: now(),
+      sets: []
+    };
+    state.blocks.push(block);
+    save();
+    return block;
+  }
+
+  function renameBlock(blockId, title) {
+    var block = getBlock(blockId);
+    if (!block) return;
+    block.title = String(title || '').trim() || block.title;
+    save();
+  }
+
+  function removeBlock(blockId) {
+    var block = getBlock(blockId);
+    if (block) {
+      block.sets.forEach(function (s) {
+        delete state.settings.collapsed[s.id];
+        s.words.forEach(function (w) { if (w.image) imageRemove(w.image.id); });
+      });
+    }
+    state.blocks = state.blocks.filter(function (b) { return b.id !== blockId; });
+    save();
+  }
+
+  /* ---------- Списки ---------- */
+
+  function addSet(blockId, title) {
+    var block = getBlock(blockId);
+    if (!block) return null;
+    var set = {
+      id: uid(),
+      title: String(title || '').trim() || ('Список ' + (block.sets.length + 1)),
+      createdAt: now(),
+      words: []
+    };
+    block.sets.push(set);
+    save();
+    return set;
+  }
+
+  function renameSet(blockId, setId, title) {
+    var set = getSet(blockId, setId);
+    if (!set) return;
+    set.title = String(title || '').trim() || set.title;
+    save();
+  }
+
+  function removeSet(blockId, setId) {
+    var block = getBlock(blockId);
+    if (!block) return;
+    var set = getSet(blockId, setId);
+    if (set) set.words.forEach(function (w) { if (w.image) imageRemove(w.image.id); });
+    block.sets = block.sets.filter(function (s) { return s.id !== setId; });
+    delete state.settings.collapsed[setId];
+    save();
+  }
+
+  /* ---------- Слова ---------- */
+
+  /* Где ещё записано такое же слово. Сравниваем так же, как в проверке:
+     без учёта регистра и лишних пробелов. */
+  function findSameWords(de, exceptId) {
+    var needle = normalizeAnswer(de);
+    if (!needle) return [];
+    var found = [];
+    state.blocks.forEach(function (block) {
+      block.sets.forEach(function (set) {
+        set.words.forEach(function (word, index) {
+          if (word.id === exceptId) return;
+          if (normalizeAnswer(word.de) !== needle) return;
+          found.push({
+            word: word, index: index + 1,
+            blockId: block.id, setId: set.id,
+            blockTitle: block.title, setTitle: set.title
+          });
+        });
+      });
+    });
+    return found;
+  }
+
+  function makeWord(de, ru) {
+    var ts = now();
+    return {
+      id: uid(), de: de, ru: ru, createdAt: ts,
+      level: 0, due: ts, reps: 0, lapses: 0, lastReviewed: null, mastered: false, image: null
+    };
+  }
+
+  function addWord(blockId, setId, de, ru) {
+    var set = getSet(blockId, setId);
+    if (!set) return { ok: false, reason: 'Список не найден' };
+    if (set.words.length >= MAX_WORDS) {
+      return { ok: false, reason: 'Список заполнен: ' + MAX_WORDS + ' слов' };
+    }
+    de = String(de || '').trim();
+    ru = String(ru || '').trim();
+    if (!de) return { ok: false, reason: 'Введите слово' };
+
+    var word = makeWord(de, ru);
+    set.words.push(word);
+    save();
+    return { ok: true, word: word, remaining: MAX_WORDS - set.words.length };
+  }
+
+  /* Массовый ввод: одна пара на строку, разделитель  -  ;  —  таб  или : */
+  function addWordsBulk(blockId, setId, text) {
+    var set = getSet(blockId, setId);
+    if (!set) return { added: 0, skipped: 0, overflow: 0 };
+    var lines = String(text || '').split(/\r?\n/);
+    var added = 0, skipped = 0, overflow = 0;
+
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (!line) continue;
+      if (set.words.length >= MAX_WORDS) { overflow++; continue; }
+
+      var parts = line.split(/\t|\s+[-—–=]\s+|\s*[;|]\s*|\s*:\s+/);
+      var de = (parts[0] || '').trim().replace(/^\s*\d+[.)]\s*/, '');
+      var ru = parts.slice(1).join(' ').trim();
+      if (!de) { skipped++; continue; }
+
+      set.words.push(makeWord(de, ru));
+      added++;
+    }
+    save();
+    return { added: added, skipped: skipped, overflow: overflow };
+  }
+
+  function updateWord(blockId, setId, wordId, de, ru) {
+    var set = getSet(blockId, setId);
+    if (!set) return;
+    var word = set.words.find(function (w) { return w.id === wordId; });
+    if (!word) return;
+    word.de = String(de || '').trim() || word.de;
+    word.ru = String(ru || '').trim();
+    save();
+  }
+
+  function removeWord(blockId, setId, wordId) {
+    var set = getSet(blockId, setId);
+    if (!set) return;
+    var word = set.words.find(function (w) { return w.id === wordId; });
+    if (word && word.image) imageRemove(word.image.id);
+    set.words = set.words.filter(function (w) { return w.id !== wordId; });
+    save();
+  }
+
+  /* ---------- Повторения ---------- */
+
+  /* Сколько раз каждое слово встречается во всей картотеке. Считается
+     один раз на изменение: ведомости этот счёт нужен на каждой строке. */
+  var repeatsCache = null;
+  var repeatsVersion = -1;
+
+  function repeatCounts() {
+    if (repeatsCache && repeatsVersion === version) return repeatsCache;
+    var map = new Map();
+    state.blocks.forEach(function (block) {
+      block.sets.forEach(function (set) {
+        set.words.forEach(function (word) {
+          var key = word.de.trim().toLowerCase();
+          map.set(key, (map.get(key) || 0) + 1);
+        });
+      });
+    });
+    repeatsCache = map;
+    repeatsVersion = version;
+    return map;
+  }
+
+  function collectWords(scope) {
+    scope = scope || {};
+    var result = [];
+    state.blocks.forEach(function (block) {
+      if (scope.blockId && block.id !== scope.blockId) return;
+      block.sets.forEach(function (set) {
+        if (scope.setId && set.id !== scope.setId) return;
+        set.words.forEach(function (word) {
+          result.push({
+            word: word, blockId: block.id, setId: set.id,
+            blockTitle: block.title, setTitle: set.title
+          });
+        });
+      });
+    });
+    return result;
+  }
+
+  /* Слово, которое ещё ни разу не показывали, ждёт не разбора, а изучения. */
+  function isFresh(word) { return !word.reps; }
+
+  /* Слово готово, когда наступил его час — то есть 6 утра назначенного дня. */
+  function isDue(word, at) {
+    if (word.mastered) return false;
+    /* Вопрос в разборе — это перевод, поэтому без перевода спрашивать нечего. */
+    if (!word.ru) return false;
+    if (isFresh(word)) return false;
+    return word.due <= (at || now());
+  }
+
+  function dueCount(scope, at) {
+    var moment = at || now();
+    return collectWords(scope).filter(function (item) { return isDue(item.word, moment); }).length;
+  }
+
+  function stats(scope, at) {
+    var moment = at || now();
+    var items = collectWords(scope);
+    var due = 0, mastered = 0, learning = 0, waiting = 0, fresh = 0;
+    items.forEach(function (item) {
+      var w = item.word;
+      if (w.mastered) { mastered++; return; }
+      if (isFresh(w) && w.ru) { fresh++; return; }
+      if (isDue(w, moment)) due++;
+      else waiting++;
+      if (w.level > 0) learning++;
+    });
+    return {
+      total: items.length, due: due, mastered: mastered,
+      learning: learning, waiting: waiting, fresh: fresh
+    };
+  }
+
+  /* Новые слова — те, что ещё ни разу не показывали. */
+  function freshCount(scope) {
+    return collectWords(scope).filter(function (item) {
+      return item.word.ru && isFresh(item.word);
+    }).length;
+  }
+
+  /* Порция для изучения: слова берутся по порядку добавления, чтобы
+     учить их так, как записывал сам человек. */
+  function buildLearnBatch(scope, size) {
+    return collectWords(scope)
+      .filter(function (item) { return item.word.ru && isFresh(item.word); })
+      .slice(0, size || 10);
+  }
+
+  /* Когда всплывёт ближайшее слово, которое сейчас ещё спит. */
+  function nextDueAt(scope, at) {
+    var moment = at || now();
+    var soonest = null;
+    collectWords(scope).forEach(function (item) {
+      var w = item.word;
+      if (w.mastered || !w.ru) return;
+      if (w.due <= moment) return;
+      if (soonest === null || w.due < soonest) soonest = w.due;
+    });
+    return soonest;
+  }
+
+  /* Очередь на сейчас: перемешана, чтобы порядок слов не заучивался. */
+  function buildQueue(scope, at) {
+    var moment = at || now();
+    var queue = collectWords(scope).filter(function (item) { return isDue(item.word, moment); });
+    for (var i = queue.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var tmp = queue[i];
+      queue[i] = queue[j];
+      queue[j] = tmp;
+    }
+    return queue;
+  }
+
+  /* Сравнение ответа: регистр и лишние пробелы не считаются ошибкой,
+     а вот буквы — включая умляуты и ß — должны совпадать. */
+  function normalizeAnswer(str) {
+    return String(str == null ? '' : str)
+      .replace(/\s+/g, ' ')
+      .replace(/[.,!?;]+$/, '')
+      .trim()
+      .toLowerCase();
+  }
+
+  function checkAnswer(word, answer) {
+    return normalizeAnswer(answer) === normalizeAnswer(word.de);
+  }
+
+  function findWord(wordId) {
+    var found = null;
+    state.blocks.forEach(function (block) {
+      block.sets.forEach(function (set) {
+        set.words.forEach(function (w) { if (w.id === wordId) found = w; });
+      });
+    });
+    return found;
+  }
+
+  /* outcome: 'correct' — верно, 'typo' — засчитать как верное, 'forgot' — сброс. */
+  function reviewWord(wordId, outcome, at) {
+    var moment = at || now();
+    var word = findWord(wordId);
+    if (!word) return null;
+
+    word.reps++;
+    word.lastReviewed = moment;
+
+    if (outcome === 'forgot') {
+      word.level = 0;
+      word.lapses++;
+      word.mastered = false;
+      word.due = moment;
+      save();
+      return { level: 0, days: 0, due: moment, mastered: false, again: true };
+    }
+
+    var previousLevel = word.level;
+    word.level = Math.min(word.level + 1, MAX_LEVEL);
+
+    if (previousLevel >= MAX_LEVEL) {
+      /* Слово уже отстояло последний интервал в 60 дней и снова названо
+         верно — дальше держать его в разборе незачем. */
+      word.mastered = true;
+      word.due = dueAfterDays(INTERVALS[MAX_LEVEL - 1], moment);
+      save();
+      return { level: word.level, days: 0, due: word.due, mastered: true, again: false };
+    }
+
+    var days = INTERVALS[word.level - 1];
+    word.due = dueAfterDays(days, moment);
+    save();
+    return { level: word.level, days: days, due: word.due, mastered: false, again: false };
+  }
+
+  /* Расписание считается учебными днями, а подпись — обычными:
+     в 5:59 слово со сроком «сегодня в 6:00» должно читаться как «в 06:00»,
+     а не как «завтра», хотя учебный день ещё вчерашний. */
+  function calendarDayStart(ts) {
+    var d = new Date(ts);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  }
+
+  function calendarDaysBetween(fromTs, toTs) {
+    return Math.round((calendarDayStart(toTs) - calendarDayStart(fromTs)) / DAY);
+  }
+
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+
+  /* Когда слово всплывёт снова — коротко, для списка. */
+  function dueLabel(word, at) {
+    if (word.mastered) return 'освоено';
+    if (!word.ru) return 'нет перевода';
+    if (isFresh(word)) return 'новое';
+    var moment = at || now();
+    if (word.due <= moment) return 'сейчас';
+
+    var diff = calendarDaysBetween(moment, word.due);
+    if (diff <= 0) {
+      var d = new Date(word.due);
+      return 'в ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+    }
+    if (diff === 1) return 'завтра';
+    return 'через ' + diff + ' дн.';
+  }
+
+  /* ---------- Архив ---------- */
+
+  function exportJson() {
+    return JSON.stringify({
+      version: 2, exportedAt: now(), settings: state.settings, blocks: state.blocks
+    }, null, 2);
+  }
+
+  /* Полная копия — вместе с картинками. Раньше в файл уходили только слова,
+     а сами картинки оставались в базе устройства: при переносе на другой
+     телефон или переустановке они пропадали. Теперь копия самодостаточна. */
+  function imageRefs() {
+    var refs = [];
+    state.blocks.forEach(function (block) {
+      block.sets.forEach(function (set) {
+        set.words.forEach(function (word) {
+          if (word.image && word.image.id) refs.push({ word: word, id: word.image.id });
+        });
+      });
+    });
+    return refs;
+  }
+
+  function exportArchive() {
+    var refs = imageRefs();
+    return Promise.all(refs.map(function (ref) { return imageLoad(ref.id); }))
+      .then(function (urls) {
+        var images = {};
+        refs.forEach(function (ref, i) { if (urls[i]) images[ref.id] = urls[i]; });
+        return JSON.stringify({
+          version: 3,
+          exportedAt: now(),
+          settings: state.settings,
+          blocks: state.blocks,
+          images: images
+        });
+      });
+  }
+
+  /* Ссылки на картинки, которых в базе нет, убираем — иначе в списке
+     останутся пустые рамки. Копия, снятая старой сборкой, картинок
+     не содержит, и это как раз тот случай. */
+  function pruneMissingImages() {
+    var refs = imageRefs();
+    if (!refs.length) return Promise.resolve(0);
+    return Promise.all(refs.map(function (ref) { return imageLoad(ref.id); }))
+      .then(function (urls) {
+        var dropped = 0;
+        refs.forEach(function (ref, i) {
+          if (!urls[i]) { ref.word.image = null; dropped++; }
+        });
+        if (dropped) save();
+        return dropped;
+      });
+  }
+
+  function importArchive(text, mode) {
+    var parsed = JSON.parse(text);
+    if (!parsed || !Array.isArray(parsed.blocks)) throw new Error('в файле нет блоков');
+
+    var images = parsed.images || {};
+    var ids = Object.keys(images);
+    return Promise.all(ids.map(function (id) { return imageSave(id, images[id]); }))
+      .then(function () {
+        var added = applyImport(parsed, mode);
+        return pruneMissingImages().then(function () { return added; });
+      });
+  }
+
+  function importJson(text, mode) {
+    var parsed = JSON.parse(text);
+    if (!parsed || !Array.isArray(parsed.blocks)) throw new Error('в файле нет блоков');
+    return applyImport(parsed, mode);
+  }
+
+  function applyImport(parsed, mode) {
+    var incoming = normalize(parsed);
+    version++;
+    if (mode === 'replace') {
+      state = incoming;
+    } else {
+      incoming.blocks.forEach(function (b) {
+        b.id = uid();
+        b.sets.forEach(function (s) {
+          s.id = uid();
+          s.words.forEach(function (w) { w.id = uid(); });
+        });
+        state.blocks.push(b);
+      });
+    }
+    flush();
+    return incoming.blocks.length;
+  }
+
+  return {
+    MAX_WORDS: MAX_WORDS,
+    INTERVALS: INTERVALS,
+    MAX_LEVEL: MAX_LEVEL,
+    DAY_START_HOUR: DAY_START_HOUR,
+    DAY: DAY,
+
+    load: load, save: save, flush: flush, subscribe: subscribe, getState: getState,
+    isMemoryOnly: isMemoryOnly, clockSuspicious: clockSuspicious, savedAt: savedAt,
+
+    studyDayStart: studyDayStart, dueAfterDays: dueAfterDays, studyDaysBetween: studyDaysBetween,
+    calendarDaysBetween: calendarDaysBetween,
+
+    isCollapsed: isCollapsed, toggleCollapsed: toggleCollapsed,
+    SCALE_KINDS: SCALE_KINDS, getScale: getScale, setScale: setScale,
+    listModels: imageModels.list, getModel: imageModels.get, setModel: imageModels.set,
+    addModel: imageModels.add, removeModel: imageModels.remove,
+    listThinkModels: thinkModels.list, getThinkModel: thinkModels.get,
+    setThinkModel: thinkModels.set, addThinkModel: thinkModels.add,
+    removeThinkModel: thinkModels.remove,
+    getPromptTemplate: getPromptTemplate, setPromptTemplate: setPromptTemplate,
+    getThinkTemplate: getThinkTemplate, setThinkTemplate: setThinkTemplate,
+    findSameWords: findSameWords,
+
+    getBlock: getBlock, getSet: getSet, countWords: countWords,
+    addBlock: addBlock, renameBlock: renameBlock, removeBlock: removeBlock,
+    addSet: addSet, renameSet: renameSet, removeSet: removeSet,
+    addWord: addWord, addWordsBulk: addWordsBulk, updateWord: updateWord, removeWord: removeWord,
+
+    collectWords: collectWords, repeatCounts: repeatCounts, dueCount: dueCount, stats: stats, buildQueue: buildQueue,
+    isFresh: isFresh, freshCount: freshCount, buildLearnBatch: buildLearnBatch,
+    imageSave: imageSave, imageLoad: imageLoad, imageRemove: imageRemove, setWordImage: setWordImage,
+    getApiKey: getApiKey, setApiKey: setApiKey, uid: uid,
+    nextDueAt: nextDueAt, checkAnswer: checkAnswer, reviewWord: reviewWord,
+    dueLabel: dueLabel, isDue: isDue,
+
+    exportJson: exportJson, importJson: importJson,
+    exportArchive: exportArchive, importArchive: importArchive
+  };
+})();
