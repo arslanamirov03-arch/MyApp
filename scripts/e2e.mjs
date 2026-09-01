@@ -548,17 +548,44 @@ check(layout.scrollWidth <= layout.innerWidth + 1,
   `Страница шире экрана: ${layout.scrollWidth} против ${layout.innerWidth}`);
 check(layout.overflowing.length === 0, `Вылезают за экран: ${layout.overflowing.join(', ')}`);
 
+/* Движение осталось, но короткое: длинные переходы съедали заряд
+   и отвечали на касание с опозданием. */
 const motion = await page.evaluate(() => {
+  const out = {};
   const probe = document.createElement('div');
-  probe.className = 'is-evaporating';
   document.body.appendChild(probe);
-  const style = getComputedStyle(probe);
-  const result = { name: style.animationName, duration: style.animationDuration };
+  for (const name of ['is-evaporating', 'is-new', 'screen--enter']) {
+    probe.className = name;
+    const style = getComputedStyle(probe);
+    out[name] = { name: style.animationName, duration: parseFloat(style.animationDuration) };
+  }
   probe.remove();
-  return result;
+  return out;
 });
-check(motion.name === 'evaporate', `Растворение не подключено: ${motion.name}`);
-check(parseFloat(motion.duration) >= 0.6, `Растворение слишком быстрое: ${motion.duration}`);
+check(motion['is-evaporating'].name === 'evaporate',
+  `Растворение не подключено: ${motion['is-evaporating'].name}`);
+for (const [name, info] of Object.entries(motion)) {
+  check(info.duration > 0 && info.duration <= 0.25,
+    `Переход «${name}» длится ${info.duration} с — движение должно быть быстрым`);
+}
+
+/* Двигаться должны только те свойства, которые считает видеокарта:
+   размытие и пересчёт высоты не укладываются в кадр. */
+const frames = await page.evaluate(() => {
+  const props = new Set();
+  for (const sheet of document.styleSheets) {
+    for (const rule of sheet.cssRules) {
+      if (!(rule instanceof CSSKeyframesRule)) continue;
+      for (const frame of rule.cssRules) {
+        for (const prop of frame.style) props.add(prop);
+      }
+    }
+  }
+  return [...props];
+});
+const costly = frames.filter((p) =>
+  /^(filter|max-height|height|width|margin|padding|border|top|left)/.test(p));
+check(costly.length === 0, `В переходах пересчитывается вёрстка: ${costly.join(', ')}`);
 
 await browser.close();
 

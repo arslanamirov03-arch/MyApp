@@ -101,11 +101,15 @@
     return 'меньше минуты';
   }
 
-  /* Медленное исчезновение: элемент растворяется, место за ним смыкается. */
+  /* Исчезновение: элемент растворяется и тут же уступает место.
+     Срок держим вровень с --quick-out в стилях — ждать дольше самой
+     отрисовки значит на ровном месте задерживать ответ на касание. */
+  var GONE = 150;
+
   function evaporate(el, done) {
     if (!el) { done(); return; }
     el.classList.add('is-evaporating');
-    setTimeout(done, 700);
+    setTimeout(done, GONE);
   }
 
   function markFresh() {
@@ -388,7 +392,7 @@
     viewer = null;
     setTimeout(function () {
       if (node.parentNode) node.parentNode.removeChild(node);
-    }, 420);
+    }, GONE);
   }
 
   function paintViewer() {
@@ -496,7 +500,7 @@
         paintViewer();
         setTimeout(function () {
           if (viewer) viewer.image.classList.remove('viewer__img--eased');
-        }, 380);
+        }, GONE);
       }
 
       /* Двойное касание приближает и возвращает обратно. */
@@ -510,7 +514,7 @@
           paintViewer();
           setTimeout(function () {
             if (viewer) viewer.image.classList.remove('viewer__img--eased');
-          }, 380);
+          }, GONE);
         } else {
           viewer.lastTap = now;
         }
@@ -2204,7 +2208,9 @@
   history.replaceState(route, '');
   render(true);
 
-  /* Часы идут всё время работы приложения. */
+  /* Часы идут всё время работы приложения: партия в 6 утра должна
+     появиться сама, без перезапуска. Проверка эта копеечная —
+     заряд съедали не часы, а вечное движение фона. */
   setInterval(tick, 15000);
 
   document.addEventListener('visibilitychange', function () {

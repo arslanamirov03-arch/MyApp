@@ -142,7 +142,30 @@ const saveMs = await page.evaluate(() => {
 });
 check(saveMs < 60, `Одна запись на диск занимает ${saveMs} мс`);
 
-/* 6. Память под картинки ограничена */
+/* 6. В покое ничего не двигается: раньше два слоя фона плыли без остановки
+      и телефон пересобирал их круглые сутки — отсюда и расход заряда. */
+await page.waitForTimeout(1200);
+const idle = await page.evaluate(() => document.getAnimations()
+  .filter((a) => a.playState === 'running')
+  .map((a) => (a.animationName || 'переход') + ' на ' +
+    ((a.effect && a.effect.target && a.effect.target.className) || '?')));
+check(idle.length === 0, `В покое продолжают идти анимации: ${idle.join(', ')}`);
+
+const forever = await page.evaluate(() => {
+  const endless = [];
+  for (const sheet of document.styleSheets) {
+    for (const rule of sheet.cssRules) {
+      if (!rule.style) continue;
+      const value = rule.style.animation || rule.style.animationIterationCount;
+      if (value && /infinite/.test(value)) endless.push(rule.selectorText);
+    }
+  }
+  return endless;
+});
+check(forever.length === 1 && /caret/.test(forever[0]),
+  `Бесконечные анимации, кроме каретки: ${forever.join(', ')}`);
+
+/* 7. Память под картинки ограничена */
 const cached = await page.evaluate(async () => {
   const set = window.Store.getState().blocks[0].sets[0];
   const withImages = set.words.filter((w) => w.image).slice(0, 200);

@@ -57,6 +57,14 @@
   --body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 
   --lift: 0 18px 40px -24px rgba(88, 62, 40, .55), 0 2px 6px -2px rgba(88, 62, 40, .12);
+
+  /* Движение короткое и отзывчивое: касание должно отзываться сразу,
+     а не догонять палец. Всё, что двигается, двигается этими двумя
+     значениями — и только через transform и opacity, чтобы кадр
+     собирался видеокартой и укладывался в 8 мс при 120 кадрах. */
+  --quick: .11s;
+  --quick-out: .15s;
+  --ease: cubic-bezier(.22, 1, .36, 1);
 }
 
 /* Тёмный вариант включается только переключателем в просмотрщике:
@@ -117,8 +125,10 @@ body {
 }
 
 /* Цветные пятна — то, ради чего стекло вообще имеет смысл: без них
-   прозрачной панели не на чем себя показать. Два слоя дышат вразнобой,
-   поэтому свет под стеклом медленно перетекает. */
+   прозрачной панели не на чем себя показать. Раньше они медленно плыли,
+   и телефон пересобирал два слоя во весь экран каждый кадр — круглые
+   сутки, даже когда приложение просто лежало открытым. Это и съедало
+   заряд. Теперь пятна стоят на месте: вид тот же, работы никакой. */
 body::before,
 body::after {
   content: "";
@@ -126,31 +136,20 @@ body::after {
   inset: -25%;
   z-index: -1;
   pointer-events: none;
-  will-change: transform;
 }
 
 body::before {
   background:
     radial-gradient(38% 30% at 18% 12%, var(--ground-tint-1) 0%, transparent 68%),
     radial-gradient(34% 28% at 84% 24%, var(--ground-tint-2) 0%, transparent 66%);
-  animation: drift-a 38s ease-in-out infinite alternate;
+  transform: translate3d(2%, 1.5%, 0) scale(1.06);
 }
 
 body::after {
   background:
     radial-gradient(42% 32% at 52% 92%, var(--ground-tint-3) 0%, transparent 70%),
     radial-gradient(30% 24% at 78% 62%, var(--ground-tint-4) 0%, transparent 68%);
-  animation: drift-b 46s ease-in-out infinite alternate;
-}
-
-@keyframes drift-a {
-  from { transform: translate3d(0, 0, 0) scale(1); }
-  to { transform: translate3d(4%, 3%, 0) scale(1.12); }
-}
-
-@keyframes drift-b {
-  from { transform: translate3d(0, 0, 0) scale(1.08); }
-  to { transform: translate3d(-5%, -3%, 0) scale(1); }
+  transform: translate3d(-2%, -1%, 0) scale(1.04);
 }
 
 .app {
@@ -247,7 +246,7 @@ body::after {
   border: 1px solid var(--glass-edge);
   box-shadow: inset 0 1px 0 var(--glass-inner);
   cursor: pointer;
-  transition: transform .38s cubic-bezier(.16, .84, .44, 1), color .38s ease;
+  transition: transform var(--quick) var(--ease), color var(--quick) ease;
 }
 
 .ghost-btn:hover { transform: translateY(-1px); color: var(--accent); }
@@ -275,7 +274,7 @@ body::after {
   border: none;
   border-bottom: 1px solid transparent;
   cursor: pointer;
-  transition: color .32s ease, border-color .32s ease;
+  transition: color var(--quick) ease, border-color var(--quick) ease;
 }
 
 .crumbs__link:hover { color: var(--accent); border-bottom-color: var(--accent); }
@@ -295,8 +294,8 @@ body::after {
   border: 1px solid var(--glass-edge);
   box-shadow: inset 0 1px 0 var(--glass-inner);
   cursor: pointer;
-  transition: color .32s ease, background .32s ease,
-    transform .34s cubic-bezier(.16, .84, .44, 1);
+  transition: color var(--quick) ease, background var(--quick) ease,
+    transform var(--quick) var(--ease);
 }
 
 .round-btn:hover { color: var(--accent); }
@@ -339,7 +338,7 @@ body::after {
   margin-bottom: 12px;
   cursor: pointer;
   max-height: 400px;
-  transition: transform .42s cubic-bezier(.16, .84, .44, 1), box-shadow .42s ease;
+  transition: transform var(--quick) var(--ease), box-shadow var(--quick) ease;
 }
 
 .card:hover { transform: translateY(-2px); }
@@ -442,7 +441,7 @@ body::after {
   box-shadow: inset 0 1px 0 var(--glass-inner), 0 8px 20px -16px rgba(88, 62, 40, .7);
   cursor: pointer;
   white-space: nowrap;
-  transition: transform .38s cubic-bezier(.16, .84, .44, 1), box-shadow .38s ease, background .38s ease;
+  transition: transform var(--quick) var(--ease), box-shadow var(--quick) ease, background var(--quick) ease;
 }
 
 .btn:hover { transform: translateY(-1px); }
@@ -498,7 +497,7 @@ body::after {
     0 16px 34px -16px rgba(158, 69, 39, .95);
   cursor: pointer;
   z-index: 40;
-  transition: transform .42s cubic-bezier(.16, .84, .44, 1), opacity .42s ease;
+  transition: transform var(--quick) var(--ease), opacity var(--quick) ease;
 }
 
 .fab:hover { transform: translateY(-2px) rotate(90deg); }
@@ -607,7 +606,7 @@ body::after {
   border: 1px solid var(--glass-edge);
   box-shadow: inset 0 1px 2px rgba(122, 96, 70, .08);
   outline: none;
-  transition: border-color .34s ease, box-shadow .34s ease, background .34s ease;
+  transition: border-color var(--quick) ease, box-shadow var(--quick) ease, background var(--quick) ease;
 }
 
 .input::placeholder,
@@ -657,7 +656,7 @@ body::after {
   color: var(--ink-soft);
   cursor: pointer;
   list-style: none;
-  transition: color .3s ease;
+  transition: color var(--quick) ease;
 }
 
 .fold__head::-webkit-details-marker { display: none; }
@@ -703,7 +702,7 @@ body::after {
   background: var(--surface-2);
   border: 1px solid var(--glass-edge);
   cursor: pointer;
-  transition: border-color .34s ease, background .34s ease;
+  transition: border-color var(--quick) ease, background var(--quick) ease;
 }
 
 .model--on {
@@ -717,7 +716,7 @@ body::after {
   height: 15px;
   border-radius: 50%;
   border: 1.5px solid rgba(122, 96, 70, .4);
-  transition: border-color .34s ease, box-shadow .34s ease;
+  transition: border-color var(--quick) ease, box-shadow var(--quick) ease;
 }
 
 .model--on .model__mark {
@@ -771,7 +770,7 @@ body::after {
   height: 100%;
   border-radius: 999px;
   background: linear-gradient(90deg, var(--accent) 0%, #D98A5F 100%);
-  transition: width .9s cubic-bezier(.16, .84, .44, 1);
+  transition: width var(--quick) var(--ease);
 }
 
 .gauge__fill--full { background: linear-gradient(90deg, var(--calm) 0%, #7FA98A 100%); }
@@ -788,7 +787,7 @@ body::after {
   padding: 11px 12px;
   border-radius: var(--radius-md);
   max-height: 240px;
-  transition: background .34s ease;
+  transition: background var(--quick) ease;
 }
 
 .ledger__row:hover { background: var(--surface-2); }
@@ -846,7 +845,7 @@ body::after {
   background: var(--surface-2);
   border: 1px solid var(--glass-edge);
   cursor: pointer;
-  transition: color .32s ease, transform .34s cubic-bezier(.16, .84, .44, 1);
+  transition: color var(--quick) ease, transform var(--quick) var(--ease);
 }
 
 .icon-btn:hover { color: var(--accent); transform: scale(1.08); }
@@ -926,7 +925,7 @@ body::after {
   border: 1px solid var(--glass-edge);
   box-shadow: inset 0 1px 0 var(--glass-inner);
   cursor: pointer;
-  transition: transform .34s cubic-bezier(.16, .84, .44, 1), background .32s ease;
+  transition: transform var(--quick) var(--ease), background var(--quick) ease;
 }
 
 .sym-btn:hover { transform: translateY(-1px); background: var(--surface-1); }
@@ -971,7 +970,7 @@ body::after {
   gap: 12px;
   padding: 16px 20px;
   cursor: pointer;
-  transition: transform .42s cubic-bezier(.16, .84, .44, 1);
+  transition: transform var(--quick) var(--ease);
 }
 
 .folded:hover { transform: translateY(-2px); }
@@ -1003,7 +1002,7 @@ body::after {
   height: 100%;
   border-radius: 999px;
   background: linear-gradient(90deg, var(--accent), #D98A5F);
-  transition: width .75s cubic-bezier(.16, .84, .44, 1);
+  transition: width var(--quick) var(--ease);
 }
 
 .drill__eyebrow {
@@ -1048,7 +1047,7 @@ body::after {
   border: 1px solid var(--glass-edge);
   box-shadow: inset 0 1px 2px rgba(122, 96, 70, .08);
   cursor: text;
-  transition: border-color .34s ease, box-shadow .34s ease, background .34s ease;
+  transition: border-color var(--quick) ease, box-shadow var(--quick) ease, background var(--quick) ease;
 }
 
 .answer--active {
@@ -1131,7 +1130,7 @@ body::after {
   border: 1px solid var(--glass-edge);
   cursor: pointer;
   white-space: nowrap;
-  transition: color .32s ease, transform .34s cubic-bezier(.16, .84, .44, 1);
+  transition: color var(--quick) ease, transform var(--quick) var(--ease);
 }
 
 .mini-btn:hover { color: var(--accent); }
@@ -1345,7 +1344,7 @@ body::after {
   padding: 18px;
   overflow-y: auto;
   background: rgba(52, 38, 27, .5);
-  animation: fade-in .38s ease both;
+  animation: fade-in var(--quick) ease both;
 }
 
 .modal-root[hidden] { display: none; }
@@ -1359,7 +1358,7 @@ body::after {
      иначе буквы сливаются с тем, что лежит под ними. */
   background: var(--modal-bg);
   border-color: rgba(122, 96, 70, .22);
-  animation: rise .52s cubic-bezier(.16, .84, .44, 1) both;
+  animation: rise var(--quick-out) var(--ease) both;
 }
 
 /* Блик на окне только мешал бы читать текст. */
@@ -1399,7 +1398,7 @@ body::after {
   padding: 16px;
   background: rgba(22, 16, 11, var(--viewer-veil, 1));
   opacity: 0;
-  transition: opacity .4s ease;
+  transition: opacity var(--quick) ease;
   touch-action: none;
   overscroll-behavior: contain;
   user-select: none;
@@ -1417,7 +1416,7 @@ body::after {
   -webkit-user-drag: none;
 }
 
-.viewer__img--eased { transition: transform .36s cubic-bezier(.16, .84, .44, 1); }
+.viewer__img--eased { transition: transform var(--quick) var(--ease); }
 
 .viewer__hint {
   position: absolute;
@@ -1450,7 +1449,7 @@ body::after {
   box-shadow: var(--lift);
   opacity: 0;
   pointer-events: none;
-  transition: opacity .5s ease, transform .5s cubic-bezier(.16, .84, .44, 1);
+  transition: opacity var(--quick) ease, transform var(--quick) var(--ease);
   z-index: 80;
 }
 
@@ -1459,7 +1458,7 @@ body::after {
 /* ---------- Движение ---------- */
 
 @keyframes rise {
-  from { opacity: 0; transform: translateY(16px) scale(.975); }
+  from { opacity: 0; transform: translate3d(0, 7px, 0); }
   to { opacity: 1; transform: none; }
 }
 
@@ -1468,33 +1467,26 @@ body::after {
   to { opacity: 1; }
 }
 
-/* Медленное испарение: элемент светлеет, поднимается и растворяется,
-   а следом за ним плавно закрывается оставшееся место. */
+/* Исчезновение: элемент уходит вверх и растворяется. Раньше он ещё
+   и размывался, и сжимал собственную высоту с отступами — каждый такой
+   кадр пересчитывал вёрстку целиком. Теперь двигаются только те два
+   свойства, которые видеокарта считает сама. */
 @keyframes evaporate {
-  0% { opacity: 1; transform: none; filter: blur(0); }
-  55% { opacity: 0; transform: translateY(-14px) scale(.97); filter: blur(7px); }
-  100% {
-    opacity: 0;
-    max-height: 0;
-    margin-bottom: 0;
-    padding-top: 0;
-    padding-bottom: 0;
-    border-width: 0;
-    filter: blur(7px);
-  }
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translate3d(0, -8px, 0) scale(.98); }
 }
 
-.is-new { animation: rise .62s cubic-bezier(.16, .84, .44, 1) both; }
+.is-new { animation: rise var(--quick-out) var(--ease) both; }
 
 .is-evaporating {
-  animation: evaporate .92s cubic-bezier(.33, 0, .3, 1) forwards;
+  animation: evaporate var(--quick-out) ease-in forwards;
   pointer-events: none;
   overflow: hidden;
 }
 
-.screen--enter { animation: rise .5s cubic-bezier(.16, .84, .44, 1) both; }
+.screen--enter { animation: rise var(--quick-out) var(--ease) both; }
 
-.drill__verdict > * { animation: rise .56s cubic-bezier(.16, .84, .44, 1) both; }
+.drill__verdict > * { animation: rise var(--quick-out) var(--ease) both; }
 
 :focus-visible {
   outline: 2px solid var(--accent);
@@ -4141,11 +4133,15 @@ window.Store = (function () {
     return 'меньше минуты';
   }
 
-  /* Медленное исчезновение: элемент растворяется, место за ним смыкается. */
+  /* Исчезновение: элемент растворяется и тут же уступает место.
+     Срок держим вровень с --quick-out в стилях — ждать дольше самой
+     отрисовки значит на ровном месте задерживать ответ на касание. */
+  var GONE = 150;
+
   function evaporate(el, done) {
     if (!el) { done(); return; }
     el.classList.add('is-evaporating');
-    setTimeout(done, 700);
+    setTimeout(done, GONE);
   }
 
   function markFresh() {
@@ -4428,7 +4424,7 @@ window.Store = (function () {
     viewer = null;
     setTimeout(function () {
       if (node.parentNode) node.parentNode.removeChild(node);
-    }, 420);
+    }, GONE);
   }
 
   function paintViewer() {
@@ -4536,7 +4532,7 @@ window.Store = (function () {
         paintViewer();
         setTimeout(function () {
           if (viewer) viewer.image.classList.remove('viewer__img--eased');
-        }, 380);
+        }, GONE);
       }
 
       /* Двойное касание приближает и возвращает обратно. */
@@ -4550,7 +4546,7 @@ window.Store = (function () {
           paintViewer();
           setTimeout(function () {
             if (viewer) viewer.image.classList.remove('viewer__img--eased');
-          }, 380);
+          }, GONE);
         } else {
           viewer.lastTap = now;
         }
@@ -6244,7 +6240,9 @@ window.Store = (function () {
   history.replaceState(route, '');
   render(true);
 
-  /* Часы идут всё время работы приложения. */
+  /* Часы идут всё время работы приложения: партия в 6 утра должна
+     появиться сама, без перезапуска. Проверка эта копеечная —
+     заряд съедали не часы, а вечное движение фона. */
   setInterval(tick, 15000);
 
   document.addEventListener('visibilitychange', function () {
