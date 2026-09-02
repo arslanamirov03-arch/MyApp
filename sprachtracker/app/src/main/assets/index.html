@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Sprechzeit</title>
+<link rel="stylesheet" href="fonts/fonts.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<canvas id="fx"></canvas>
+
+<div id="app">
+
+  <!-- ===================== Hauptansicht ===================== -->
+  <section id="viewMain" class="view is-active">
+    <header class="hdr">
+      <div>
+        <h1 class="brand">Sprechzeit</h1>
+        <p class="brand-sub" id="headSub">&nbsp;</p>
+      </div>
+      <button class="icon-btn" id="btnSettings" aria-label="Übersicht">
+        <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+          <path d="M4 8.5h9M17.5 8.5H20M4 15.5h3M11.5 15.5H20"/>
+          <circle cx="15" cy="8.5" r="2.4"/>
+          <circle cx="9" cy="15.5" r="2.4"/>
+        </svg>
+      </button>
+    </header>
+
+    <div class="strip-wrap">
+      <div class="strip" id="strip"></div>
+    </div>
+
+    <div class="scroll" id="mainScroll">
+      <div class="pad">
+
+        <div class="hero">
+          <div class="ring-wrap" id="ringWrap">
+            <svg class="ring" viewBox="0 0 84 84" width="84" height="84">
+              <circle class="ring-bg" cx="42" cy="42" r="35"/>
+              <circle class="ring-fg" id="ringFg" cx="42" cy="42" r="35"/>
+            </svg>
+            <div class="ring-num"><span id="ringDone">0</span><i>/</i><span id="ringAll">6</span></div>
+          </div>
+          <div class="hero-txt">
+            <p class="hero-title" id="heroTitle">Heute</p>
+            <p class="hero-sub" id="heroSub">&nbsp;</p>
+            <div class="chips" id="heroChips"></div>
+          </div>
+        </div>
+
+        <section class="group">
+          <div class="group-h">
+            <span class="gdot gdot-td"></span>
+            <h2>TestDaF</h2>
+            <span class="gcount" id="cntTd">0/3</span>
+          </div>
+          <p class="g-sub">Формат TestDaF · темы выбираешь сам</p>
+          <div class="slots" id="slotsTd"></div>
+        </section>
+
+        <section class="group">
+          <div class="group-h">
+            <span class="gdot gdot-dg"></span>
+            <h2>Dialog mit KI</h2>
+            <span class="gcount" id="cntDg">0/3</span>
+          </div>
+          <p class="g-sub">Свободный диалог · беглость и спонтанность</p>
+          <div class="slots" id="slotsDg"></div>
+        </section>
+
+        <p class="hint" id="hint">Tippen = abhaken · nochmal tippen = Häkchen entfernen</p>
+
+        <section class="quote" id="quoteBox">
+          <p class="q-de" id="qDe"></p>
+          <p class="q-ru" id="qRu"></p>
+          <p class="q-a" id="qA"></p>
+        </section>
+
+        <p class="tail" id="tailNote"></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== Übersicht ===================== -->
+  <section id="viewSet" class="view">
+    <header class="hdr">
+      <div>
+        <h1 class="brand">Übersicht</h1>
+        <p class="brand-sub">Fortschritt, Zitate, Daten</p>
+      </div>
+      <button class="icon-btn" id="btnBack" aria-label="Zurück">
+        <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M15 5l-7 7 7 7"/>
+        </svg>
+      </button>
+    </header>
+
+    <div class="scroll">
+      <div class="pad">
+        <div class="stats" id="stats"></div>
+
+        <button class="ghost" id="btnFinale" hidden>Finale noch einmal ansehen</button>
+
+        <div class="sec-h"><h3>Gesammelte Zitate</h3><span id="qCount"></span></div>
+        <p class="sec-note">Jeden Tag kommt ein neues dazu. Was noch nicht dran war, bleibt verdeckt.</p>
+        <div class="quotes" id="quoteList"></div>
+
+        <div class="sec-h"><h3>Wie der Plan sich anpasst</h3></div>
+        <p class="sec-note">
+          Was du an einem Tag nicht schaffst, verfällt nie. Beim nächsten Start verteilt die App
+          den Rest gleichmäßig auf die verbleibenden Tage — nie alles auf einen Tag.
+          Das Ziel bleibt: 90 TestDaF-Themen und 90 Dialoge in 30 Tagen.
+        </p>
+
+        <button class="danger" id="btnReset">Fortschritt zurücksetzen</button>
+        <p class="sec-note" id="resetNote">Löscht alle Häkchen. Zum Bestätigen zweimal tippen.</p>
+
+        <p class="tail">Sprechzeit · 90 + 90 Themen · 2. September – 1. Oktober 2026</p>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<!-- ===================== Feier-Overlay ===================== -->
+<div id="overlay" class="overlay">
+  <div class="ov-card">
+    <p class="ov-kicker" id="ovKicker"></p>
+    <h2 class="ov-title" id="ovTitle"></h2>
+    <p class="ov-sub" id="ovSub"></p>
+    <button class="ov-btn" id="ovBtn">Weiter</button>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
