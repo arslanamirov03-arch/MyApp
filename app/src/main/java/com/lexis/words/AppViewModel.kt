@@ -15,6 +15,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -38,8 +40,22 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _toast = MutableStateFlow<String?>(null)
     val toast: StateFlow<String?> = _toast.asStateFlow()
-    fun showToast(text: String) { _toast.value = text }
-    fun clearToast() { _toast.value = null }
+    private var toastJob: Job? = null
+
+    /** Fades on its own after a couple of seconds; a swipe or tap clears it sooner. */
+    fun showToast(text: String) {
+        toastJob?.cancel()
+        _toast.value = text
+        toastJob = viewModelScope.launch {
+            delay(2200)
+            _toast.value = null
+        }
+    }
+
+    fun clearToast() {
+        toastJob?.cancel()
+        _toast.value = null
+    }
 
     val blocks: StateFlow<List<BlockUi>> = combine(
         repo.blockDao.observeAll(), repo.wordListDao.observeAll(), repo.wordDao.observeAll()

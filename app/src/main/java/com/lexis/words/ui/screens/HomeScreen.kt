@@ -172,7 +172,7 @@ fun HomeScreen(nav: NavController, vm: AppViewModel) {
             contentAlignment = Alignment.Center
         ) { Text("+", fontFamily = Nunito, fontWeight = FontWeight.Light, fontSize = 34.sp, color = Color.White) }
 
-        Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 56.dp)) { ToastHost(toast) }
+        Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 56.dp)) { ToastHost(toast, onDismiss = { vm.clearToast() }) }
 
         if (sheetOpen) {
             NewBlockSheet(vm = vm, onDismiss = { sheetOpen = false })

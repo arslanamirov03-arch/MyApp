@@ -200,7 +200,7 @@ fun ListScreen(listId: Long, nav: NavController, vm: AppViewModel) {
             }
         }
 
-        Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 20.dp)) { ToastHost(toast) }
+        Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 20.dp)) { ToastHost(toast, onDismiss = { vm.clearToast() }) }
 
         when (sheet) {
             "bulk" -> BulkSheet(listId = listId, vm = vm, wordLimit = settings.wordLimitPerList, currentCount = words.size, onDismiss = { sheet = null })
@@ -274,7 +274,7 @@ private fun WordRow(w: WordUi, onEdit: () -> Unit) {
         if (w.imagePath != null) {
             coil.compose.AsyncImage(
                 model = java.io.File(w.imagePath), contentDescription = null,
-                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                contentScale = androidx.compose.ui.layout.ContentScale.Fit,
                 modifier = Modifier.size(34.dp).clip(RoundedCornerShape(11.dp)).background(Color(0xFFEFE7DC))
             )
         } else {
@@ -342,7 +342,7 @@ private fun EditWordSheet(word: WordUi, vm: AppViewModel, onDismiss: () -> Unit)
         if (currentImage != null) {
             coil.compose.AsyncImage(
                 model = currentImage, contentDescription = null,
-                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                contentScale = androidx.compose.ui.layout.ContentScale.Fit,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(140.dp)

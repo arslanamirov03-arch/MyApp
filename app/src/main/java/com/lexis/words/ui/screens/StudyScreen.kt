@@ -1,5 +1,9 @@
 package com.lexis.words.ui.screens
 
+import android.media.AudioManager
+import android.media.ToneGenerator
+import android.os.Handler
+import android.os.Looper
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -37,6 +41,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -56,6 +62,7 @@ import com.lexis.words.StudyViewModel
 import com.lexis.words.data.AppSettings
 import com.lexis.words.data.TypeRanges
 import com.lexis.words.data.WordEntity
+import com.lexis.words.ui.components.AnswerMark
 import com.lexis.words.ui.components.IconTile
 import com.lexis.words.ui.components.PrimaryButton
 import com.lexis.words.ui.components.SecondaryButton
@@ -198,7 +205,7 @@ private fun LearnCard(card: WordEntity?, index: Int, total: Int, vm: StudyViewMo
             Spacer(Modifier.height(18.dp))
             coil.compose.AsyncImage(
                 model = java.io.File(card.imagePath), contentDescription = null,
-                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                contentScale = androidx.compose.ui.layout.ContentScale.Fit,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(settings.imageHeightDp.dp)
@@ -246,7 +253,7 @@ private fun TestCard(state: StudyUiState, vm: StudyViewModel, settings: AppSetti
             Spacer(Modifier.height(18.dp))
             coil.compose.AsyncImage(
                 model = java.io.File(card.imagePath), contentDescription = null,
-                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                contentScale = androidx.compose.ui.layout.ContentScale.Fit,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(settings.imageHeightDp.dp)
@@ -303,7 +310,12 @@ private fun TestCard(state: StudyUiState, vm: StudyViewModel, settings: AppSetti
         } else {
             val right = state.answerState == AnswerState.RIGHT
             val (bg, fg) = if (right) SuccessBg to SuccessInk else ErrorBg to ErrorInk
+            AnswerFeedback(correct = right, cardIndex = state.testIndex, settings = settings)
             Spacer(Modifier.height(20.dp))
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                AnswerMark(correct = right)
+            }
+            Spacer(Modifier.height(4.dp))
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(bg).padding(horizontal = 17.dp, vertical = 16.dp)) {
                 Text(if (right) "ВЕРНО" else "ПРАВИЛЬНЫЙ ОТВЕТ", fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 12.sp, color = fg)
                 Spacer(Modifier.height(7.dp))
@@ -338,6 +350,28 @@ private fun TestCard(state: StudyUiState, vm: StudyViewModel, settings: AppSetti
                 contentAlignment = Alignment.Center
             ) { Text(if (isLast) "Итоги тренировки" else "Дальше", fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = Color.White) }
         }
+    }
+}
+
+/** Buzz and beep on the verdict — both are the settings toggles the user can turn off. */
+@Composable
+private fun AnswerFeedback(correct: Boolean, cardIndex: Int, settings: AppSettings) {
+    val haptics = LocalHapticFeedback.current
+    LaunchedEffect(cardIndex, correct) {
+        if (settings.vibrationEnabled) {
+            haptics.performHapticFeedback(
+                if (correct) HapticFeedbackType.LongPress else HapticFeedbackType.TextHandleMove
+            )
+        }
+        if (settings.soundEnabled) playAnswerTone(correct)
+    }
+}
+
+private fun playAnswerTone(correct: Boolean) {
+    runCatching {
+        val tone = ToneGenerator(AudioManager.STREAM_MUSIC, 70)
+        tone.startTone(if (correct) ToneGenerator.TONE_PROP_ACK else ToneGenerator.TONE_PROP_NACK, 150)
+        Handler(Looper.getMainLooper()).postDelayed({ tone.release() }, 400)
     }
 }
 

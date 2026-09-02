@@ -135,6 +135,6 @@ fun BackupScreen(nav: NavController, vm: AppViewModel) {
                 ) { Text("Восстановить из копии", fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, color = Color(0xFF7A6B58)) }
             }
         }
-        Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 20.dp)) { ToastHost(toast) }
+        Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 20.dp)) { ToastHost(toast, onDismiss = { vm.clearToast() }) }
     }
 }
