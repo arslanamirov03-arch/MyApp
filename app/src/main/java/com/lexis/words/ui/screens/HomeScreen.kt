@@ -1,8 +1,10 @@
 package com.lexis.words.ui.screens
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,6 +34,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -41,6 +45,8 @@ import com.lexis.words.BlockUi
 import com.lexis.words.GLOBAL_BLOCK_ID
 import com.lexis.words.StudyMode
 import com.lexis.words.ui.Routes
+import com.lexis.words.ui.components.ConfirmDeleteDialog
+import com.lexis.words.ui.components.DangerButton
 import com.lexis.words.ui.components.IconTile
 import com.lexis.words.ui.components.PrimaryButton
 import com.lexis.words.ui.components.SecondaryButton
@@ -71,6 +77,8 @@ fun HomeScreen(nav: NavController, vm: AppViewModel) {
     val toast by vm.toast.collectAsState()
 
     var sheetOpen by remember { mutableStateOf(false) }
+    var editingBlock by remember { mutableStateOf<BlockUi?>(null) }
+    val haptics = LocalHapticFeedback.current
 
     Box(Modifier.fillMaxSize().background(ScreenBg)) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 62.dp, start = 18.dp, end = 18.dp, bottom = 104.dp)) {
@@ -140,7 +148,14 @@ fun HomeScreen(nav: NavController, vm: AppViewModel) {
             }
 
             items(blocks, key = { it.id }) { block ->
-                BlockRow(block, onClick = { nav.navigate(Routes.block(block.id)) })
+                BlockRow(
+                    block,
+                    onClick = { nav.navigate(Routes.block(block.id)) },
+                    onLongClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        editingBlock = block
+                    },
+                )
                 Spacer(Modifier.height(10.dp))
             }
         }
@@ -161,6 +176,10 @@ fun HomeScreen(nav: NavController, vm: AppViewModel) {
 
         if (sheetOpen) {
             NewBlockSheet(vm = vm, onDismiss = { sheetOpen = false })
+        }
+
+        editingBlock?.let { block ->
+            EditBlockSheet(block = block, vm = vm, onDismiss = { editingBlock = null })
         }
     }
 }
@@ -186,8 +205,9 @@ private fun StatTile(value: String, label: String, color: Color, modifier: Modif
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun BlockRow(block: BlockUi, onClick: () -> Unit) {
+private fun BlockRow(block: BlockUi, onClick: () -> Unit, onLongClick: () -> Unit) {
     val color = Color(android.graphics.Color.parseColor(block.colorHex))
     Column(
         Modifier
@@ -195,7 +215,7 @@ private fun BlockRow(block: BlockUi, onClick: () -> Unit) {
             .shadow(3.dp, RoundedCornerShape(20.dp))
             .clip(RoundedCornerShape(20.dp))
             .background(Color.White)
-            .clickable(onClick = onClick)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .padding(14.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(13.dp)) {
@@ -265,3 +285,61 @@ fun NewBlockSheet(vm: AppViewModel, onDismiss: () -> Unit) {
 private fun Color.toArgbInt(): Int = android.graphics.Color.argb(
     (alpha * 255).toInt(), (red * 255).toInt(), (green * 255).toInt(), (blue * 255).toInt()
 )
+
+private fun Color.toHex(): String = String.format("#%06X", 0xFFFFFF and toArgbInt())
+
+@Composable
+private fun EditBlockSheet(block: BlockUi, vm: AppViewModel, onDismiss: () -> Unit) {
+    var name by remember { mutableStateOf(block.name) }
+    var colorIdx by remember {
+        mutableStateOf(BlockColors.indexOfFirst { it.toHex().equals(block.colorHex, ignoreCase = true) }.coerceAtLeast(0))
+    }
+    var confirmDelete by remember { mutableStateOf(false) }
+
+    SheetScaffold(onDismiss = onDismiss) {
+        Text("Блок «${block.name}»", fontFamily = Nunito, fontWeight = FontWeight.Black, fontSize = 22.sp, color = Ink)
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "${block.listCount} списка · ${block.wordCount} слов",
+            fontFamily = Nunito, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = TextMuted2
+        )
+        Spacer(Modifier.height(16.dp))
+        Text("НАЗВАНИЕ", fontFamily = Nunito, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = TextMuted3)
+        Spacer(Modifier.height(7.dp))
+        SheetTextField(value = name, onValueChange = { name = it }, placeholder = "название блока")
+        Spacer(Modifier.height(18.dp))
+        Text("ЦВЕТ БЛОКА", fontFamily = Nunito, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = TextMuted3)
+        Spacer(Modifier.height(9.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            BlockColors.forEachIndexed { i, c ->
+                Box(
+                    Modifier
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(15.dp))
+                        .background(c)
+                        .then(if (colorIdx == i) Modifier.border(2.5.dp, Ink, RoundedCornerShape(15.dp)) else Modifier)
+                        .clickable { colorIdx = i }
+                )
+            }
+        }
+        Spacer(Modifier.height(22.dp))
+        PrimaryButton("Сохранить", enabled = name.isNotBlank()) {
+            vm.updateBlock(block.id, name, BlockColors[colorIdx].toHex()) { onDismiss() }
+        }
+        Spacer(Modifier.height(9.dp))
+        DangerButton("Удалить блок") { confirmDelete = true }
+    }
+
+    if (confirmDelete) {
+        ConfirmDeleteDialog(
+            title = "Удалить блок?",
+            message = "«${block.name}» удалится вместе со всеми списками (${block.listCount}) и словами (${block.wordCount}) внутри. Вернуть их будет нельзя.",
+            onConfirm = {
+                confirmDelete = false
+                vm.deleteBlock(block.id)
+                onDismiss()
+            },
+            onDismiss = { confirmDelete = false },
+        )
+    }
+}

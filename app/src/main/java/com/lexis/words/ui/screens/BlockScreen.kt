@@ -3,9 +3,10 @@ package com.lexis.words.ui.screens
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,7 +37,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -48,6 +51,8 @@ import com.lexis.words.ListUi
 import com.lexis.words.StudyMode
 import com.lexis.words.ui.Routes
 import com.lexis.words.ui.components.BackChevron
+import com.lexis.words.ui.components.ConfirmDeleteDialog
+import com.lexis.words.ui.components.DangerButton
 import com.lexis.words.ui.components.IconTile
 import com.lexis.words.ui.components.PrimaryButton
 import com.lexis.words.ui.components.SheetScaffold
@@ -69,6 +74,8 @@ fun BlockScreen(blockId: Long, nav: NavController, vm: AppViewModel) {
     val lists by remember(blockId) { vm.listsForBlock(blockId) }.collectAsState(initial = emptyList())
     val toast by vm.toast.collectAsState()
     var sheetOpen by remember { mutableStateOf(false) }
+    var editingList by remember { mutableStateOf<ListUi?>(null) }
+    val haptics = LocalHapticFeedback.current
 
     // Paint the background while the block loads — rendering nothing for the first
     // frames made the screen flash during the navigation transition.
@@ -195,7 +202,15 @@ fun BlockScreen(blockId: Long, nav: NavController, vm: AppViewModel) {
             }
 
             items(lists, key = { it.id }) { l ->
-                ListRow(l, color = Color(android.graphics.Color.parseColor(b.colorHex)), onClick = { nav.navigate(Routes.list(l.id)) })
+                ListRow(
+                    l,
+                    color = Color(android.graphics.Color.parseColor(b.colorHex)),
+                    onClick = { nav.navigate(Routes.list(l.id)) },
+                    onLongClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        editingList = l
+                    },
+                )
                 Spacer(Modifier.height(10.dp))
             }
         }
@@ -217,6 +232,10 @@ fun BlockScreen(blockId: Long, nav: NavController, vm: AppViewModel) {
         if (sheetOpen) {
             NewListSheet(blockName = b.name, vm = vm, blockId = blockId, onDismiss = { sheetOpen = false }, onCreated = { nav.navigate(Routes.list(it)) })
         }
+
+        editingList?.let { list ->
+            EditListSheet(list = list, vm = vm, onDismiss = { editingList = null })
+        }
     }
 }
 
@@ -235,15 +254,16 @@ private fun StatCol(value: String, label: String, color: Color, modifier: Modifi
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ListRow(l: ListUi, color: Color, onClick: () -> Unit) {
+private fun ListRow(l: ListUi, color: Color, onClick: () -> Unit, onLongClick: () -> Unit) {
     Column(
         Modifier
             .fillMaxWidth()
             .shadow(3.dp, RoundedCornerShape(18.dp))
             .clip(RoundedCornerShape(18.dp))
             .background(Color.White)
-            .clickable(onClick = onClick)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .padding(horizontal = 16.dp, vertical = 15.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -257,6 +277,44 @@ private fun ListRow(l: ListUi, color: Color, onClick: () -> Unit) {
         }
         Spacer(Modifier.height(10.dp))
         ThinProgressBar(fraction = l.progressPct / 100f, color = color, height = 5.dp)
+    }
+}
+
+@Composable
+private fun EditListSheet(list: ListUi, vm: AppViewModel, onDismiss: () -> Unit) {
+    var name by remember { mutableStateOf(list.name) }
+    var confirmDelete by remember { mutableStateOf(false) }
+
+    SheetScaffold(onDismiss = onDismiss) {
+        Text("Список «${list.name}»", fontFamily = Nunito, fontWeight = FontWeight.Black, fontSize = 22.sp, color = Ink)
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "${list.wordCount} ${wordForm(list.wordCount, "слово", "слова", "слов")} · освоено ${list.progressPct}%",
+            fontFamily = Nunito, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = TextMuted2
+        )
+        Spacer(Modifier.height(16.dp))
+        Text("НАЗВАНИЕ", fontFamily = Nunito, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = TextMuted3)
+        Spacer(Modifier.height(7.dp))
+        SheetTextField(value = name, onValueChange = { name = it }, placeholder = "название списка")
+        Spacer(Modifier.height(22.dp))
+        PrimaryButton("Сохранить", enabled = name.isNotBlank()) {
+            vm.updateList(list.id, name) { onDismiss() }
+        }
+        Spacer(Modifier.height(9.dp))
+        DangerButton("Удалить список") { confirmDelete = true }
+    }
+
+    if (confirmDelete) {
+        ConfirmDeleteDialog(
+            title = "Удалить список?",
+            message = "«${list.name}» удалится вместе со всеми словами (${list.wordCount}) и их картинками. Вернуть их будет нельзя.",
+            onConfirm = {
+                confirmDelete = false
+                vm.deleteList(list.id)
+                onDismiss()
+            },
+            onDismiss = { confirmDelete = false },
+        )
     }
 }
 

@@ -129,6 +129,42 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         showToast("${toAdd.size} слов добавлено")
     }
 
+    fun updateBlock(id: Long, name: String, colorHex: String, onDone: () -> Unit) = viewModelScope.launch {
+        if (name.isBlank()) { showToast("Введите название блока"); return@launch }
+        val block = repo.blockDao.getById(id) ?: return@launch
+        repo.blockDao.update(block.copy(name = name.trim(), colorHex = colorHex))
+        showToast("Блок «${name.trim()}» сохранён")
+        onDone()
+    }
+
+    /** Deletes a block with everything inside it — lists and words cascade, images are cleaned up. */
+    fun deleteBlock(id: Long) = viewModelScope.launch {
+        val block = repo.blockDao.getById(id) ?: return@launch
+        repo.wordDao.getForBlock(id).mapNotNull { it.imagePath }.forEach { path ->
+            runCatching { java.io.File(path).delete() }
+        }
+        block.coverImagePath?.let { path -> runCatching { java.io.File(path).delete() } }
+        repo.blockDao.delete(block)
+        showToast("Блок «${block.name}» удалён")
+    }
+
+    fun updateList(id: Long, name: String, onDone: () -> Unit) = viewModelScope.launch {
+        if (name.isBlank()) { showToast("Введите название списка"); return@launch }
+        val list = repo.wordListDao.getById(id) ?: return@launch
+        repo.wordListDao.update(list.copy(name = name.trim()))
+        showToast("Список «${name.trim()}» сохранён")
+        onDone()
+    }
+
+    fun deleteList(id: Long) = viewModelScope.launch {
+        val list = repo.wordListDao.getById(id) ?: return@launch
+        repo.wordDao.getForList(id).mapNotNull { it.imagePath }.forEach { path ->
+            runCatching { java.io.File(path).delete() }
+        }
+        repo.wordListDao.delete(list)
+        showToast("Список «${list.name}» удалён")
+    }
+
     /**
      * Edits an existing word. Learning progress (stage, due date, counters) is kept —
      * only the text and picture change. Replacing or clearing the picture also deletes

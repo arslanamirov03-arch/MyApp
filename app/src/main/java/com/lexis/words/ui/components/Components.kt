@@ -15,7 +15,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -100,6 +102,54 @@ fun SecondaryButton(text: String, modifier: Modifier = Modifier, onClick: () -> 
     ) {
         Text(text, fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 14.5.sp, color = NeutralBtnFg)
     }
+}
+
+@Composable
+fun DangerButton(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(com.lexis.words.ui.theme.ErrorBg)
+            .clickable(onClick = onClick)
+            .padding(vertical = 15.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(text, fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 14.5.sp, color = com.lexis.words.ui.theme.ErrorInk)
+    }
+}
+
+/** Deleting anything in the app goes through this — one tap never destroys data. */
+@Composable
+fun ConfirmDeleteDialog(
+    title: String,
+    message: String,
+    confirmLabel: String = "Удалить",
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color.White,
+        shape = RoundedCornerShape(24.dp),
+        title = { Text(title, fontFamily = Nunito, fontWeight = FontWeight.Black, fontSize = 19.sp, color = Ink) },
+        text = {
+            Text(
+                message, fontFamily = Nunito, fontWeight = FontWeight.SemiBold,
+                fontSize = 14.sp, color = com.lexis.words.ui.theme.TextMuted2, lineHeight = 20.sp
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(confirmLabel, fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, color = com.lexis.words.ui.theme.ErrorInk)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Отмена", fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, color = com.lexis.words.ui.theme.TextMuted2)
+            }
+        },
+    )
 }
 
 @Composable

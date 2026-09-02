@@ -26,10 +26,8 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -53,6 +51,8 @@ import com.lexis.words.ExportKind
 import com.lexis.words.WordUi
 import com.lexis.words.data.WordStatus
 import com.lexis.words.ui.components.BackChevron
+import com.lexis.words.ui.components.ConfirmDeleteDialog
+import com.lexis.words.ui.components.DangerButton
 import com.lexis.words.ui.components.IconTile
 import com.lexis.words.ui.components.PrimaryButton
 import com.lexis.words.ui.components.SecondaryButton
@@ -367,45 +367,19 @@ private fun EditWordSheet(word: WordUi, vm: AppViewModel, onDismiss: () -> Unit)
             vm.updateWord(word.id, de, ru, newImage, removeImage) { onDismiss() }
         }
         Spacer(Modifier.height(9.dp))
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(18.dp))
-                .background(ErrorBg)
-                .clickable { confirmDelete = true }
-                .padding(vertical = 15.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text("Удалить слово", fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 14.5.sp, color = ErrorInk)
-        }
+        DangerButton("Удалить слово") { confirmDelete = true }
     }
 
     if (confirmDelete) {
-        AlertDialog(
-            onDismissRequest = { confirmDelete = false },
-            containerColor = Color.White,
-            shape = RoundedCornerShape(24.dp),
-            title = {
-                Text("Удалить слово?", fontFamily = Nunito, fontWeight = FontWeight.Black, fontSize = 19.sp, color = Ink)
+        ConfirmDeleteDialog(
+            title = "Удалить слово?",
+            message = "«${word.de}» и его картинка будут удалены навсегда. Прогресс по этому слову тоже пропадёт.",
+            onConfirm = {
+                confirmDelete = false
+                vm.deleteWord(word.id)
+                onDismiss()
             },
-            text = {
-                Text(
-                    "«${word.de}» и его картинка будут удалены навсегда. Прогресс по этому слову тоже пропадёт.",
-                    fontFamily = Nunito, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = TextMuted2, lineHeight = 20.sp
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmDelete = false
-                    vm.deleteWord(word.id)
-                    onDismiss()
-                }) { Text("Удалить", fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, color = ErrorInk) }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmDelete = false }) {
-                    Text("Отмена", fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, color = TextMuted2)
-                }
-            },
+            onDismiss = { confirmDelete = false },
         )
     }
 }
