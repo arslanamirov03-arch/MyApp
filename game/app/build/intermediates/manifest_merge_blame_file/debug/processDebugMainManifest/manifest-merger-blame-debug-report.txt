@@ -1,0 +1,65 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.bromobile.game"
+4    android:versionCode="1"
+5    android:versionName="1.0" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="21"
+9        android:targetSdkVersion="34" />
+10
+11    <uses-permission android:name="android.permission.VIBRATE" />
+11-->/home/user/MyApp/game/app/src/main/AndroidManifest.xml:4:5-66
+11-->/home/user/MyApp/game/app/src/main/AndroidManifest.xml:4:22-63
+12
+13    <uses-feature
+13-->/home/user/MyApp/game/app/src/main/AndroidManifest.xml:5:5-89
+14        android:name="android.hardware.touchscreen"
+14-->/home/user/MyApp/game/app/src/main/AndroidManifest.xml:5:19-62
+15        android:required="true" />
+15-->/home/user/MyApp/game/app/src/main/AndroidManifest.xml:5:63-86
+16
+17    <application
+17-->/home/user/MyApp/game/app/src/main/AndroidManifest.xml:7:5-27:19
+18        android:allowBackup="true"
+18-->/home/user/MyApp/game/app/src/main/AndroidManifest.xml:8:9-35
+19        android:debuggable="true"
+20        android:extractNativeLibs="true"
+21        android:hardwareAccelerated="true"
+21-->/home/user/MyApp/game/app/src/main/AndroidManifest.xml:12:9-43
+22        android:icon="@mipmap/ic_launcher"
+22-->/home/user/MyApp/game/app/src/main/AndroidManifest.xml:9:9-43
+23        android:label="@string/app_name"
+23-->/home/user/MyApp/game/app/src/main/AndroidManifest.xml:11:9-41
+24        android:roundIcon="@mipmap/ic_launcher"
+24-->/home/user/MyApp/game/app/src/main/AndroidManifest.xml:10:9-48
+25        android:theme="@style/GameTheme" >
+25-->/home/user/MyApp/game/app/src/main/AndroidManifest.xml:13:9-41
+26        <activity
+26-->/home/user/MyApp/game/app/src/main/AndroidManifest.xml:15:9-26:20
+27            android:name="com.bromobile.game.MainActivity"
+27-->/home/user/MyApp/game/app/src/main/AndroidManifest.xml:16:13-41
+28            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|density|uiMode"
+28-->/home/user/MyApp/game/app/src/main/AndroidManifest.xml:19:13-121
+29            android:exported="true"
+29-->/home/user/MyApp/game/app/src/main/AndroidManifest.xml:17:13-36
+30            android:launchMode="singleTask"
+30-->/home/user/MyApp/game/app/src/main/AndroidManifest.xml:20:13-44
+31            android:screenOrientation="sensorLandscape"
+31-->/home/user/MyApp/game/app/src/main/AndroidManifest.xml:18:13-56
+32            android:theme="@style/GameTheme" >
+32-->/home/user/MyApp/game/app/src/main/AndroidManifest.xml:21:13-45
+33            <intent-filter>
+33-->/home/user/MyApp/game/app/src/main/AndroidManifest.xml:22:13-25:29
+34                <action android:name="android.intent.action.MAIN" />
+34-->/home/user/MyApp/game/app/src/main/AndroidManifest.xml:23:17-69
+34-->/home/user/MyApp/game/app/src/main/AndroidManifest.xml:23:25-66
+35
+36                <category android:name="android.intent.category.LAUNCHER" />
+36-->/home/user/MyApp/game/app/src/main/AndroidManifest.xml:24:17-77
+36-->/home/user/MyApp/game/app/src/main/AndroidManifest.xml:24:27-74
+37            </intent-filter>
+38        </activity>
+39    </application>
+40
+41</manifest>

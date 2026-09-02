@@ -1,0 +1,38 @@
+{
+    "logs": [
+        {
+            "outputFile": "com.bromobile.game.app-mergeDebugResources-2:/values/values.xml",
+            "map": [
+                {
+                    "source": "/home/user/MyApp/game/app/src/main/res/values/styles.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endLines": "6",
+                        "endColumns": "12",
+                        "endOffsets": "331"
+                    },
+                    "to": {
+                        "startLines": "3",
+                        "startColumns": "4",
+                        "startOffsets": "102",
+                        "endLines": "7",
+                        "endColumns": "12",
+                        "endOffsets": "378"
+                    }
+                },
+                {
+                    "source": "/home/user/MyApp/game/app/src/main/res/values/strings.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endColumns": "46",
+                        "endOffsets": "97"
+                    }
+                }
+            ]
+        }
+    ]
+}
