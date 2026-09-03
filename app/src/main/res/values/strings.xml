@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Снятие стресса</string>
+    <string name="title_main">СНЯТИЕ\nСТРЕССА</string>
+    <string name="subtitle_main">выпусти пар</string>
+    <string name="btn_start">НАЧАТЬ</string>
+    <string name="choose_title">ВЫБЕРИ</string>
+    <string name="choose_hint">пока доступен один режим</string>
+    <string name="mode_fire">ОГОНЬ</string>
+    <string name="mode_fire_desc">Нажми и удерживай. Води пальцем.</string>
+    <string name="soon">СКОРО</string>
+    <string name="mode_water">ВОДА</string>
+    <string name="mode_storm">МОЛНИЯ</string>
+    <string name="fire_hint">нажми · удерживай · веди пальцем</string>
+</resources>

@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#FF08070A">
+
+    <com.arslan.stressrelief.EmberBackgroundView
+        android:id="@+id/embers"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:paddingStart="32dp"
+        android:paddingEnd="32dp">
+
+        <ImageView
+            android:layout_width="72dp"
+            android:layout_height="72dp"
+            android:layout_marginBottom="28dp"
+            android:src="@drawable/ic_flame"
+            android:contentDescription="@string/mode_fire" />
+
+        <TextView
+            android:id="@+id/title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/title_main"
+            android:textColor="#FFF6F1EC"
+            android:textSize="40sp"
+            android:textStyle="bold"
+            android:fontFamily="sans-serif-black"
+            android:letterSpacing="0.12"
+            android:lineSpacingMultiplier="0.98"
+            android:gravity="center" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:text="@string/subtitle_main"
+            android:textColor="#8CFFC38F"
+            android:textSize="15sp"
+            android:letterSpacing="0.30" />
+
+        <Button
+            android:id="@+id/btnStart"
+            android:layout_width="match_parent"
+            android:layout_height="62dp"
+            android:layout_marginTop="52dp"
+            android:background="@drawable/btn_start"
+            android:text="@string/btn_start"
+            android:textColor="#FFFFF3E8"
+            android:textSize="17sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.22"
+            android:stateListAnimator="@null" />
+    </LinearLayout>
+</FrameLayout>
