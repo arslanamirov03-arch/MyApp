@@ -49,25 +49,25 @@ public final class Boss extends Mob {
         p.setFilterBitmap(false);
         switch (kind) {
             case TITAN:
-                w = 44; h = 66; hp = maxHp = 260;
+                w = 44; h = 66; hp = maxHp = 280;
                 x = px - w / 2; y = floorY - h;
                 break;
             case ARCHON:
-                w = 34; h = 46; hp = maxHp = 220;
+                w = 34; h = 46; hp = maxHp = 230;
                 x = px - w / 2; y = floorY - 130;
                 break;
             case GLACIODON:
-                w = 66; h = 50; hp = maxHp = 280;
+                w = 66; h = 50; hp = maxHp = 290;
                 x = px - w / 2; y = floorY - 120;
                 break;
             case GOLEM:
-                w = 46; h = 68; hp = maxHp = 200;
+                w = 46; h = 68; hp = maxHp = 210;
                 x = px - w / 2; y = floorY - h;
                 for (int i = 0; i < 4; i++) runeHp[i] = 34;
                 litRune = 0;
                 break;
             default:
-                w = 60; h = 54; hp = maxHp = 300;
+                w = 60; h = 54; hp = maxHp = 310;
                 x = px - w / 2; y = floorY - 96;
                 break;
         }
@@ -83,24 +83,27 @@ public final class Boss extends Mob {
         return wx > x - 2 && wx < x + w + 2 && wy > y - 2 && wy < y + h + 2;
     }
 
-    /** True when the shot lands on armour instead of the weak point. */
+    /**
+     * True when the shot lands on armour instead of the weak point.
+     *
+     * The weak zones are horizontal bands rather than small boxes: a shot is
+     * consumed the moment it touches the boss, so a target buried inside the
+     * silhouette could never be reached. Height is what the player aims for.
+     */
     public boolean armoredAt(float wx, float wy) {
         switch (kind) {
-            case TITAN:
-                // Chest core only.
-                return !(openness > 0.4f && wy > y + 20 && wy < y + 40
-                        && wx > x + 10 && wx < x + w - 10);
-            case ARCHON:
+            case TITAN:                                    // exposed chest core
+                return !(openness > 0.4f && wy > y + 14 && wy < y + 46);
+            case ARCHON:                                   // whole body while charging
                 return openness < 0.4f;
-            case GLACIODON:
-                // The open mouth / throat.
-                return !(openness > 0.35f && wx < x + w * 0.5f && wy > y + 12 && wy < y + h - 8);
+            case GLACIODON:                                // the open throat
+                return !(openness > 0.35f && wy > y + h - 32 && wy < y + h - 2);
             case GOLEM: {
-                if (litRune < 0) return openness < 0.5f;
+                if (litRune < 0) return false;             // core exposed: anywhere
                 float[] rp = runePos(litRune);
-                return !(Math.abs(wx - rp[0]) < 8 && Math.abs(wy - rp[1]) < 8);
+                return Math.abs(wy - rp[1]) > 17;
             }
-            default:
+            default:                                       // core behind the shutters
                 return shutter > 0.35f;
         }
     }
@@ -211,6 +214,10 @@ public final class Boss extends Mob {
             case GOLEM: golem(dt, world); break;
             default: core(dt, world); break;
         }
+
+        // Every boss stays inside its arena: chasing the player into a wall
+        // would put the fight out of reach behind level geometry.
+        clampArena(world);
 
         Player pl = world.player;
         if (pl != null && pl.alive() && !pl.invulnerable() && bodyHurts()
@@ -328,7 +335,7 @@ public final class Boss extends Mob {
                 openness = 0;
                 if (stateTime > 1.3f) {
                     cycle++;
-                    go(cycle % 4 == 3 ? 3 : (cycle % 2 == 0 ? 1 : 2));
+                    go(cycle % 3 == 2 ? 3 : (cycle % 2 == 0 ? 1 : 2));
                 }
                 break;
             }
@@ -684,7 +691,7 @@ public final class Boss extends Mob {
 
     // --- city titan: rusted mech fused with the clock tower
     private void drawTitan(Canvas c, float ox, float oy, float camX, float camY) {
-        int dark = 0xFF3A2C28, mid = 0xFF6E4A3A, light = 0xFF9A6A4A, steel = 0xFF5A5A66;
+        int dark = 0xFF4A382E, mid = 0xFF8C6046, light = 0xFFC08A5E, steel = 0xFF7A7A8C;
         // legs
         rect(c, ox + 6, oy + 44, 12, 22, dark);
         rect(c, ox + w - 18, oy + 44, 12, 22, dark);

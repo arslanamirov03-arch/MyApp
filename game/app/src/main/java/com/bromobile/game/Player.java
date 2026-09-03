@@ -268,9 +268,22 @@ public final class Player extends Mob {
         if (fire && cooldown <= 0) shoot(world);
     }
 
-    private float muzzleX() { return cx() + face * (crouching ? 10 : 11) - recoil * face * 3; }
+    private float mzX, mzY;
 
-    private float muzzleY() { return y + (crouching ? 3.5f : 5.5f); }
+    /**
+     * Muzzle position, pulled back out of any wall the barrel is buried in.
+     * Standing flush against a wall would otherwise spawn every bullet inside
+     * solid rock, where it dies on its first step and the gun goes silent.
+     */
+    private void muzzle(World world) {
+        mzY = y + (crouching ? 3.5f : 5.5f);
+        float tip = cx() + face * (crouching ? 10 : 11) - recoil * face * 3;
+        mzX = tip;
+        if (world.level.solidAt(mzX, mzY)) {
+            mzX = cx();
+            if (world.level.solidAt(mzX, mzY)) mzX = cx() - face * 4;
+        }
+    }
 
     /**
      * Aim assist. There is no manual aiming on a touchscreen, so the shot is
@@ -279,29 +292,35 @@ public final class Player extends Mob {
      */
     private float aimAngle(World world, float spreadDeg) {
         float base = face > 0 ? 0 : (float) Math.PI;
-        float bx = muzzleX(), by = muzzleY();
+        float bx = mzX, by = mzY;
         float best = base;
         float bestScore = Float.MAX_VALUE;
         float lim = (float) Math.toRadians(42 + spreadDeg);
 
-        for (int i = 0; i < world.enemies.size(); i++) {
-            Enemy e = world.enemies.get(i);
-            if (e.remove || !e.hittable()) continue;
-            float dx = e.cx() - bx, dy = e.cy() - by;
-            if (dx * face < 0) continue;
-            float d = (float) Math.sqrt(dx * dx + dy * dy);
-            if (d > 210) continue;
-            float off = angleOff(dx, dy, base);
-            if (Math.abs(off) > lim) continue;
-            if (!world.level.lineClear(bx, by, e.cx(), e.cy())) continue;
-            float score = d + Math.abs(off) * 130;
-            if (score < bestScore) {
-                bestScore = score;
-                best = (float) Math.atan2(dy, dx);
+        Boss b = world.boss;
+        // While a boss has its weak point open, that window is short and the
+        // fight is the point: escorts must not steal the aim assist.
+        boolean bossFirst = b != null && !b.remove && b.hittable() && b.vulnerable();
+
+        if (!bossFirst) {
+            for (int i = 0; i < world.enemies.size(); i++) {
+                Enemy e = world.enemies.get(i);
+                if (e.remove || !e.hittable()) continue;
+                float dx = e.cx() - bx, dy = e.cy() - by;
+                if (dx * face < 0) continue;
+                float d = (float) Math.sqrt(dx * dx + dy * dy);
+                if (d > 210) continue;
+                float off = angleOff(dx, dy, base);
+                if (Math.abs(off) > lim) continue;
+                if (!world.level.lineClear(bx, by, e.cx(), e.cy())) continue;
+                float score = d + Math.abs(off) * 130;
+                if (score < bestScore) {
+                    bestScore = score;
+                    best = (float) Math.atan2(dy, dx);
+                }
             }
         }
 
-        Boss b = world.boss;
         if (b != null && !b.remove && b.hittable()) {
             // Prefer the weak point; a wider cone so the fight works from the floor.
             float tx = b.vulnerable() ? b.weakX() : b.cx();
@@ -309,7 +328,7 @@ public final class Player extends Mob {
             float dx = tx - bx, dy = ty - by;
             float d = (float) Math.sqrt(dx * dx + dy * dy);
             float off = angleOff(dx, dy, base);
-            if (dx * face >= 0 && d < 300 && Math.abs(off) < (float) Math.toRadians(64)) {
+            if (dx * face >= 0 && d < 320 && Math.abs(off) < (float) Math.toRadians(76)) {
                 float score = (b.vulnerable() ? d * 0.4f : d) + Math.abs(off) * 90;
                 if (score < bestScore) best = (float) Math.atan2(dy, dx);
             }
@@ -325,7 +344,8 @@ public final class Player extends Mob {
     }
 
     private void shoot(World world) {
-        float mx = muzzleX(), my = muzzleY();
+        muzzle(world);
+        float mx = mzX, my = mzY;
         switch (weapon) {
             case AK: {
                 cooldown = 0.085f;
@@ -411,7 +431,8 @@ public final class Player extends Mob {
 
     private void throwGrenade(World world) {
         grenades--;
-        float mx = cx() + face * 6, my = y + 4;
+        muzzle(world);
+        float mx = mzX, my = y + 4;
         Shot s = world.newShot();
         // Short arc: strong lob, heavy gravity — big boom, small range.
         s.set(mx, my, face * 138 + vx * 0.35f, -132, 2.2f, 9.5f, Shot.GRENADE, true, 0xFF4A6B2E);
@@ -439,7 +460,7 @@ public final class Player extends Mob {
         vx = vy = 0;
         h = STAND_H;
         crouching = false;
-        invuln = 2.1f;
+        invuln = 2.8f;
         onGround = false;
         combo = 0;
     }

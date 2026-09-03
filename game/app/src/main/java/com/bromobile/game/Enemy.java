@@ -50,14 +50,14 @@ public final class Enemy extends Mob {
                     new Def(BRUTE, "КОПЕЙЩИК", 18, 34, 1.9f, Shot.SPEAR, 0xFFE8D8A0, 250, 1, 320, "oyY65sSkp", true),
             },
             {   // ЛЕДЯНЫЕ ПЕЩЕРЫ
-                    new Def(CRAWLER, "ЛЕДОПОЛЗ", 4, 92, 0, 0, 0, 0, 0, 140, "iICVvsSkC", true),
+                    new Def(CRAWLER, "ЛЕДОПОЛЗ", 4, 80, 0, 0, 0, 0, 0, 140, "iICVvsSkC", true),
                     new Def(BOMBER, "ЛЕДОБОМБА", 5, 66, 0, 0, 0, 0, 0, 200, "iICiIsSkC", true),
                     new Def(BRUTE, "ЙЕТИ", 22, 40, 1.5f, 0, 0, 0, 0, 360, "56665IicC", true),
                     new Def(TURRET, "СОСУЛЬКОМЁТ", 8, 0, 1.15f, Shot.SHARD, 0xFFB8E4F8, 240, 1, 210, "iICVvsSkC", false),
             },
             {   // ДРЕВНИЕ РУИНЫ
                     new Def(SOLDIER, "МУМИЯ", 7, 30, 1.6f, Shot.ORB, 0xFF9AD858, 160, 1, 160, "dDw7Djdnq", true),
-                    new Def(CRAWLER, "СКАРАБЕЙ", 3, 104, 0, 0, 0, 0, 0, 120, "uUmuuuUuq", true),
+                    new Def(CRAWLER, "СКАРАБЕЙ", 3, 86, 0, 0, 0, 0, 0, 120, "uUmuuuUuq", true),
                     new Def(HEAVY, "АНУБИС", 17, 32, 1.5f, Shot.SPEAR, 0xFFE8D8A0, 260, 1, 300, "dyDuUSknq", true),
                     new Def(TURRET, "ИДОЛ", 11, 0, 1.5f, Shot.PLASMA, 0xFFE878C8, 210, 1, 250, "xXzxxXxxq", false),
             },
@@ -73,7 +73,7 @@ public final class Enemy extends Mob {
     private static Bitmap[][][] SPR;
     private static Bitmap[][][] SPR_L;
 
-    public static void initSprites() {
+    public static synchronized void initSprites() {
         if (SPR != null) return;
         SPR = new Bitmap[5][4][2];
         SPR_L = new Bitmap[5][4][2];

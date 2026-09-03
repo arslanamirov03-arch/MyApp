@@ -211,11 +211,13 @@ public final class World {
     private void updateCamera(float dt) {
         float tx, ty;
         if (boss != null && !boss.dying) {
-            // Frame the arena during the fight.
-            float mid = (arenaLeft + arenaRight) / 2f;
-            tx = Math.min(mid - vw / 2f + 20, player.cx() - vw / 2f + player.face * 24);
-            tx = Math.max(arenaLeft - 30, tx);
-            ty = bossFloorY - vh + 46;
+            // Keep both fighters on screen by tracking the midpoint between
+            // them, clamped so the view never leaves the arena.
+            float focus = (player.cx() + boss.cx()) * 0.5f;
+            tx = focus - vw / 2f;
+            float lo = arenaLeft - 24, hi = arenaRight + 24 - vw;
+            tx = hi > lo ? Math.max(lo, Math.min(hi, tx)) : (arenaLeft + arenaRight) / 2f - vw / 2f;
+            ty = Math.min(bossFloorY - vh + 52, boss.cy() - vh * 0.42f);
         } else {
             tx = player.cx() - vw / 2f + player.face * 34;
             ty = player.cy() - vh * 0.56f;
@@ -364,7 +366,8 @@ public final class World {
     }
 
     public void spawnMinion(float x, float y, int slot) {
-        if (enemies.size() > 26) return;
+        // Boss escorts stay a nuisance, never a wall of bodies.
+        if (enemies.size() >= (boss != null ? 6 : 26)) return;
         Enemy e = new Enemy(map, Math.min(3, slot), x, y);
         enemies.add(e);
         fx.sparks(x, y - 8, 10, theme.accent);
@@ -416,6 +419,14 @@ public final class World {
             return;
         }
         float[] spot = safeSpot(player.respawnX, player.respawnY);
+        // Sweep away anything already in flight near the respawn point, so the
+        // bro is not shot again the instant he is back on his feet.
+        for (int i = 0; i < shots.size(); i++) {
+            Shot s = shots.get(i);
+            if (s.fromPlayer) continue;
+            float dx = s.x - spot[0], dy = s.y - spot[1];
+            if (dx * dx + dy * dy < 90 * 90) { s.remove = true; }
+        }
         player.respawnAt(spot[0] - player.w / 2, spot[1] - 14);
         fx.sparks(spot[0], spot[1] - 8, 14, theme.accent);
         fx.ring(spot[0], spot[1] - 8, 26, 0x99FFFFFF);
@@ -538,7 +549,7 @@ public final class World {
         // Off-screen marker pointing at the exit once it is close.
         if (exitProp != null && player != null) {
             float ex = exitProp.cx() - cx;
-            if (ex > vw - 6) {
+            if (ex > vw - 6 && exitProp.cx() - player.cx() < 640) {
                 p.setColor(0xCCFFE060);
                 float ay = vh * 0.32f;
                 for (int i = 0; i < 5; i++)

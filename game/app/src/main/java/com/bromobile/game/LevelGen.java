@@ -19,7 +19,7 @@ public final class LevelGen {
         boolean boss = level == 4;
 
         int runLen = boss ? 150 + level * 6 : 280 + level * 42;
-        int arena = boss ? 46 : 0;
+        int arena = boss ? 38 : 0;
         int width = runLen + arena + 14;
 
         Level l = new Level(width, H, theme);
@@ -95,8 +95,9 @@ public final class LevelGen {
             // Match the approach so the arena entrance is a step, not a wall.
             int floor = Math.max(14, Math.min(26, surface[Math.max(0, runLen - 4)]));
             for (int x = runLen - 2; x < width - 1; x++) {
-                for (int y = floor; y < H; y++)
-                    l.set(x, y, y >= H - BEDROCK_ROWS ? Level.BEDROCK : Level.SOLID);
+                // The arena floor is bedrock: a boss fight must not be winnable
+                // (or losable) by blowing a pit in the ground you stand on.
+                for (int y = floor; y < H; y++) l.set(x, y, Level.BEDROCK);
                 for (int y = 0; y < floor; y++) if (l.get(x, y) != Level.EMPTY) l.set(x, y, Level.EMPTY);
                 surface[x] = floor;
             }
@@ -110,7 +111,9 @@ public final class LevelGen {
             world.arenaLeft = (runLen + 1) * Level.TS;
             world.arenaRight = (width - 2) * Level.TS;
             world.bossFloorY = floor * Level.TS;
-            world.bossSpawnX = (width - 16) * Level.TS;
+            // Two thirds along the arena: far enough to be a set-piece entrance,
+            // close enough that the camera can frame both fighters.
+            world.bossSpawnX = world.arenaLeft + (world.arenaRight - world.arenaLeft) * 0.66f;
         }
 
         // ---------------- guarantee a walkable route ----------------

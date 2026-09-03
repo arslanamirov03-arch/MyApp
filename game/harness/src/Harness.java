@@ -48,7 +48,8 @@ public final class Harness {
         }
         if (mode.equals("boss") || mode.equals("all")) {
             System.out.println("\n--- BOSS FIGHTS (godmode) ---");
-            for (int m = 0; m < 5; m++) run(m, 4, 260, true, true, m == 0);
+            int only = System.getProperty("bossOnly") == null ? -1 : Integer.parseInt(System.getProperty("bossOnly"));
+            for (int m = 0; m < 5; m++) if (only < 0 || only == m) run(m, 4, 260, true, true, m == 0);
         }
         if (mode.equals("reach") || mode.equals("all")) {
             dumpBlock = mode.equals("reach");
@@ -154,6 +155,8 @@ public final class Harness {
         float t = 0, nextShot = 1.2f;
         int maxEnemies = 0, maxShots = 0, embedWarn = 0;
         boolean bossKilled = false, bossSeen = false;
+        float bossHp = -1, bossMaxHp = 0, bossOpenTime = 0;
+        int lastTick = -1, dryFire = 0;
         float bossKillTime = -1;
         jumpCooldown = 0;
         lastX = 0;
@@ -171,7 +174,33 @@ public final class Harness {
             maxEnemies = Math.max(maxEnemies, w.enemies.size());
             maxShots = Math.max(maxShots, w.shots.size());
 
-            if (w.boss != null) bossSeen = true;
+            if (w.boss != null) {
+                bossSeen = true;
+                bossHp = w.boss.hp;
+                bossMaxHp = w.boss.maxHp;
+                if (w.boss.vulnerable()) bossOpenTime += dt;
+                if (startAtBoss && ((int) (t * 4)) % 80 == 0 && (int) (t * 4) != lastTick) {
+                    lastTick = (int) (t * 4);
+                    System.out.printf(Locale.US, "     t=%3.0fs boss hp %5.0f/%.0f  open %4.1fs"
+                                    + "  player dx=%.0f dy=%.0f face=%d en=%d st=%d wpn=%d ammo=%d nade=%d alive=%b%n",
+                            t, w.boss.hp, w.boss.maxHp, bossOpenTime,
+                            w.boss.cx() - w.player.cx(), w.boss.cy() - w.player.cy(),
+                            w.player.face, w.enemies.size(), w.shots.size(), w.player.weapon,
+                            w.player.ammoLeft(), w.player.grenades, w.player.alive());
+                }
+            }
+            if (startAtBoss && t > 70 && w.shots.isEmpty() && dryFire < 4) {
+                dryFire++;
+                float mx = w.player.cx() + w.player.face * 11, my = w.player.y + 5.5f;
+                System.out.printf(Locale.US,
+                        "     DRY FIRE t=%.0fs px=%.0f py=%.0f muzzle(%.0f,%.0f) muzzleSolid=%b"
+                                + " bodyHits=%b onGround=%b tile(%d,%d)=%d%n",
+                        t, w.player.cx(), w.player.y, mx, my,
+                        w.level.solidAt(mx, my),
+                        w.level.boxHits(w.player.x, w.player.y, w.player.w, w.player.h),
+                        w.player.onGround, (int) (mx / Level.TS), (int) (my / Level.TS),
+                        w.level.get((int) (mx / Level.TS), (int) (my / Level.TS)));
+            }
             if (bossSeen && w.boss == null && !bossKilled) {
                 bossKilled = true;
                 bossKillTime = t;
@@ -224,7 +253,7 @@ public final class Harness {
                 map, level + 1, verdict, progress, bestX, goalX, deaths, worstStuck, worstStuckX,
                 maxEnemies, maxShots,
                 bossSeen ? (bossKilled ? String.format(Locale.US, " | BOSS KILLED in %.0fs", bossKillTime)
-                        : " | BOSS ALIVE") : "");
+                        : String.format(Locale.US, " | BOSS ALIVE hp %.0f/%.0f open %.0fs", bossHp, bossMaxHp, bossOpenTime)) : "");
         if (!cleared && reachedExit && !w.level.bossLevel) {
             com.bromobile.game.Prop ex = w.exitProp;
             System.out.printf(Locale.US,
@@ -451,6 +480,16 @@ public final class Harness {
         }
 
         in.moveX = backUp > 0 ? -1f : 1f;
+
+        // In a boss arena, close on the boss and face it instead of running past.
+        com.bromobile.game.Boss bs = w.boss;
+        if (bs != null && bs.intro <= 0 && !bs.dying) {
+            float d = bs.cx() - p.cx();
+            if (Math.abs(d) > 70) in.moveX = Math.signum(d);
+            else if (Math.abs(d) < 40) in.moveX = -Math.signum(d);
+            else in.moveX = Math.signum(d) * 0.3f;
+            if (Math.abs(in.moveX) < 0.3f) in.moveX = Math.signum(d) * 0.35f;
+        }
 
         boolean wallAhead = l.boxHits(p.x + 7, p.y, p.w, p.h);
         boolean gapAhead = !l.groundAhead(p.cx(), p.feet(), 1);

@@ -94,7 +94,7 @@ public final class Theme {
         switch (id) {
             case CITY:
                 skyTop = 0xFF1A1A34; skyBottom = 0xFF43304A;
-                fogColor = 0x33301C2E; accent = 0xFFE07030;
+                fogColor = 0x59201428; accent = 0xFFE07030;
                 gibColor = 0xFF7A2A22; gibColor2 = 0xFF3A2A2A;
                 weather = 1;
                 mkSet(r, 0xFF6E3A32, 0xFF3E2018, 0xFF9A5A44, BRICK,
@@ -102,7 +102,7 @@ public final class Theme {
                 break;
             case SKY:
                 skyTop = 0xFF4C8AD8; skyBottom = 0xFFBFE0F4;
-                fogColor = 0x22FFFFFF; accent = 0xFFFFD860;
+                fogColor = 0x2EBFD8F0; accent = 0xFFFFD860;
                 gibColor = 0xFFE0E8F0; gibColor2 = 0xFF9AA8C0;
                 weather = 3;
                 mkSet(r, 0xFF8A7458, 0xFF54432E, 0xFFB8A382, ROCK,
@@ -110,7 +110,7 @@ public final class Theme {
                 break;
             case ICE:
                 skyTop = 0xFF20406A; skyBottom = 0xFF9EC8E4;
-                fogColor = 0x33A8D8F0; accent = 0xFF8AE0FF;
+                fogColor = 0x3D6A9AC0; accent = 0xFF8AE0FF;
                 gibColor = 0xFFB8E4F8; gibColor2 = 0xFF6A9AC0;
                 weather = 2;
                 mkSet(r, 0xFF5C6E86, 0xFF33404F, 0xFF8AA0B8, ICEY,
@@ -118,16 +118,16 @@ public final class Theme {
                 break;
             case RUINS:
                 skyTop = 0xFF1C2A1A; skyBottom = 0xFF3E5230;
-                fogColor = 0x3320301A; accent = 0xFF9AD858;
+                fogColor = 0x59162610; accent = 0xFF9AD858;
                 gibColor = 0xFF7A6A48; gibColor2 = 0xFF4A4030;
                 weather = 5;
-                mkSet(r, 0xFF6E6A50, 0xFF3C3A2C, 0xFF98957A, BLOCK,
+                mkSet(r, 0xFF8A8264, 0xFF474334, 0xFFB6B094, BLOCK,
                         0xFF4A7A38, 0xFF2E5024);
                 break;
             case FACTORY:
             default:
                 skyTop = 0xFF14161C; skyBottom = 0xFF322028;
-                fogColor = 0x33301818; accent = 0xFFFFA828;
+                fogColor = 0x4D1A1216; accent = 0xFFFFA828;
                 gibColor = 0xFF8A6030; gibColor2 = 0xFF4A4A52;
                 weather = 4;
                 mkSet(r, 0xFF4A5460, 0xFF262C34, 0xFF78848E, METAL,
@@ -429,24 +429,38 @@ public final class Theme {
                 x += bw + 3 + r.nextInt(10);
             }
         } else {
-            g.setColor(0xFF3A2620);
-            c.drawRect(0, 0, w, h, g);
-            for (int y = 0; y < h; y += 6)                     // brick courses
-                for (int x = (y / 6 % 2) * 6; x < w; x += 12) {
-                    g.setColor(r.nextInt(6) == 0 ? 0xFF4A302A : 0xFF33211C);
-                    c.drawRect(x, y, x + 11, y + 5, g);
-                }
-            for (int x = 20; x < w; x += 90) {                 // fire escapes
+            // Separate tenement fronts with alleys between them, so the skyline
+            // and sky stay visible instead of one flat wall of brick.
+            int x = -10;
+            while (x < w) {
+                int bw = 74 + r.nextInt(56);
+                int top = 6 + r.nextInt(34);
+                g.setColor(0xFF3A2620);
+                c.drawRect(x, top, x + bw, h, g);
+                g.setColor(0xFF4E3228);
+                c.drawRect(x, top, x + bw, top + 4, g);
+                for (int y = top + 5; y < h; y += 6)
+                    for (int bx = x + (((y - top) / 6 % 2) * 6); bx < x + bw - 4; bx += 12) {
+                        g.setColor(r.nextInt(7) == 0 ? 0xFF4A302A : 0xFF33211C);
+                        c.drawRect(bx, y, Math.min(bx + 11, x + bw - 1), y + 5, g);
+                    }
+                for (int wy = top + 14; wy < h - 20; wy += 30)
+                    for (int wx = x + 10; wx < x + bw - 14; wx += 24) {
+                        int lit = r.nextInt(10);
+                        g.setColor(lit < 3 ? (lit == 0 ? 0xFFFFC860 : 0xFFC08830) : 0xFF1A1220);
+                        c.drawRect(wx, wy, wx + 10, wy + 13, g);
+                        g.setColor(0xFF241820);
+                        c.drawRect(wx - 1, wy - 1, wx + 11, wy, g);
+                    }
+                // Fire escape bolted to the front.
+                int fx = x + 12 + r.nextInt(Math.max(1, bw - 60));
                 g.setColor(0xFF1C1A20);
-                c.drawRect(x, 20, x + 42, 23, g);
-                c.drawRect(x, 80, x + 42, 83, g);
-                c.drawRect(x, 140, x + 42, 143, g);
-                for (int i = 0; i < 12; i++) {
-                    c.drawRect(x + 4, 23 + i * 5, x + 6, 25 + i * 5, g);
-                    c.drawRect(x + 16, 23 + i * 5, x + 18, 25 + i * 5, g);
+                for (int fy = top + 26; fy < h - 10; fy += 46) {
+                    c.drawRect(fx, fy, fx + 40, fy + 3, g);
+                    for (int i = 0; i < 9; i++) c.drawRect(fx + 3 + i * 4, fy - 8, fx + 4 + i * 4, fy, g);
+                    c.drawRect(fx + 34, fy, fx + 36, fy + 46, g);
                 }
-                g.setColor(0xFF262430);
-                c.drawRect(x + 36, 23, x + 38, 80, g);
+                x += bw + 14 + r.nextInt(28);      // alley
             }
         }
     }
@@ -577,18 +591,38 @@ public final class Theme {
                 }
             }
         } else {
-            g.setColor(0xFF3A4428);
-            c.drawRect(0, 0, w, h, g);
-            for (int y = 0; y < h; y += 14)
-                for (int x = (y / 14 % 2) * 10; x < w; x += 20) {
-                    g.setColor(r.nextInt(5) == 0 ? 0xFF4A5A32 : 0xFF303A22);
-                    c.drawRect(x, y, x + 19, y + 13, g);
+            // Ruined masonry in broken patches with vines hanging between them,
+            // rather than a solid wall that would hide the temple behind it.
+            int x = -8;
+            while (x < w) {
+                int bw = 46 + r.nextInt(60);
+                int top = 10 + r.nextInt(50);
+                int bot = h - r.nextInt(70);
+                g.setColor(0xFF3A4428);
+                c.drawRect(x, top, x + bw, bot, g);
+                for (int y = top; y < bot; y += 14)
+                    for (int bx = x + (((y - top) / 14 % 2) * 10); bx < x + bw - 2; bx += 20) {
+                        g.setColor(r.nextInt(5) == 0 ? 0xFF4A5A32 : 0xFF2A3420);
+                        c.drawRect(bx, y, Math.min(bx + 19, x + bw - 1), y + 13, g);
+                    }
+                g.setColor(0xFF56603C);                        // broken crown
+                c.drawRect(x, top, x + bw, top + 3, g);
+                for (int i = 0; i < 6; i++) {
+                    int nx = x + r.nextInt(Math.max(1, bw - 8));
+                    c.drawRect(nx, top - 4 - r.nextInt(6), nx + 5 + r.nextInt(6), top + 2, g);
                 }
-            g.setColor(0xFF2E5A24);
-            for (int i = 0; i < 60; i++) {
-                int x = r.nextInt(w), y = r.nextInt(h);
-                c.drawRect(x, y, x + 3 + r.nextInt(9), y + 2 + r.nextInt(5), g);
+                g.setColor(0xFF2E5A24);                        // vines
+                for (int i = 0; i < 7; i++) {
+                    int vx = x + r.nextInt(Math.max(1, bw));
+                    int vlen = 20 + r.nextInt(70);
+                    for (int k = 0; k < vlen; k += 3)
+                        c.drawRect(vx + (int) (Math.sin(k * 0.2) * 2), top + k,
+                                vx + 3 + (int) (Math.sin(k * 0.2) * 2), top + k + 3, g);
+                }
+                x += bw + 16 + r.nextInt(34);
             }
+            g.setColor(0xFF24361C);                            // canopy shadow
+            c.drawRect(0, 0, w, 14, g);
         }
     }
 

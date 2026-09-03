@@ -332,8 +332,20 @@ public final class Fx {
             if (sx < -40 || sx > c.getWidth() + 40) continue;
             p.setColor(dcol[i]);
             float s = ds[i];
-            c.drawRect((int) (sx - s), (int) (sy - s * 0.5f),
-                    (int) (sx + s), (int) (sy + s * 0.5f), p);
+            // Scatter the mark into soot blotches; one big rectangle reads as a
+            // rendering fault rather than scorched ground.
+            int h = (int) (dx[i] * 31 + dy[i] * 17);
+            for (int k = 0; k < 6; k++) {
+                h = h * 1103515245 + 12345;
+                float ox = ((h >> 8) & 63) / 63f * 2 - 1;
+                h = h * 1103515245 + 12345;
+                float oy = ((h >> 8) & 63) / 63f * 2 - 1;
+                h = h * 1103515245 + 12345;
+                float bs = s * (0.28f + ((h >> 8) & 31) / 31f * 0.34f);
+                float bx = sx + ox * s * 0.8f, by = sy + oy * s * 0.42f;
+                c.drawRect((int) (bx - bs), (int) (by - bs * 0.55f),
+                        (int) (bx + bs), (int) (by + bs * 0.55f), p);
+            }
         }
     }
 

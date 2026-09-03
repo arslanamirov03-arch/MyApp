@@ -736,7 +736,7 @@ public final class Art {
 
     private static boolean built;
 
-    public static void init() {
+    public static synchronized void init() {
         if (built) return;
         built = true;
 

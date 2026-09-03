@@ -106,7 +106,7 @@ public final class Ui {
     private void backdrop(Canvas c, boolean dim) {
         if (menuTheme != null) {
             menuTheme.drawSky(c);
-            menuTheme.drawLayers(c, menuScroll, 40, vw, vh);
+            menuTheme.drawLayers(c, menuScroll, 300, vw, vh);
             menuTheme.drawWeather(c, vw, vh);
         } else {
             p.setColor(0xFF14121C);

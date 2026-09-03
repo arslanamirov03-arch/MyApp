@@ -68,8 +68,8 @@ public final class Hud {
         // --- boss health ---
         if (w.boss != null && w.boss.intro <= 0 && !w.boss.dying) {
             Boss b = w.boss;
-            int bw = Math.min(300, vw - 60);
-            int bx = (vw - bw) / 2, by = 12;
+            int bw = Math.min(240, vw - 230);
+            int bx = (vw - bw) / 2, by = 26;
             p.setColor(0xCC100810);
             c.drawRect(bx - 2, by - 2, bx + bw + 2, by + 9, p);
             p.setColor(0xFF3A1414);

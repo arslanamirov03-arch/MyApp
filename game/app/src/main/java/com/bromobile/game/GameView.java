@@ -57,10 +57,13 @@ public final class GameView extends SurfaceView implements SurfaceHolder.Callbac
         flat.setAntiAlias(false);
         flat.setFilterBitmap(false);
 
+        // Sprite baking is a few dozen tiny bitmaps: do it here so nothing can
+        // ever draw against half-initialised statics. Only the (slower) audio
+        // synthesis is pushed onto a worker.
+        Art.init();
+        Enemy.initSprites();
         new Thread(new Runnable() {
             @Override public void run() {
-                Art.init();
-                Enemy.initSprites();
                 sfx.buildAll();
                 assetsReady = true;
             }
@@ -305,11 +308,6 @@ public final class GameView extends SurfaceView implements SurfaceHolder.Callbac
         transition = 1;
         pending = new Runnable() {
             @Override public void run() {
-                // Wait for the asset thread before touching any sprite.
-                int guard = 0;
-                while (!assetsReady && guard++ < 400) {
-                    try { Thread.sleep(10); } catch (InterruptedException ignored) { }
-                }
                 ensureWorld();
                 world.score = save.score;
                 world.load(map, level);
