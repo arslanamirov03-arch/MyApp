@@ -1,0 +1,58 @@
+plugins {
+    id 'com.android.application'
+}
+
+// The release keystore is intentionally not in version control. When it is
+// absent (CI, a fresh clone) the release build simply stays unsigned and
+// `assembleDebug` is the one to use.
+def releaseKeystore = rootProject.file('keystore/release.jks')
+
+android {
+    namespace 'com.arslan.stressrelief'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.arslan.stressrelief"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+
+    if (releaseKeystore.exists()) {
+        signingConfigs {
+            release {
+                storeFile releaseKeystore
+                storePassword System.getenv("STRESSRELIEF_STORE_PASS") ?: "stressrelief"
+                keyAlias System.getenv("STRESSRELIEF_KEY_ALIAS") ?: "stressrelief"
+                keyPassword System.getenv("STRESSRELIEF_KEY_PASS") ?: "stressrelief"
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            shrinkResources false
+            if (releaseKeystore.exists()) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    androidResources {
+        noCompress 'glsl', 'wav'
+    }
+
+    packagingOptions {
+        jniLibs.useLegacyPackaging false
+    }
+}
+
+dependencies {
+}
