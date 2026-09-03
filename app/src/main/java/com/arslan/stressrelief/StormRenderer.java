@@ -313,8 +313,9 @@ final class StormRenderer implements GLSurfaceView.Renderer {
             GLES30.glBindVertexArray(boltVao);
             p = pBolt.use();
             p.f("uCoreFrac", 0.28f);
-            p.f3("uCoreColor", 0.88f, 0.94f, 1.00f);
-            p.f3("uHaloColor", 0.24f, 0.46f, 1.00f);
+            p.f3("uCoreColor", 0.80f, 0.90f, 1.00f);
+            p.f3("uMidColor", 0.26f, 0.52f, 1.00f);
+            p.f3("uHaloColor", 0.12f, 0.24f, 0.92f);
             for (int i = 0; i < MAX_BOLTS; i++) {
                 if (!bolts[i].alive || boltCount[i] == 0) continue;
                 p.f("uBright", bolts[i].brightness());

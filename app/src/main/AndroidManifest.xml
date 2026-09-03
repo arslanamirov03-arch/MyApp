@@ -38,6 +38,13 @@
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode" />
 
         <activity
+            android:name=".BombActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/BlackTheme"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode" />
+
+        <activity
             android:name=".StormActivity"
             android:exported="false"
             android:screenOrientation="portrait"

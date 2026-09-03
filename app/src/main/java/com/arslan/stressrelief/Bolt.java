@@ -159,7 +159,9 @@ final class Bolt {
         py[1] = y * screenH;
         int n = subdivide(px, py, 2, jag, levels);
 
-        emit(px, py, n, coreW, 1f, 0.25f);
+        // A return stroke lights the channel from the ground upwards, so the
+        // lower end is the bright one -- the opposite of a fading tail.
+        emit(px, py, n, coreW, 0.68f, 1.0f);
 
         if (style == STYLE_RIBBON) {
             // a second channel a few pixels away, dimmer: reads as a ribbon flash
@@ -168,7 +170,7 @@ final class Bolt {
                 bx[i] = px[i] + off;
                 by[i] = py[i] + off * 0.25f;
             }
-            emit(bx, by, n, coreW * 0.72f, 0.55f, 0.3f);
+            emit(bx, by, n, coreW * 0.72f, 0.40f, 0.58f);
         }
 
         if (style == STYLE_FORK) {
@@ -196,10 +198,21 @@ final class Bolt {
         dx /= len;
         dy /= len;
 
-        double ang = Math.toRadians(22.0 + rnd.nextFloat() * 42.0) * (rnd.nextBoolean() ? 1 : -1);
+        double ang = Math.toRadians(22.0 + rnd.nextFloat() * 42.0);
         float ca = (float) Math.cos(ang), sa = (float) Math.sin(ang);
-        float rx = dx * ca - dy * sa;
-        float ry = dx * sa + dy * ca;
+        // Both rotations, then keep whichever heads further down: leaders branch
+        // downwards, never back up towards the cloud.
+        float ax1 = dx * ca - dy * sa, ay1 = dx * sa + dy * ca;
+        float ax2 = dx * ca + dy * sa, ay2 = -dx * sa + dy * ca;
+        float rx, ry;
+        if (ay1 <= ay2) {
+            rx = ax1;
+            ry = ay1;
+        } else {
+            rx = ax2;
+            ry = ay2;
+        }
+        if (ry > 0f) ry = -ry;
 
         float remaining = (float) Math.hypot(px[n - 1] - ax, py[n - 1] - ay);
         float bl = Math.max(remaining * lenFrac * (0.4f + rnd.nextFloat() * 0.8f),
@@ -210,7 +223,7 @@ final class Bolt {
         bx[1] = ax + rx * bl;
         by[1] = ay + ry * bl;
         int bn = subdivide(bx, by, 2, 0.26f, 4);
-        emit(bx, by, bn, width, bright, 0.85f);
+        emit(bx, by, bn, width, bright, bright * 0.12f);
 
         if (depth > 1 && rnd.nextFloat() < 0.45f) {
             // sub-branches need their own scratch, so copy this one out first
@@ -231,7 +244,7 @@ final class Bolt {
                 bx[1] = sx + r2x * l2;
                 by[1] = sy + r2y * l2;
                 int n2 = subdivide(bx, by, 2, 0.30f, 3);
-                emit(bx, by, n2, width * 0.6f, bright * 0.6f, 0.9f);
+                emit(bx, by, n2, width * 0.6f, bright * 0.6f, bright * 0.05f);
             }
         }
     }
@@ -268,7 +281,8 @@ final class Bolt {
      * them instead would double up under additive blending and leave a string of
      * bright beads down every channel.
      */
-    private void emit(float[] xs, float[] ys, int n, float coreW, float bright, float taper) {
+    private void emit(float[] xs, float[] ys, int n, float coreW,
+                      float brightStart, float brightEnd) {
         if (n < 2) return;
         float half = coreW * 4.0f;
 
@@ -303,8 +317,8 @@ final class Bolt {
 
             float t0 = i / (float) (n - 1);
             float t1 = (i + 1) / (float) (n - 1);
-            float b0 = bright * (1f - taper * t0);
-            float b1 = bright * (1f - taper * t1);
+            float b0 = brightStart + (brightEnd - brightStart) * t0;
+            float b1 = brightStart + (brightEnd - brightStart) * t1;
 
             float ax = xs[i], ay = ys[i], cx = xs[i + 1], cy = ys[i + 1];
 

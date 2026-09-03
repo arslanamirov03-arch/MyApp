@@ -14,4 +14,7 @@
     <string name="fire_hint">нажми · удерживай · веди пальцем</string>
     <string name="mode_storm_desc">Нажми — один разряд. Удерживай — гроза.</string>
     <string name="storm_hint">нажми · удерживай · веди пальцем</string>
+    <string name="mode_bomb">БОМБА</string>
+    <string name="mode_bomb_desc">Нажми — взрыв. Удерживай долго — не советую.</string>
+    <string name="bomb_hint">нажми — взрыв · удерживай — обратный отсчёт</string>
 </resources>

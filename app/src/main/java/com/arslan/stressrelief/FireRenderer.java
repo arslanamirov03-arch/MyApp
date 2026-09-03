@@ -1,33 +1,18 @@
 package com.arslan.stressrelief;
 
 import android.content.Context;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.opengl.GLES30;
 import android.opengl.GLSurfaceView;
-import android.opengl.GLUtils;
-import android.util.Log;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.nio.FloatBuffer;
-import java.util.Random;
-
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
 
 /**
- * A 2D Navier-Stokes fluid solver driving a combusting gas, shaded through a
- * blackbody ramp with bloom.  Every frame runs, on the GPU:
- *
- *   curl -> advect velocity + forces -> divergence -> pressure Jacobi xN ->
- *   project -> advect + burn the gas -> embers -> shade -> bloom -> composite
+ * The campfire. FluidSim does the physics; this maps the interaction state onto
+ * its parameters and shades the result.
  *
  * Constants here are the ones tuned in tools/preview.py; keep the two in sync.
  */
-final class FireRenderer implements GLSurfaceView.Renderer {
+final class FireRenderer implements GLSurfaceView.Renderer, SceneRig.Mode {
 
     interface Listener {
         /** Called on the GL thread when the fire detonates. */
@@ -51,36 +36,16 @@ final class FireRenderer implements GLSurfaceView.Renderer {
     private float touchX = 0.5f, touchY = 0.3f;
     private float touchVX, touchVY;
 
-    // --- gl objects --------------------------------------------------------
-    private Prog pCurl, pVel, pDiv, pPres, pProj, pFields, pAdvect, pRender;
-    private Prog pPartUpd, pPartDraw;
-    private PostFx post;
+    private final SceneRig rig = new SceneRig();
+    private FluidSim fluid;
+    private Prog pRender, pPartDraw;
     private final PostFx.Params comp = new PostFx.Params();
 
-    private PingPong velocity, pressure, fields, particles;
-    private RenderTarget curl, divergence, fieldsA, fieldsB;
-    private int noiseTex;
-    private int vao;
-
-    private boolean floatTargets = true;
-    private boolean failed;
-    private boolean forceLowPrecision;
-    private boolean embers = true;
-    private boolean ready;
-    private float idleSeconds;
-
-    private int screenW = 1, screenH = 1;
-    private int simW = 1, simH = 1;
-    private int sceneW = 1, sceneH = 1;
-    private float aspectX = 0.5f;
-
-    private static final int PARTICLE_DIM = 64;
-    private static final int PARTICLE_COUNT = PARTICLE_DIM * PARTICLE_DIM;
-
-    private int iterations = 26;
-    private long lastNanos;
     private float time;
     private float frameMs = 16.6f;
+    private long lastNanos;
+    private float idleSeconds;
+    private int iterations = 26;
 
     FireRenderer(Context ctx) {
         this.ctx = ctx;
@@ -90,16 +55,13 @@ final class FireRenderer implements GLSurfaceView.Renderer {
         this.listener = l;
     }
 
-    // ---------------------------------------------------------------- input
     void onTouch(boolean down, boolean up, float x, float y, float vx, float vy) {
         synchronized (touchLock) {
             if (down) {
                 pendingDown = true;
                 touching = true;
             }
-            if (up) {
-                touching = false;
-            }
+            if (up) touching = false;
             touchX = x;
             touchY = y;
             touchVX = vx;
@@ -110,210 +72,38 @@ final class FireRenderer implements GLSurfaceView.Renderer {
     // ------------------------------------------------------------- lifecycle
     @Override
     public void onSurfaceCreated(GL10 unused, EGLConfig config) {
-        try {
-            createGl();
-        } catch (RuntimeException e) {
-            Log.e(GLUtil.TAG, "GL setup failed", e);
-            failed = true;
-        }
-    }
-
-    private void createGl() {
-        String ext = GLES30.glGetString(GLES30.GL_EXTENSIONS);
-        if (ext == null) ext = "";
-        String ver = GLES30.glGetString(GLES30.GL_VERSION);
-        floatTargets = !forceLowPrecision
-                && (ext.contains("GL_EXT_color_buffer_half_float")
-                    || ext.contains("GL_EXT_color_buffer_float")
-                    || (ver != null && ver.contains("ES 3.2")));
-        Log.i(GLUtil.TAG, "float render targets: " + floatTargets);
-
-        String defines = "#define LOWPREC " + (floatTargets ? 0 : 1) + "\n";
-        String vsFull = "shaders/fullscreen.vert";
-        pCurl = new Prog(ctx, vsFull, "shaders/curl.frag", defines);
-        pVel = new Prog(ctx, vsFull, "shaders/velocity.frag", defines);
-        pDiv = new Prog(ctx, vsFull, "shaders/divergence.frag", defines);
-        pPres = new Prog(ctx, vsFull, "shaders/pressure.frag", defines);
-        pProj = new Prog(ctx, vsFull, "shaders/project.frag", defines);
-        pFields = new Prog(ctx, vsFull, "shaders/fields.frag", defines);
-        pAdvect = new Prog(ctx, vsFull, "shaders/advect.frag", defines);
-        pRender = new Prog(ctx, vsFull, "shaders/render_fire.frag", defines);
-        pPartUpd = new Prog(ctx, vsFull, "shaders/particles_update.frag", defines);
-        pPartDraw = new Prog(ctx, "shaders/particles.vert", "shaders/particles.frag", defines);
-        post = new PostFx(ctx, defines);
-
-        int[] v = new int[1];
-        GLES30.glGenVertexArrays(1, v, 0);
-        vao = v[0];
-        GLES30.glBindVertexArray(vao);
-
-        noiseTex = loadNoise();
-        embers = floatTargets;
+        rig.create(ctx, this);
         lastNanos = System.nanoTime();
-    }
-
-    private int loadNoise() {
-        Bitmap bmp;
-        try (InputStream in = ctx.getAssets().open("noise.png")) {
-            bmp = BitmapFactory.decodeStream(in);
-        } catch (IOException e) {
-            throw new RuntimeException("noise.png missing", e);
-        }
-        int[] t = new int[1];
-        GLES30.glGenTextures(1, t, 0);
-        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, t[0]);
-        GLUtils.texImage2D(GLES30.GL_TEXTURE_2D, 0, bmp, 0);
-        GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_MIN_FILTER, GLES30.GL_LINEAR);
-        GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_MAG_FILTER, GLES30.GL_LINEAR);
-        GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_WRAP_S, GLES30.GL_REPEAT);
-        GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_WRAP_T, GLES30.GL_REPEAT);
-        bmp.recycle();
-        return t[0];
     }
 
     @Override
     public void onSurfaceChanged(GL10 unused, int width, int height) {
-        if (failed) {
-            screenW = Math.max(width, 1);
-            screenH = Math.max(height, 1);
-            return;
-        }
-        try {
-            resize(width, height);
-        } catch (RuntimeException e) {
-            Log.e(GLUtil.TAG, "GL resize failed", e);
-            failed = true;
-        }
-    }
-
-    private void resize(int width, int height) {
-        screenW = Math.max(width, 1);
-        screenH = Math.max(height, 1);
-        aspectX = screenW / (float) screenH;
-
-        simW = clamp(Math.round(screenW / 5.0f), 128, 240);
-        simH = Math.min(Math.round(simW * screenH / (float) screenW), 560);
-
-        float scale = clamp(1080.0f / screenW, 0.55f, 1.0f);
-        sceneW = Math.max(Math.round(screenW * scale), 16);
-        sceneH = Math.max(Math.round(screenH * scale), 16);
-
-        releaseTargets();
-
-        int fmt = floatTargets ? GLES30.GL_RGBA16F : GLES30.GL_RGBA8;
-        int clampWrap = GLES30.GL_CLAMP_TO_EDGE;
-
-        velocity = new PingPong(simW, simH, fmt, GLES30.GL_LINEAR, clampWrap);
-        pressure = new PingPong(simW, simH, fmt, GLES30.GL_LINEAR, clampWrap);
-        fields = new PingPong(simW, simH, fmt, GLES30.GL_LINEAR, clampWrap);
-        curl = new RenderTarget(simW, simH, fmt, GLES30.GL_LINEAR, clampWrap);
-        divergence = new RenderTarget(simW, simH, fmt, GLES30.GL_LINEAR, clampWrap);
-        fieldsA = new RenderTarget(simW, simH, fmt, GLES30.GL_LINEAR, clampWrap);
-        fieldsB = new RenderTarget(simW, simH, fmt, GLES30.GL_LINEAR, clampWrap);
-        particles = new PingPong(PARTICLE_DIM, PARTICLE_DIM, fmt, GLES30.GL_NEAREST, clampWrap);
-        post.resize(sceneW, sceneH, fmt);
-
-        if (floatTargets && !velocity.complete()) {
-            // The extension string lied; fall back and rebuild everything as RGBA8.
-            Log.w(GLUtil.TAG, "half-float FBO incomplete, rebuilding at 8 bit");
-            forceLowPrecision = true;
-            floatTargets = false;
-            embers = false;
-            releaseTargets();
-            createGl();
-            resize(width, height);
-            return;
-        }
-
-        resetSimulation();
-        ready = true;
+        rig.resize(width, height);
         lastNanos = System.nanoTime();
     }
 
-    private void releaseTargets() {
-        if (velocity != null) velocity.release();
-        if (pressure != null) pressure.release();
-        if (fields != null) fields.release();
-        if (particles != null) particles.release();
-        if (curl != null) curl.release();
-        if (divergence != null) divergence.release();
-        if (fieldsA != null) fieldsA.release();
-        if (fieldsB != null) fieldsB.release();
-        if (post != null) post.release();
-        velocity = null;
-        pressure = null;
-        fields = null;
-        particles = null;
-        curl = null;
-        divergence = null;
-        fieldsA = null;
-        fieldsB = null;
-        ready = false;
+    @Override
+    public void buildPrograms(String defines) {
+        pRender = new Prog(ctx, "shaders/fullscreen.vert", "shaders/render_fire.frag", defines);
+        pPartDraw = new Prog(ctx, "shaders/particles.vert", "shaders/particles.frag", defines);
+        fluid = new FluidSim(ctx, defines, rig.floatTargets, rig);
     }
 
-    /** Zero in encoded space: 0.5 grey for the 8 bit fallback, black otherwise. */
-    private void clearSigned(PingPong p) {
-        if (floatTargets) {
-            p.clear(0f, 0f, 0f, 0f);
-        } else {
-            p.clear(0.5f, 0.5f, 0.5f, 1f);
-        }
+    @Override
+    public boolean resizeTargets(SceneRig r) {
+        fluid.resize(r.simW, r.simH, r.format());
+        fluid.embers = r.floatTargets;
+        return fluid.complete();
     }
 
-    private void clearSigned(RenderTarget t) {
-        if (floatTargets) {
-            t.clear(0f, 0f, 0f, 0f);
-        } else {
-            t.clear(0.5f, 0.5f, 0.5f, 1f);
-        }
+    @Override
+    public void releaseTargets() {
+        fluid.release();
     }
 
-    private void resetSimulation() {
-        clearSigned(velocity);
-        clearSigned(pressure);
-        clearSigned(curl);
-        clearSigned(divergence);
-        fields.clear(0f, 0f, 0f, 0f);
-        fieldsA.clear(0f, 0f, 0f, 0f);
-        fieldsB.clear(0f, 0f, 0f, 0f);
-        post.clear();
-        seedParticles();
-    }
-
-    /** Every ember starts dead, with its own random seed in the alpha channel. */
-    private void seedParticles() {
-        int n = PARTICLE_COUNT;
-        Random rnd = new Random(7);
-        if (floatTargets) {
-            FloatBuffer fb = ByteBuffer.allocateDirect(n * 4 * 4)
-                    .order(ByteOrder.nativeOrder()).asFloatBuffer();
-            for (int i = 0; i < n; i++) {
-                fb.put(0f).put(0f).put(0f).put(rnd.nextFloat());
-            }
-            fb.position(0);
-            uploadParticles(GLES30.GL_FLOAT, fb);
-        } else {
-            ByteBuffer bb = ByteBuffer.allocateDirect(n * 4).order(ByteOrder.nativeOrder());
-            for (int i = 0; i < n; i++) {
-                bb.put((byte) 0).put((byte) 0).put((byte) 0).put((byte) rnd.nextInt(256));
-            }
-            bb.position(0);
-            uploadParticles(GLES30.GL_UNSIGNED_BYTE, bb);
-        }
-    }
-
-    private void uploadParticles(int type, java.nio.Buffer data) {
-        for (int i = 0; i < 2; i++) {
-            GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, particles.read().tex);
-            GLES30.glTexSubImage2D(GLES30.GL_TEXTURE_2D, 0, 0, 0,
-                    PARTICLE_DIM, PARTICLE_DIM, GLES30.GL_RGBA, type, data);
-            data.position(0);
-            particles.swap();
-        }
-    }
-
-    private static void blit() {
-        GLES30.glDrawArrays(GLES30.GL_TRIANGLES, 0, 3);
+    @Override
+    public void reset() {
+        fluid.reset();
     }
 
     private static float mix(float a, float b, float t) {
@@ -324,21 +114,14 @@ final class FireRenderer implements GLSurfaceView.Renderer {
         return v < lo ? lo : (v > hi ? hi : v);
     }
 
-    private static int clamp(int v, int lo, int hi) {
-        return v < lo ? lo : (v > hi ? hi : v);
-    }
-
     // ------------------------------------------------------------------ frame
     @Override
     public void onDrawFrame(GL10 unused) {
-        if (failed) {
-            GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0);
-            GLES30.glViewport(0, 0, screenW, screenH);
-            GLES30.glClearColor(0f, 0f, 0f, 1f);
-            GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT);
+        if (rig.failed) {
+            rig.clearScreen();
             return;
         }
-        if (!ready) return;
+        if (!rig.ready) return;
 
         long now = System.nanoTime();
         float dt = (now - lastNanos) / 1e9f;
@@ -347,7 +130,11 @@ final class FireRenderer implements GLSurfaceView.Renderer {
         dt = clamp(dt, 1f / 240f, 1f / 30f);
         time += dt;
 
-        adaptQuality();
+        if (frameMs > 24f && iterations > 12) {
+            iterations--;
+        } else if (frameMs < 15f && iterations < 26) {
+            iterations++;
+        }
 
         boolean down;
         boolean isTouching;
@@ -363,6 +150,7 @@ final class FireRenderer implements GLSurfaceView.Renderer {
             touchVX = 0f;
             touchVY = 0f;
         }
+
         if (down && !state.exploding) {
             state.touchDown();
             if (listener != null) listener.onStrike();
@@ -370,7 +158,10 @@ final class FireRenderer implements GLSurfaceView.Renderer {
 
         state.update(dt, isTouching, tx, ty);
         if (state.justExploded && listener != null) listener.onExplosion();
-        if (state.resetRequested) resetSimulation();
+        if (state.resetRequested) {
+            reset();
+            rig.post.clear();
+        }
         if (listener != null) {
             listener.onIntensity(state.intensity, state.intensity > 0.003f || state.exploding);
         }
@@ -381,142 +172,83 @@ final class FireRenderer implements GLSurfaceView.Renderer {
         float expl = state.exploding ? state.et : -1f;
         float k = expl < 0f ? 0f : clamp((expl - 0.18f) / 0.35f, 0f, 1f);
 
-        // Nothing left burning: stop solving and just hold a black screen.
-        boolean active = isTouching || state.exploding || state.intensity > 0.0005f
-                || state.strike > 0f;
+        boolean active = isTouching || state.exploding || q > 0.0005f || state.strike > 0f;
         idleSeconds = active ? 0f : idleSeconds + dt;
         if (idleSeconds > 3.0f) {
-            GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0);
-            GLES30.glViewport(0, 0, screenW, screenH);
-            GLES30.glClearColor(0f, 0f, 0f, 1f);
-            GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT);
+            rig.clearScreen();
             return;
         }
 
-        float texelX = 1f / simW, texelY = 1f / simH;
+        GLES30.glBindVertexArray(rig.vao);
 
-        GLES30.glBindVertexArray(vao);
-        GLES30.glDisable(GLES30.GL_BLEND);
-        GLES30.glDisable(GLES30.GL_DEPTH_TEST);
+        // ---- physics ---------------------------------------------------------
+        fluid.iterations = iterations;
+        fluid.vorticity = mix(20f, 36f, q);
+        fluid.buoyancy = mix(700f, 900f, q);
+        fluid.sootWeight = 90f;
+        fluid.damping = mix(2.60f, 1.10f, q);
+        fluid.noiseAmp = mix(900f, 3200f, q);
+        fluid.noiseScale = mix(8.0f, 2.6f, q);
 
-        // ---- curl -----------------------------------------------------------
-        pCurl.use().f2("uTexel", texelX, texelY).tex("uVelocity", 0, velocity.read().tex);
-        curl.bindDraw();
-        blit();
+        fluid.tempDiss = expl < 0f ? mix(5.50f, 1.30f, q) : mix(1.40f, 4.50f, k);
+        fluid.fuelDiss = mix(1.20f, 0.50f, q);
+        fluid.sootDiss = expl < 0f ? mix(2.00f, 0.45f, q) : mix(0.25f, 1.70f, k);
+        fluid.cooling = expl < 0f ? mix(2.20f, 5.00f, q) : mix(6.00f, 12.00f, k);
+        fluid.burnRate = expl < 0f ? 3.0f : 6.0f;
+        fluid.heatRelease = expl < 0f ? mix(1.60f, 1.25f, q) : 1.0f;
+        fluid.sootYield = expl < 0f ? mix(0.04f, 0.75f, (float) Math.pow(q, 1.4)) : 1.60f;
+        fluid.ignition = 0.08f;
 
-        // ---- velocity: advection + all body forces --------------------------
-        Prog p = pVel.use();
-        p.tex("uVelocity", 0, velocity.read().tex);
-        p.tex("uCurl", 1, curl.tex);
-        p.tex("uFields", 2, fields.read().tex);
-        p.tex("uNoise", 3, noiseTex);
-        p.f2("uTexel", texelX, texelY).f2("uAspect", aspectX, 1f);
-        p.f("uDt", dt).f("uTime", time);
-        p.f("uVorticity", mix(20f, 36f, q));
-        p.f("uBuoyancy", mix(700f, 900f, q));
-        p.f("uSootWeight", 90f);
-        p.f("uDamping", mix(2.60f, 1.10f, q));
-        p.f("uNoiseAmp", mix(900f, 3200f, q));
-        p.f("uNoiseScale", mix(8.0f, 2.6f, q));
+        fluid.injecting = inject;
+        fluid.touchX = tx;
+        fluid.touchY = ty;
+        fluid.touchVX = tvx;
+        fluid.touchVY = tvy;
+        fluid.touchRadius = mix(0.028f, 0.30f, (float) Math.pow(q, 1.8)) * (1f + 1.1f * s);
+        fluid.bedFlat = mix(1.0f, 2.4f, q);
+        fluid.injectFuel = mix(2.8f, 3.8f, q) * (1f + 3.0f * s);
+        fluid.injectHeat = mix(1.4f, 1.8f, q) * (1f + 3.5f * s);
+
+        fluid.blast = state.blast();
+        fluid.blastX = state.blastX;
+        fluid.blastY = state.blastY;
+        fluid.blastRadius = state.blastRadius();
+        fluid.blastHeat = state.blastHeat();
+        fluid.blastHeatRadius = state.blastHeatRadius();
+
+        fluid.spawnRadius = mix(0.02f, 0.26f, q);
+        fluid.spawnRate = inject || state.exploding ? mix(0.015f, 0.50f, q) : 0f;
+        fluid.intensity = q;
+
+        fluid.step(dt, time, rig.aspectX);
+
+        // ---- shading ---------------------------------------------------------
+        Prog p = pRender.use();
+        p.tex("uFields", 0, fluid.fieldsTex());
+        p.tex("uNoise", 1, rig.noiseTex);
+        p.f2("uAspect", rig.aspectX, 1f).f("uTime", time);
+        p.f("uDetail", expl < 0f ? mix(0.020f, 0.075f, q) : 0.085f);
+        p.f("uEmissive", expl < 0f ? mix(3.4f, 5.2f, q) : mix(3.2f, 2.6f, k));
+        p.f("uSmokeDensity", expl < 0f ? 3.4f : 5.0f);
+        p.f("uIntensity", q);
+        p.f3("uTint", 1.0f, 0.80f, 0.52f);
+        p.f("uKelvinBase", 850f);
+        p.f("uKelvinSpan", 1950f);
+        p.f("uAniso", 0.30f);
+        p.f("uSmokeGlow", 1.0f);
         p.f2("uTouch", tx, ty);
-        p.f2("uTouchVel", tvx, tvy);
-        p.f("uTouchRadius", touchRadius(q, s));
-        p.f("uTouchOn", inject ? 1f : 0f);
-        p.f("uBlast", state.blast());
-        p.f2("uBlastPos", state.blastX, state.blastY);
-        p.f("uBlastRadius", state.blastRadius());
-        velocity.write().bindDraw();
-        blit();
-        velocity.swap();
+        p.f("uCoal", expl < 0f ? clamp((q - 0.03f) / 0.22f, 0f, 1f) : 0f);
+        p.f("uCoalRadius", mix(0.030f, 0.26f, (float) Math.pow(q, 1.4)));
+        p.f("uCoalFlat", 3.2f);
+        rig.post.beginScene();
+        GLES30.glDrawArrays(GLES30.GL_TRIANGLES, 0, 3);
 
-        // ---- divergence ------------------------------------------------------
-        pDiv.use().f2("uTexel", texelX, texelY).tex("uVelocity", 0, velocity.read().tex);
-        divergence.bindDraw();
-        blit();
-
-        // ---- pressure Jacobi -------------------------------------------------
-        clearSigned(pressure.read());
-        p = pPres.use().f2("uTexel", texelX, texelY);
-        for (int i = 0; i < iterations; i++) {
-            p.tex("uPressure", 0, pressure.read().tex);
-            p.tex("uDivergence", 1, divergence.tex);
-            pressure.write().bindDraw();
-            blit();
-            pressure.swap();
+        if (fluid.embers) {
+            rig.drawParticles(pPartDraw, fluid.particleTex(),
+                    mix(2.0f, 6.5f, q) * rig.sceneW / 300f, q);
         }
 
-        // ---- project ---------------------------------------------------------
-        p = pProj.use().f2("uTexel", texelX, texelY);
-        p.tex("uPressure", 0, pressure.read().tex);
-        p.tex("uVelocity", 1, velocity.read().tex);
-        velocity.write().bindDraw();
-        blit();
-        velocity.swap();
-
-        // ---- gas transport: forward then backward advection, so the fields
-        // pass can apply the second-order MacCormack correction ----------------
-        p = pAdvect.use().f2("uTexel", texelX, texelY);
-        p.tex("uVelocity", 0, velocity.read().tex);
-        p.tex("uSource", 1, fields.read().tex);
-        p.f("uDt", dt);
-        fieldsA.bindDraw();
-        blit();
-
-        p.tex("uVelocity", 0, velocity.read().tex);
-        p.tex("uSource", 1, fieldsA.tex);
-        p.f("uDt", -dt);
-        fieldsB.bindDraw();
-        blit();
-
-        // ---- chemistry --------------------------------------------------------
-        p = pFields.use();
-        p.tex("uVelocity", 0, velocity.read().tex);
-        p.tex("uFields", 1, fields.read().tex);
-        p.tex("uNoise", 2, noiseTex);
-        p.tex("uPhiHat", 4, fieldsA.tex);
-        p.tex("uPhiTilde", 5, fieldsB.tex);
-        p.f2("uTexel", texelX, texelY).f2("uAspect", aspectX, 1f);
-        p.f("uDt", dt).f("uTime", time);
-        p.f("uTempDiss", expl < 0f ? mix(5.50f, 1.30f, q) : mix(1.40f, 4.50f, k));
-        p.f("uFuelDiss", mix(1.20f, 0.50f, q));
-        p.f("uSootDiss", expl < 0f ? mix(2.00f, 0.45f, q) : mix(0.25f, 1.70f, k));
-        p.f("uCooling", expl < 0f ? mix(2.20f, 5.00f, q) : mix(6.00f, 12.00f, k));
-        p.f("uBurnRate", expl < 0f ? 3.0f : 6.0f);
-        p.f("uHeatRelease", expl < 0f ? mix(1.60f, 1.25f, q) : 1.0f);
-        p.f("uSootYield", expl < 0f ? mix(0.04f, 0.75f, (float) Math.pow(q, 1.4)) : 1.60f);
-        p.f("uIgnition", 0.08f);
-        p.f2("uTouch", tx, ty);
-        p.f("uTouchOn", inject ? 1f : 0f);
-        p.f("uTouchRadius", touchRadius(q, s));
-        p.f("uBedFlat", mix(1.0f, 2.4f, q));
-        p.f("uInjectFuel", mix(2.8f, 3.8f, q) * (1f + 3.0f * s));
-        p.f("uInjectHeat", mix(1.4f, 1.8f, q) * (1f + 3.5f * s));
-        p.f("uBlastHeat", state.blastHeat());
-        p.f2("uBlastPos", state.blastX, state.blastY);
-        p.f("uBlastRadius", state.blastHeatRadius());
-        fields.write().bindDraw();
-        blit();
-        fields.swap();
-
-        // ---- embers ----------------------------------------------------------
-        if (embers) {
-            p = pPartUpd.use();
-            p.tex("uState", 0, particles.read().tex);
-            p.tex("uVelocity", 1, velocity.read().tex);
-            p.tex("uFields", 2, fields.read().tex);
-            p.f2("uTexel", texelX, texelY).f2("uAspect", aspectX, 1f);
-            p.f("uDt", dt).f("uTime", time);
-            p.f2("uSpawn", tx, ty);
-            p.f("uSpawnRadius", mix(0.02f, 0.26f, q));
-            p.f("uSpawnRate", inject || state.exploding ? mix(0.015f, 0.50f, q) : 0f);
-            p.f("uIntensity", q);
-            particles.write().bindDraw();
-            blit();
-            particles.swap();
-        }
-
-        renderScene(q, k, expl, tx, ty);
-        post.bloom(0.65f);
+        rig.post.bloom(0.65f);
 
         float amp = state.shakeAmp();
         comp.time = time;
@@ -533,50 +265,10 @@ final class FireRenderer implements GLSurfaceView.Renderer {
         comp.exposure = mix(1.10f, 1.18f, q);
         comp.vignette = 0.55f;
         comp.chroma = 0.0010f + 0.0055f * q + 0.020f * comp.flash;
+        comp.danger = 0f;
         comp.shockT = state.shock();
         comp.shockX = state.blastX;
         comp.shockY = state.blastY;
-        post.composite(screenW, screenH, aspectX, noiseTex, comp);
-    }
-
-    private float touchRadius(float q, float strike) {
-        return mix(0.028f, 0.30f, (float) Math.pow(q, 1.8)) * (1f + 1.1f * strike);
-    }
-
-    private void renderScene(float q, float k, float expl, float tx, float ty) {
-        Prog p = pRender.use();
-        p.tex("uFields", 0, fields.read().tex);
-        p.tex("uNoise", 1, noiseTex);
-        p.f2("uAspect", aspectX, 1f).f("uTime", time);
-        p.f("uDetail", expl < 0f ? mix(0.020f, 0.075f, q) : 0.085f);
-        p.f("uEmissive", expl < 0f ? mix(3.4f, 5.2f, q) : mix(3.2f, 2.6f, k));
-        p.f("uSmokeDensity", expl < 0f ? 3.4f : 5.0f);
-        p.f("uIntensity", q);
-        p.f2("uTouch", tx, ty);
-        p.f("uCoal", expl < 0f ? clamp((q - 0.03f) / 0.22f, 0f, 1f) : 0f);
-        p.f("uCoalRadius", mix(0.030f, 0.26f, (float) Math.pow(q, 1.4)));
-        p.f("uCoalFlat", 3.2f);
-        post.beginScene();
-        blit();
-
-        if (!embers) return;
-        GLES30.glEnable(GLES30.GL_BLEND);
-        GLES30.glBlendFunc(GLES30.GL_ONE, GLES30.GL_ONE);
-        p = pPartDraw.use();
-        p.tex("uState", 0, particles.read().tex);
-        p.i("uTexSize", PARTICLE_DIM);
-        p.f("uPointScale", mix(2.0f, 6.5f, q) * sceneW / 300f);
-        p.f("uIntensity", q);
-        GLES30.glDrawArrays(GLES30.GL_POINTS, 0, PARTICLE_COUNT);
-        GLES30.glDisable(GLES30.GL_BLEND);
-    }
-
-    /** Trades pressure accuracy for frame rate on slower GPUs. */
-    private void adaptQuality() {
-        if (frameMs > 24f && iterations > 12) {
-            iterations--;
-        } else if (frameMs < 15f && iterations < 26) {
-            iterations++;
-        }
+        rig.post.composite(rig.screenW, rig.screenH, rig.aspectX, rig.noiseTex, comp);
     }
 }

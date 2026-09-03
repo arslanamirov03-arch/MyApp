@@ -266,8 +266,10 @@ class Fire:
         setu(p, "uAspect", self.aspect)
         setu(p, "uTime", self.time)
         for k in ("uDetail", "uEmissive", "uSmokeDensity", "uIntensity",
-                  "uCoal", "uCoalRadius", "uCoalFlat"):
+                  "uCoal", "uCoalRadius", "uCoalFlat", "uKelvinBase", "uKelvinSpan",
+                  "uAniso", "uSmokeGlow"):
             setu(p, k, P[k])
+        setu(p, "uTint", P["uTint"])
         setu(p, "uTouch", P["uTouch"])
         self.draw(p, self.scene[1])
 
@@ -290,7 +292,7 @@ class Fire:
         p = self.p_pre
         self.scene[0].use(0)
         setu(p, "uTex", 0)
-        setu(p, "uThreshold", P["uThreshold"])
+        setu(p, "uThreshold", P.get("uThreshold", 0.65))
         setu(p, "uKnee", 0.6)
         self.draw(p, self.mips[0][1])
 
@@ -329,7 +331,9 @@ class Fire:
                   "uExposure", "uVignette", "uShockT", "uChroma"):
             setu(p, k, P[k])
         setu(p, "uShockPos", P["uShockPos"])
-        setu(p, "uFlashColor", (1.0, 0.94, 0.84))
+        setu(p, "uFlashColor", P.get("uFlashColor", (1.0, 0.94, 0.84)))
+        setu(p, "uDanger", P.get("uDanger", 0.0))
+        setu(p, "uDangerPulse", P.get("uDangerPulse", 0.0))
         out = self.ctx.simple_framebuffer((self.W, self.H))
         self.draw(p, out)
         data = out.read(components=3)
@@ -388,6 +392,11 @@ def params(intensity, touch_on, touch, touch_vel, blast, shake, flash, shock,
         "uDetail": mix(0.020, 0.075, q),
         "uEmissive": mix(3.4, 5.2, q),
         "uSmokeDensity": 3.4,
+        "uTint": (1.0, 0.80, 0.52),
+        "uKelvinBase": 850.0,
+        "uKelvinSpan": 1950.0,
+        "uAniso": 0.30,
+        "uSmokeGlow": 1.0,
 
         "uThreshold": 0.65,
         "uBloomAmount": mix(0.55, 1.00, q),

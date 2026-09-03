@@ -115,7 +115,7 @@ class Bolt:
             jag *= 0.62
         return pts
 
-    def emit(self, pts, core_w, bright, taper):
+    def emit(self, pts, core_w, bright_start, bright_end):
         n = len(pts)
         if n < 2:
             return
@@ -147,8 +147,8 @@ class Bolt:
 
         for i in range(n - 1):
             t0, t1 = i / (n - 1), (i + 1) / (n - 1)
-            b0 = bright * (1 - taper * t0)
-            b1 = bright * (1 - taper * t1)
+            b0 = bright_start + (bright_end - bright_start) * t0
+            b1 = bright_start + (bright_end - bright_start) * t1
             ax, ay = pts[i]
             cx, cy = pts[i + 1]
             n0x, n0y = norms[i]
@@ -181,11 +181,11 @@ class Bolt:
         main = self.subdivide([(self.srcx, self.srcy),
                                (self.x * self.w, self.y * self.h)], jag, levels)
         self.main = main
-        self.emit(main, core_w, 1.0, 0.25)
+        self.emit(main, core_w, 0.68, 1.0)
 
         if self.style == STYLE_RIBBON:
             off = (6.0 + rnd.random() * 8.0) * self.density
-            self.emit([(x + off, y + off * 0.25) for x, y in main], core_w * 0.72, 0.55, 0.3)
+            self.emit([(x + off, y + off * 0.25) for x, y in main], core_w * 0.72, 0.40, 0.58)
 
         n = len(main)
         if self.style == STYLE_FORK:
@@ -207,14 +207,19 @@ class Bolt:
         if ln < 1e-3:
             return
         dx, dy = dx / ln, dy / ln
-        ang = math.radians(22.0 + rnd.random() * 42.0) * (1 if rnd.random() < 0.5 else -1)
+        ang = math.radians(22.0 + rnd.random() * 42.0)
         ca, sa = math.cos(ang), math.sin(ang)
-        rx, ry = dx * ca - dy * sa, dx * sa + dy * ca
+        # keep whichever rotation heads further down: leaders branch downwards
+        a1 = (dx * ca - dy * sa, dx * sa + dy * ca)
+        a2 = (dx * ca + dy * sa, -dx * sa + dy * ca)
+        rx, ry = a1 if a1[1] <= a2[1] else a2
+        if ry > 0:
+            ry = -ry
         remaining = math.hypot(main[-1][0] - ax, main[-1][1] - ay)
         bl = max(remaining * len_frac * (0.4 + rnd.random() * 0.8), 40.0 * self.density)
 
         pts = self.subdivide([(ax, ay), (ax + rx * bl, ay + ry * bl)], 0.26, 4)
-        self.emit(pts, width, bright, 0.85)
+        self.emit(pts, width, bright, bright * 0.12)
 
         if depth > 1 and rnd.random() < 0.45:
             m = len(pts)
@@ -230,7 +235,7 @@ class Bolt:
                 r2y = (sdx / sl) * s2 + (sdy / sl) * c2
                 l2 = bl * (0.25 + rnd.random() * 0.35)
                 p2 = self.subdivide([(sx, sy), (sx + r2x * l2, sy + r2y * l2)], 0.30, 3)
-                self.emit(p2, width * 0.6, bright * 0.6, 0.9)
+                self.emit(p2, width * 0.6, bright * 0.6, bright * 0.05)
 
 
 # ------------------------------------------------------------------ state
@@ -413,8 +418,9 @@ class Storm:
             ctx.blend_func = (moderngl.ONE, moderngl.ONE)
             self.scene[1].use()
             setu(self.p_bolt, "uCoreFrac", 0.28)
-            setu(self.p_bolt, "uCoreColor", (0.88, 0.94, 1.00))
-            setu(self.p_bolt, "uHaloColor", (0.24, 0.46, 1.00))
+            setu(self.p_bolt, "uCoreColor", (0.80, 0.90, 1.00))
+            setu(self.p_bolt, "uMidColor", (0.26, 0.52, 1.00))
+            setu(self.p_bolt, "uHaloColor", (0.12, 0.24, 0.92))
             for i, b in enumerate(self.bolts):
                 first, count = self.ranges[i]
                 if count == 0:
@@ -471,6 +477,8 @@ class Storm:
         setu(p, "uExposure", mix(1.05, 1.15, q))
         setu(p, "uVignette", 0.45)
         setu(p, "uChroma", 0.0005 + 0.0009 * q)
+        setu(p, "uDanger", 0.0)
+        setu(p, "uDangerPulse", 0.0)
         setu(p, "uShockT", -1.0)
         setu(p, "uShockPos", (0.5, 0.5))
 

@@ -28,6 +28,7 @@ void main() {
     // --- light reaching the cloud from the bolts ------------------------------
     float lit = uAmbient;
     float ground = 0.0;
+    float spot = 0.0;
     // clouds are lit by the discharges themselves, so the sum is capped rather
     // than allowed to wash the frame out when several fire at once
     for (int i = 0; i < 6; i++) {
@@ -35,6 +36,7 @@ void main() {
         float r2 = dot(d, d);
         lit += uLights[i].z * 0.42 / (1.0 + r2 * 34.0);
         ground += uLights[i].z * 0.5 / (1.0 + r2 * 120.0);
+        spot += uLights[i].z / (1.0 + r2 * 1400.0);
     }
 
     vec3 deepCloud = vec3(0.030, 0.045, 0.085);
@@ -44,6 +46,8 @@ void main() {
 
     // faint glow where the bolts touch down, and a hint of wash over the frame
     col += vec3(0.30, 0.48, 1.00) * min(ground, 1.6) * 0.045;
+    // the air right at the contact point glows hard
+    col += vec3(0.62, 0.80, 1.00) * min(spot, 2.4) * 0.32;
     col += vec3(0.04, 0.07, 0.16) * uAmbient * (0.20 + 0.80 * uIntensity);
 
     fragColor = vec4(col, 1.0);

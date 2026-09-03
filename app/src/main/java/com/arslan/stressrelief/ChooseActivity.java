@@ -16,5 +16,7 @@ public final class ChooseActivity extends Activity {
                 startActivity(new Intent(ChooseActivity.this, FireActivity.class)));
         findViewById(R.id.cardStorm).setOnClickListener(v ->
                 startActivity(new Intent(ChooseActivity.this, StormActivity.class)));
+        findViewById(R.id.cardBomb).setOnClickListener(v ->
+                startActivity(new Intent(ChooseActivity.this, BombActivity.class)));
     }
 }

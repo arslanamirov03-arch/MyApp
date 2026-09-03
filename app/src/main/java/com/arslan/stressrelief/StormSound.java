@@ -24,7 +24,8 @@ final class StormSound {
     private final Random rnd = new Random();
 
     private SoundPool pool;
-    private final int[] thunder = new int[3];
+    private final int[] thunderSingle = new int[3];
+    private final int[] thunderRoll = new int[3];
     private int sFar, sCrack, sLoop;
     private boolean loopReady;
     private int streamLoop;
@@ -51,7 +52,10 @@ final class StormSound {
         pool.setOnLoadCompleteListener((sp, id, status) -> {
             if (status == 0 && id == sLoop) loopReady = true;
         });
-        for (int i = 0; i < 3; i++) thunder[i] = load("audio/thunder_" + i + ".wav");
+        for (int i = 0; i < 3; i++) {
+            thunderSingle[i] = load("audio/thunder_" + i + ".wav");
+            thunderRoll[i] = load("audio/thunder_roll_" + i + ".wav");
+        }
         sFar = load("audio/thunder_far.wav");
         sCrack = load("audio/crack.wav");
         sLoop = load("audio/storm_loop.wav");
@@ -79,18 +83,31 @@ final class StormSound {
             return;
         }
 
-        if (intensity < 0.34f && bigThunderCooldown <= 0f) {
-            int i = rnd.nextInt(3);
+        // An isolated strike across open ground gives one clear slap-back and
+        // then quiet. Once the storm is running, reports pile onto each other and
+        // the reflections never get a chance to die out, so the rolling variants
+        // take over and the individual cracks ride on top.
+        int[] set = intensity < 0.20f ? thunderSingle : thunderRoll;
+        float cooldown = intensity < 0.20f ? 0.45f : 1.15f;
+
+        if (intensity < 0.55f && bigThunderCooldown <= 0f) {
             float vol = clamp(0.65f + 0.35f * power, 0f, 1f);
-            pool.play(thunder[i], vol, vol, 3, 0, 0.92f + rnd.nextFloat() * 0.16f);
-            bigThunderCooldown = 0.45f;
+            pool.play(set[rnd.nextInt(3)], vol, vol, 3, 0, 0.92f + rnd.nextFloat() * 0.16f);
+            bigThunderCooldown = cooldown;
             vibrate(180, (int) (150 + 90 * power));
-        } else {
-            float vol = clamp(0.40f + 0.45f * power, 0f, 1f);
-            pool.play(sCrack, vol, vol, 2, 0, 0.85f + rnd.nextFloat() * 0.45f);
-            if (rnd.nextFloat() < 0.25f + 0.4f * intensity) {
-                vibrate(45, (int) (70 + 140 * intensity));
-            }
+            return;
+        }
+
+        float vol = clamp(0.40f + 0.45f * power, 0f, 1f);
+        pool.play(sCrack, vol, vol, 2, 0, 0.85f + rnd.nextFloat() * 0.45f);
+        if (bigThunderCooldown <= 0f) {
+            // keep a roll running underneath the cracks at the climax
+            pool.play(thunderRoll[rnd.nextInt(3)], 0.75f, 0.75f, 1, 0,
+                    0.85f + rnd.nextFloat() * 0.2f);
+            bigThunderCooldown = 1.15f;
+        }
+        if (rnd.nextFloat() < 0.25f + 0.4f * intensity) {
+            vibrate(45, (int) (70 + 140 * intensity));
         }
     }
 

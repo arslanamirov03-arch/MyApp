@@ -20,6 +20,8 @@ final class PostFx {
         float exposure = 1.1f;
         float vignette = 0.55f;
         float chroma = 0.0015f;
+        float danger;          // 0..1 red warning haze in the corners
+        float dangerPulse;     // 0..1 within the current warning beat
         float threshold = 0.65f;
         float shockT = -1f;
         float shockX = 0.5f, shockY = 0.5f;
@@ -117,6 +119,8 @@ final class PostFx {
         p.f("uExposure", c.exposure);
         p.f("uVignette", c.vignette);
         p.f("uChroma", c.chroma);
+        p.f("uDanger", c.danger);
+        p.f("uDangerPulse", c.dangerPulse);
         p.f("uShockT", c.shockT);
         p.f2("uShockPos", c.shockX, c.shockY);
 

@@ -14,6 +14,17 @@ uniform float uEmissive;
 uniform float uSmokeDensity;
 uniform float uIntensity;
 
+// Colour grade: the blackbody ramp is shared, but a phosphorus flash and a
+// campfire sit at very different points on it.
+uniform vec3  uTint;
+uniform float uKelvinBase;
+uniform float uKelvinSpan;
+// 0.3 stretches detail into flame tongues; near 1.0 keeps it round for a fireball
+uniform float uAniso;
+// Multiplies the smoke's own colour. A campfire's smoke should stay near black;
+// a mushroom cloud is the whole point of the shot and has to be visible.
+uniform float uSmokeGlow;
+
 // glowing bed of embers the flames sit on
 uniform vec2  uTouch;
 uniform float uCoal;
@@ -27,13 +38,13 @@ void main() {
     // Flame structure is strongly anisotropic: features are several times taller
     // than they are wide and they stream upwards, so the detail lattice is
     // squashed in y and scrolled fast.
-    vec2 sp = vec2(ap.x, ap.y * 0.30);
+    vec2 sp = vec2(ap.x, ap.y * uAniso);
 
     vec2 w1 = curlNoiseTex(uNoise, sp *  4.5 + vec2( ts * 0.02, -ts * 0.55), 0.00390625);
     vec2 w2 = curlNoiseTex(uNoise, sp * 11.0 + vec2(-ts * 0.04, -ts * 1.10), 0.00390625);
     vec2 w3 = curlNoiseTex(uNoise, sp * 26.0 + vec2( ts * 0.03, -ts * 2.00), 0.00390625);
     vec2 warp = (w1 + w2 * 0.45 + w3 * 0.16) * uDetail;
-    warp.y *= 2.4;
+    warp.y *= mix(2.4, 1.0, clamp((uAniso - 0.30) / 0.70, 0.0, 1.0));
 
     vec4 f = texture(uFields, vUv + warp / uAspect);
     float T = f.r;
@@ -48,11 +59,11 @@ void main() {
     T = max(T, 0.0);
 
     // blackbody emission, Stefan-Boltzmann-ish falloff
-    float kelvin = 850.0 + T * 1950.0 + uIntensity * 220.0;
+    float kelvin = uKelvinBase + T * uKelvinSpan + uIntensity * 220.0;
     float emit = pow(T, 2.8) * uEmissive;
     // Sooty flames radiate noticeably warmer than an ideal blackbody, and the
     // tint also stops bright regions from tonemapping to a flat white.
-    vec3 fire = blackbody(kelvin) * vec3(1.0, 0.80, 0.52) * emit;
+    vec3 fire = blackbody(kelvin) * uTint * emit;
 
     // Rich, fuel-heavy roots burn blue -- but only right down at the fuel bed;
     // letting it reach up the tongues turns them a washed-out grey.
@@ -64,7 +75,8 @@ void main() {
     float sm = 1.0 - exp(-soot * uSmokeDensity);
     vec3 smokeCol = mix(vec3(0.016, 0.015, 0.018), vec3(0.14, 0.070, 0.035),
                         smoothstep(0.04, 0.55, T));
-    vec3 col = fire * (1.0 - 0.85 * sm) + smokeCol * sm * (0.16 + 0.55 * uIntensity);
+    vec3 col = fire * (1.0 - 0.85 * sm)
+            + smokeCol * sm * (0.16 + 0.55 * uIntensity) * uSmokeGlow;
 
     // --- bed of embers ------------------------------------------------------
     // Individual coals, each glowing at its own temperature and breathing at
