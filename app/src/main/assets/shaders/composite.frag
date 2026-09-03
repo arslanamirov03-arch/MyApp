@@ -15,10 +15,12 @@ uniform float uShakeRot;
 uniform float uZoom;
 
 uniform float uFlash;
+uniform vec3  uFlashColor;
 uniform float uIntensity;
 uniform float uBloomAmount;
 uniform float uExposure;
 uniform float uVignette;
+uniform float uChroma;
 
 uniform float uShockT;      // < 0 when no shockwave is running
 uniform vec2  uShockPos;
@@ -42,7 +44,7 @@ void main() {
         uv += (d / dist) * w * 0.06 / uAspect;
     }
 
-    float ca = 0.0010 + 0.0055 * uIntensity + 0.020 * uFlash;
+    float ca = uChroma;
     vec2 dir = uv - 0.5;
     vec3 col;
     col.r = texture(uScene, uv + dir * ca).r;
@@ -50,7 +52,7 @@ void main() {
     col.b = texture(uScene, uv - dir * ca).b;
 
     col += texture(uBloom, uv).rgb * uBloomAmount;
-    col += vec3(1.0, 0.94, 0.84) * uFlash;
+    col += uFlashColor * uFlash;
 
     col = aces(col * uExposure);
 

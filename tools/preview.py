@@ -57,6 +57,7 @@ class Fire:
         self.p_pres = prog(fsv, "pressure.frag")
         self.p_proj = prog(fsv, "project.frag")
         self.p_fields = prog(fsv, "fields.frag")
+        self.p_advect = prog(fsv, "advect.frag")
         self.p_render = prog(fsv, "render_fire.frag")
         self.p_pupd = prog(fsv, "particles_update.frag")
         self.p_pdraw = ctx.program(vertex_shader=head + read("particles.vert"),
@@ -84,6 +85,8 @@ class Fire:
         self.fld = pair(self.sw, self.sh)
         self.curl = self.target(self.sw, self.sh)
         self.div = self.target(self.sw, self.sh)
+        self.fldA = self.target(self.sw, self.sh)
+        self.fldB = self.target(self.sw, self.sh)
 
         self.PT = 64
         self.NPART = self.PT * self.PT
@@ -110,7 +113,7 @@ class Fire:
         for grp in (self.vel, self.pres, self.fld, self.pstate):
             for t, fb in grp:
                 fb.clear(0.0, 0.0, 0.0, 0.0)
-        for t, fb in (self.curl, self.div, self.scene):
+        for t, fb in (self.curl, self.div, self.scene, self.fldA, self.fldB):
             fb.clear(0.0, 0.0, 0.0, 0.0)
         # seed particle ids
         seeds = np.zeros((self.PT, self.PT, 4), dtype=np.float16)
@@ -189,21 +192,42 @@ class Fire:
         self.draw(p, self.vel[1][1])
         self.vel.reverse()
 
-        # ---- fields ----------------------------------------------------------
+        # ---- fields: MacCormack advection then chemistry ----------------------
+        p = self.p_advect
+        setu(p, "uTexel", self.texel)
+        self.vel[0][0].use(0)
+        self.fld[0][0].use(1)
+        setu(p, "uVelocity", 0)
+        setu(p, "uSource", 1)
+        setu(p, "uDt", dt)
+        self.draw(p, self.fldA[1])
+
+        self.vel[0][0].use(0)
+        self.fldA[0].use(1)
+        setu(p, "uVelocity", 0)
+        setu(p, "uSource", 1)
+        setu(p, "uDt", -dt)
+        self.draw(p, self.fldB[1])
+
         p = self.p_fields
         self.vel[0][0].use(0)
         self.fld[0][0].use(1)
         self.noise.use(2)
+        self.fldA[0].use(4)
+        self.fldB[0].use(5)
         setu(p, "uVelocity", 0)
         setu(p, "uFields", 1)
         setu(p, "uNoise", 2)
+        setu(p, "uPhiHat", 4)
+        setu(p, "uPhiTilde", 5)
         setu(p, "uTexel", self.texel)
         setu(p, "uAspect", self.aspect)
         setu(p, "uDt", dt)
         setu(p, "uTime", t)
         for k in ("uTempDiss", "uFuelDiss", "uSootDiss", "uCooling", "uBurnRate",
                   "uHeatRelease", "uSootYield", "uIgnition", "uTouchOn",
-                  "uTouchRadius", "uInjectFuel", "uInjectHeat", "uBlastHeat"):
+                  "uTouchRadius", "uInjectFuel", "uInjectHeat", "uBlastHeat",
+                  "uBedFlat"):
             setu(p, k, P[k])
         setu(p, "uBlastRadius", P["uBlastHeatRadius"])
         setu(p, "uTouch", P["uTouch"])
@@ -241,8 +265,10 @@ class Fire:
         setu(p, "uNoise", 1)
         setu(p, "uAspect", self.aspect)
         setu(p, "uTime", self.time)
-        for k in ("uDetail", "uEmissive", "uSmokeDensity", "uIntensity"):
+        for k in ("uDetail", "uEmissive", "uSmokeDensity", "uIntensity",
+                  "uCoal", "uCoalRadius", "uCoalFlat"):
             setu(p, k, P[k])
+        setu(p, "uTouch", P["uTouch"])
         self.draw(p, self.scene[1])
 
         # embers, additive
@@ -300,9 +326,10 @@ class Fire:
         setu(p, "uTime", self.time)
         setu(p, "uShakeOffset", P["uShakeOffset"])
         for k in ("uShakeRot", "uZoom", "uFlash", "uIntensity", "uBloomAmount",
-                  "uExposure", "uVignette", "uShockT"):
+                  "uExposure", "uVignette", "uShockT", "uChroma"):
             setu(p, k, P[k])
         setu(p, "uShockPos", P["uShockPos"])
+        setu(p, "uFlashColor", (1.0, 0.94, 0.84))
         out = self.ctx.simple_framebuffer((self.W, self.H))
         self.draw(p, out)
         data = out.read(components=3)
@@ -325,6 +352,10 @@ def params(intensity, touch_on, touch, touch_vel, blast, shake, flash, shock,
         "uTouchVel": touch_vel,
         "uTouchOn": 1.0 if touch_on else 0.0,
         "uTouchRadius": mix(0.028, 0.30, pow(q, 1.8)) * (1.0 + 1.1 * strike),
+        "uBedFlat": mix(1.0, 2.4, q),
+        "uCoal": min(1.0, max(0.0, (q - 0.03) / 0.22)),
+        "uCoalRadius": mix(0.030, 0.26, pow(q, 1.4)),
+        "uCoalFlat": 3.2,
 
         "uVorticity": mix(20.0, 36.0, q),
         "uBuoyancy": mix(700.0, 900.0, q),
@@ -341,7 +372,7 @@ def params(intensity, touch_on, touch, touch_vel, blast, shake, flash, shock,
         "uHeatRelease": mix(1.60, 1.25, q),
         "uSootYield": mix(0.04, 0.75, pow(q, 1.4)),
         "uIgnition": 0.08,
-        "uInjectFuel": mix(2.6, 3.2, q) * (1.0 + 3.0 * strike),
+        "uInjectFuel": mix(2.8, 3.8, q) * (1.0 + 3.0 * strike),
         "uInjectHeat": mix(1.4, 1.8, q) * (1.0 + 3.5 * strike),
 
         "uBlast": blast,
@@ -355,13 +386,14 @@ def params(intensity, touch_on, touch, touch_vel, blast, shake, flash, shock,
         "uPointScale": mix(2.0, 6.5, q),
 
         "uDetail": mix(0.020, 0.075, q),
-        "uEmissive": mix(2.6, 4.0, q),
+        "uEmissive": mix(3.4, 5.2, q),
         "uSmokeDensity": 3.4,
 
         "uThreshold": 0.65,
         "uBloomAmount": mix(0.55, 1.00, q),
-        "uExposure": mix(1.05, 1.10, q),
+        "uExposure": mix(1.10, 1.18, q),
         "uVignette": 0.55,
+        "uChroma": 0.0010 + 0.0055 * q + 0.020 * flash,
         "uShakeOffset": shake,
         "uShakeRot": 0.006 * q2,
         "uZoom": 0.02 * q2,
@@ -380,7 +412,7 @@ def params(intensity, touch_on, touch, touch_vel, blast, shake, flash, shock,
         out["uSootYield"] = 1.60
         out["uSootDiss"] = mix(0.25, 1.70, k)
         out["uSmokeDensity"] = 5.0
-        out["uEmissive"] = mix(2.6, 2.2, k)
+        out["uEmissive"] = mix(3.2, 2.6, k)
         out["uDetail"] = 0.085
     return out
 

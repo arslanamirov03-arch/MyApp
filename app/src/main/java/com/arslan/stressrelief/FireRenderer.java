@@ -52,12 +52,13 @@ final class FireRenderer implements GLSurfaceView.Renderer {
     private float touchVX, touchVY;
 
     // --- gl objects --------------------------------------------------------
-    private Prog pCurl, pVel, pDiv, pPres, pProj, pFields, pRender;
-    private Prog pPartUpd, pPartDraw, pPre, pDown, pUp, pComp;
+    private Prog pCurl, pVel, pDiv, pPres, pProj, pFields, pAdvect, pRender;
+    private Prog pPartUpd, pPartDraw;
+    private PostFx post;
+    private final PostFx.Params comp = new PostFx.Params();
 
     private PingPong velocity, pressure, fields, particles;
-    private RenderTarget curl, divergence, scene;
-    private RenderTarget[] mips;
+    private RenderTarget curl, divergence, fieldsA, fieldsB;
     private int noiseTex;
     private int vao;
 
@@ -75,7 +76,6 @@ final class FireRenderer implements GLSurfaceView.Renderer {
 
     private static final int PARTICLE_DIM = 64;
     private static final int PARTICLE_COUNT = PARTICLE_DIM * PARTICLE_DIM;
-    private static final int MIP_LEVELS = 5;
 
     private int iterations = 26;
     private long lastNanos;
@@ -136,13 +136,11 @@ final class FireRenderer implements GLSurfaceView.Renderer {
         pPres = new Prog(ctx, vsFull, "shaders/pressure.frag", defines);
         pProj = new Prog(ctx, vsFull, "shaders/project.frag", defines);
         pFields = new Prog(ctx, vsFull, "shaders/fields.frag", defines);
+        pAdvect = new Prog(ctx, vsFull, "shaders/advect.frag", defines);
         pRender = new Prog(ctx, vsFull, "shaders/render_fire.frag", defines);
         pPartUpd = new Prog(ctx, vsFull, "shaders/particles_update.frag", defines);
         pPartDraw = new Prog(ctx, "shaders/particles.vert", "shaders/particles.frag", defines);
-        pPre = new Prog(ctx, vsFull, "shaders/bloom_prefilter.frag", defines);
-        pDown = new Prog(ctx, vsFull, "shaders/bloom_down.frag", defines);
-        pUp = new Prog(ctx, vsFull, "shaders/bloom_up.frag", defines);
-        pComp = new Prog(ctx, vsFull, "shaders/composite.frag", defines);
+        post = new PostFx(ctx, defines);
 
         int[] v = new int[1];
         GLES30.glGenVertexArrays(1, v, 0);
@@ -210,8 +208,10 @@ final class FireRenderer implements GLSurfaceView.Renderer {
         fields = new PingPong(simW, simH, fmt, GLES30.GL_LINEAR, clampWrap);
         curl = new RenderTarget(simW, simH, fmt, GLES30.GL_LINEAR, clampWrap);
         divergence = new RenderTarget(simW, simH, fmt, GLES30.GL_LINEAR, clampWrap);
+        fieldsA = new RenderTarget(simW, simH, fmt, GLES30.GL_LINEAR, clampWrap);
+        fieldsB = new RenderTarget(simW, simH, fmt, GLES30.GL_LINEAR, clampWrap);
         particles = new PingPong(PARTICLE_DIM, PARTICLE_DIM, fmt, GLES30.GL_NEAREST, clampWrap);
-        scene = new RenderTarget(sceneW, sceneH, fmt, GLES30.GL_LINEAR, clampWrap);
+        post.resize(sceneW, sceneH, fmt);
 
         if (floatTargets && !velocity.complete()) {
             // The extension string lied; fall back and rebuild everything as RGBA8.
@@ -223,15 +223,6 @@ final class FireRenderer implements GLSurfaceView.Renderer {
             createGl();
             resize(width, height);
             return;
-        }
-
-        mips = new RenderTarget[MIP_LEVELS];
-        int mw = Math.max(sceneW / 2, 2);
-        int mh = Math.max(sceneH / 2, 2);
-        for (int i = 0; i < MIP_LEVELS; i++) {
-            mips[i] = new RenderTarget(mw, mh, fmt, GLES30.GL_LINEAR, clampWrap);
-            mw = Math.max(mw / 2, 2);
-            mh = Math.max(mh / 2, 2);
         }
 
         resetSimulation();
@@ -246,20 +237,17 @@ final class FireRenderer implements GLSurfaceView.Renderer {
         if (particles != null) particles.release();
         if (curl != null) curl.release();
         if (divergence != null) divergence.release();
-        if (scene != null) scene.release();
-        if (mips != null) {
-            for (RenderTarget m : mips) {
-                if (m != null) m.release();
-            }
-        }
-        mips = null;
+        if (fieldsA != null) fieldsA.release();
+        if (fieldsB != null) fieldsB.release();
+        if (post != null) post.release();
         velocity = null;
         pressure = null;
         fields = null;
         particles = null;
         curl = null;
         divergence = null;
-        scene = null;
+        fieldsA = null;
+        fieldsB = null;
         ready = false;
     }
 
@@ -286,10 +274,9 @@ final class FireRenderer implements GLSurfaceView.Renderer {
         clearSigned(curl);
         clearSigned(divergence);
         fields.clear(0f, 0f, 0f, 0f);
-        scene.clear(0f, 0f, 0f, 1f);
-        if (mips != null) {
-            for (RenderTarget m : mips) m.clear(0f, 0f, 0f, 1f);
-        }
+        fieldsA.clear(0f, 0f, 0f, 0f);
+        fieldsB.clear(0f, 0f, 0f, 0f);
+        post.clear();
         seedParticles();
     }
 
@@ -466,11 +453,28 @@ final class FireRenderer implements GLSurfaceView.Renderer {
         blit();
         velocity.swap();
 
-        // ---- gas transport + combustion --------------------------------------
+        // ---- gas transport: forward then backward advection, so the fields
+        // pass can apply the second-order MacCormack correction ----------------
+        p = pAdvect.use().f2("uTexel", texelX, texelY);
+        p.tex("uVelocity", 0, velocity.read().tex);
+        p.tex("uSource", 1, fields.read().tex);
+        p.f("uDt", dt);
+        fieldsA.bindDraw();
+        blit();
+
+        p.tex("uVelocity", 0, velocity.read().tex);
+        p.tex("uSource", 1, fieldsA.tex);
+        p.f("uDt", -dt);
+        fieldsB.bindDraw();
+        blit();
+
+        // ---- chemistry --------------------------------------------------------
         p = pFields.use();
         p.tex("uVelocity", 0, velocity.read().tex);
         p.tex("uFields", 1, fields.read().tex);
         p.tex("uNoise", 2, noiseTex);
+        p.tex("uPhiHat", 4, fieldsA.tex);
+        p.tex("uPhiTilde", 5, fieldsB.tex);
         p.f2("uTexel", texelX, texelY).f2("uAspect", aspectX, 1f);
         p.f("uDt", dt).f("uTime", time);
         p.f("uTempDiss", expl < 0f ? mix(5.50f, 1.30f, q) : mix(1.40f, 4.50f, k));
@@ -484,7 +488,8 @@ final class FireRenderer implements GLSurfaceView.Renderer {
         p.f2("uTouch", tx, ty);
         p.f("uTouchOn", inject ? 1f : 0f);
         p.f("uTouchRadius", touchRadius(q, s));
-        p.f("uInjectFuel", mix(2.6f, 3.2f, q) * (1f + 3.0f * s));
+        p.f("uBedFlat", mix(1.0f, 2.4f, q));
+        p.f("uInjectFuel", mix(2.8f, 3.8f, q) * (1f + 3.0f * s));
         p.f("uInjectHeat", mix(1.4f, 1.8f, q) * (1f + 3.5f * s));
         p.f("uBlastHeat", state.blastHeat());
         p.f2("uBlastPos", state.blastX, state.blastY);
@@ -510,25 +515,48 @@ final class FireRenderer implements GLSurfaceView.Renderer {
             particles.swap();
         }
 
-        renderScene(q, k, expl);
-        bloom(q);
-        composite(q);
+        renderScene(q, k, expl, tx, ty);
+        post.bloom(0.65f);
+
+        float amp = state.shakeAmp();
+        comp.time = time;
+        comp.shakeX = (float) (Math.sin(time * 47.0) * 0.62 + Math.sin(time * 31.3 + 1.7) * 0.38) * amp;
+        comp.shakeY = (float) (Math.sin(time * 53.7 + 2.3) * 0.62 + Math.sin(time * 37.1 + 0.9) * 0.38) * amp;
+        comp.shakeRot = (float) Math.sin(time * 41.0 + 0.4) * amp * 0.55f;
+        comp.zoom = state.zoom();
+        comp.flash = state.flash();
+        comp.flashR = 1.00f;
+        comp.flashG = 0.94f;
+        comp.flashB = 0.84f;
+        comp.intensity = q;
+        comp.bloomAmount = mix(0.55f, 1.00f, q);
+        comp.exposure = mix(1.10f, 1.18f, q);
+        comp.vignette = 0.55f;
+        comp.chroma = 0.0010f + 0.0055f * q + 0.020f * comp.flash;
+        comp.shockT = state.shock();
+        comp.shockX = state.blastX;
+        comp.shockY = state.blastY;
+        post.composite(screenW, screenH, aspectX, noiseTex, comp);
     }
 
     private float touchRadius(float q, float strike) {
         return mix(0.028f, 0.30f, (float) Math.pow(q, 1.8)) * (1f + 1.1f * strike);
     }
 
-    private void renderScene(float q, float k, float expl) {
+    private void renderScene(float q, float k, float expl, float tx, float ty) {
         Prog p = pRender.use();
         p.tex("uFields", 0, fields.read().tex);
         p.tex("uNoise", 1, noiseTex);
         p.f2("uAspect", aspectX, 1f).f("uTime", time);
         p.f("uDetail", expl < 0f ? mix(0.020f, 0.075f, q) : 0.085f);
-        p.f("uEmissive", expl < 0f ? mix(2.6f, 4.0f, q) : mix(2.6f, 2.2f, k));
+        p.f("uEmissive", expl < 0f ? mix(3.4f, 5.2f, q) : mix(3.2f, 2.6f, k));
         p.f("uSmokeDensity", expl < 0f ? 3.4f : 5.0f);
         p.f("uIntensity", q);
-        scene.bindDraw();
+        p.f2("uTouch", tx, ty);
+        p.f("uCoal", expl < 0f ? clamp((q - 0.03f) / 0.22f, 0f, 1f) : 0f);
+        p.f("uCoalRadius", mix(0.030f, 0.26f, (float) Math.pow(q, 1.4)));
+        p.f("uCoalFlat", 3.2f);
+        post.beginScene();
         blit();
 
         if (!embers) return;
@@ -541,60 +569,6 @@ final class FireRenderer implements GLSurfaceView.Renderer {
         p.f("uIntensity", q);
         GLES30.glDrawArrays(GLES30.GL_POINTS, 0, PARTICLE_COUNT);
         GLES30.glDisable(GLES30.GL_BLEND);
-    }
-
-    private void bloom(float q) {
-        Prog p = pPre.use();
-        p.tex("uTex", 0, scene.tex).f("uThreshold", 0.65f).f("uKnee", 0.6f);
-        mips[0].bindDraw();
-        blit();
-
-        p = pDown.use();
-        for (int i = 1; i < MIP_LEVELS; i++) {
-            RenderTarget src = mips[i - 1];
-            p.tex("uTex", 0, src.tex).f2("uTexel", 1f / src.width, 1f / src.height);
-            mips[i].bindDraw();
-            blit();
-        }
-
-        GLES30.glEnable(GLES30.GL_BLEND);
-        GLES30.glBlendFunc(GLES30.GL_ONE, GLES30.GL_ONE);
-        p = pUp.use().f("uRadius", 1.0f);
-        for (int i = MIP_LEVELS - 1; i > 0; i--) {
-            RenderTarget src = mips[i];
-            p.tex("uTex", 0, src.tex).f2("uTexel", 1f / src.width, 1f / src.height);
-            mips[i - 1].bindDraw();
-            blit();
-        }
-        GLES30.glDisable(GLES30.GL_BLEND);
-    }
-
-    private void composite(float q) {
-        float amp = state.shakeAmp();
-        float ox = (float) (Math.sin(time * 47.0) * 0.62 + Math.sin(time * 31.3 + 1.7) * 0.38);
-        float oy = (float) (Math.sin(time * 53.7 + 2.3) * 0.62 + Math.sin(time * 37.1 + 0.9) * 0.38);
-        float rot = (float) Math.sin(time * 41.0 + 0.4) * amp * 0.55f;
-
-        Prog p = pComp.use();
-        p.tex("uScene", 0, scene.tex);
-        p.tex("uBloom", 1, mips[0].tex);
-        p.tex("uNoise", 2, noiseTex);
-        p.f2("uResolution", screenW, screenH).f2("uAspect", aspectX, 1f);
-        p.f("uTime", time);
-        p.f2("uShakeOffset", ox * amp, oy * amp);
-        p.f("uShakeRot", rot);
-        p.f("uZoom", state.zoom());
-        p.f("uFlash", state.flash());
-        p.f("uIntensity", q);
-        p.f("uBloomAmount", mix(0.55f, 1.00f, q));
-        p.f("uExposure", mix(1.05f, 1.10f, q));
-        p.f("uVignette", 0.55f);
-        p.f("uShockT", state.shock());
-        p.f2("uShockPos", state.blastX, state.blastY);
-
-        GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0);
-        GLES30.glViewport(0, 0, screenW, screenH);
-        blit();
     }
 
     /** Trades pressure accuracy for frame rate on slower GPUs. */

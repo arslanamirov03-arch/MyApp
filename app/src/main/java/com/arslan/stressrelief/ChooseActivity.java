@@ -12,8 +12,9 @@ public final class ChooseActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_choose);
 
-        View fire = findViewById(R.id.cardFire);
-        fire.setOnClickListener(v ->
+        findViewById(R.id.cardFire).setOnClickListener(v ->
                 startActivity(new Intent(ChooseActivity.this, FireActivity.class)));
+        findViewById(R.id.cardStorm).setOnClickListener(v ->
+                startActivity(new Intent(ChooseActivity.this, StormActivity.class)));
     }
 }

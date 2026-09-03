@@ -15,6 +15,7 @@ PROGRAMS = [
     ("fullscreen.vert", "divergence.frag"),
     ("fullscreen.vert", "pressure.frag"),
     ("fullscreen.vert", "project.frag"),
+    ("fullscreen.vert", "advect.frag"),
     ("fullscreen.vert", "fields.frag"),
     ("fullscreen.vert", "render_fire.frag"),
     ("fullscreen.vert", "particles_update.frag"),
@@ -23,6 +24,8 @@ PROGRAMS = [
     ("fullscreen.vert", "bloom_down.frag"),
     ("fullscreen.vert", "bloom_up.frag"),
     ("fullscreen.vert", "composite.frag"),
+    ("fullscreen.vert", "storm_sky.frag"),
+    ("bolt.vert", "bolt.frag"),
 ]
 
 

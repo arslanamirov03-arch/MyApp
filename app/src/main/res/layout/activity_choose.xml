@@ -86,33 +86,49 @@
                 </LinearLayout>
             </LinearLayout>
 
+
             <LinearLayout
+                android:id="@+id/cardStorm"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
-                android:background="@drawable/card_locked"
+                android:background="@drawable/card_mode_blue"
                 android:padding="22dp"
                 android:layout_marginTop="14dp"
-                android:alpha="0.42">
+                android:clickable="true"
+                android:focusable="true">
 
-                <TextView
+                <ImageView
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:src="@drawable/ic_bolt"
+                    android:contentDescription="@string/mode_storm" />
+
+                <LinearLayout
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="@string/mode_water"
-                    android:textColor="#FFEAF3FF"
-                    android:textSize="19sp"
-                    android:textStyle="bold"
-                    android:letterSpacing="0.16" />
+                    android:layout_marginStart="18dp"
+                    android:orientation="vertical">
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/soon"
-                    android:textColor="#80FFFFFF"
-                    android:textSize="11sp"
-                    android:letterSpacing="0.20" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/mode_storm"
+                        android:textColor="#FFD8E8FF"
+                        android:textSize="21sp"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.16" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="5dp"
+                        android:text="@string/mode_storm_desc"
+                        android:textColor="#8AA8C6FF"
+                        android:textSize="12sp" />
+                </LinearLayout>
             </LinearLayout>
 
             <LinearLayout
@@ -129,8 +145,8 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="@string/mode_storm"
-                    android:textColor="#FFF3EEFF"
+                    android:text="@string/mode_water"
+                    android:textColor="#FFEAF3FF"
                     android:textSize="19sp"
                     android:textStyle="bold"
                     android:letterSpacing="0.16" />

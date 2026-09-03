@@ -1,10 +1,17 @@
 // Transport + chemistry of the burning gas.
 //   r = temperature   g = unburnt fuel   b = soot / smoke
+//
+// Transport uses the MacCormack correction: plain semi-Lagrangian advection
+// smears a flame into mush within a second, so the forward and backward passes
+// in advect.frag are combined here to recover second-order accuracy, then
+// clamped to the source neighbourhood so the correction cannot overshoot.
 in vec2 vUv;
 out vec4 fragColor;
 
 uniform sampler2D uVelocity;
-uniform sampler2D uFields;
+uniform sampler2D uFields;     // phi   (previous frame)
+uniform sampler2D uPhiHat;     // A(phi,  dt)
+uniform sampler2D uPhiTilde;   // A(A(phi, dt), -dt)
 uniform sampler2D uNoise;
 
 uniform vec2  uTexel;
@@ -24,6 +31,7 @@ uniform float uIgnition;
 uniform vec2  uTouch;
 uniform float uTouchOn;
 uniform float uTouchRadius;
+uniform float uBedFlat;
 uniform float uInjectFuel;
 uniform float uInjectHeat;
 
@@ -33,21 +41,41 @@ uniform float uBlastRadius;
 
 void main() {
     vec2 vel = DECV(texture(uVelocity, vUv));
-    vec4 f = texture(uFields, vUv - uDt * vel * uTexel);
+    vec2 coord = vUv - uDt * vel * uTexel;
+
+    vec4 phi = texture(uFields, vUv);
+    vec4 hat = texture(uPhiHat, vUv);
+    vec4 tilde = texture(uPhiTilde, vUv);
+    vec4 f = hat + 0.5 * (phi - tilde);
+
+    // limiter: stay inside the range of the cells the value was gathered from
+    vec4 s0 = texture(uFields, coord);
+    vec4 s1 = texture(uFields, coord + vec2(uTexel.x, 0.0));
+    vec4 s2 = texture(uFields, coord - vec2(uTexel.x, 0.0));
+    vec4 s3 = texture(uFields, coord + vec2(0.0, uTexel.y));
+    vec4 s4 = texture(uFields, coord - vec2(0.0, uTexel.y));
+    vec4 lo = min(min(min(s1, s2), min(s3, s4)), s0);
+    vec4 hi = max(max(max(s1, s2), max(s3, s4)), s0);
+    f = clamp(f, lo, hi);
 
     float temp = f.r;
     float fuel = f.g;
     float soot = f.b;
 
-    // --- fuel injected under the finger ------------------------------------
+    // --- fuel fed in under the finger --------------------------------------
+    // A campfire burns off a wide, flat bed with a handful of hot spots that
+    // drift, not from a single round nozzle, so the splat is squashed in y and
+    // broken up by a slowly sliding noise column.
     vec2 ap = vUv * uAspect;
     vec2 d = (vUv - uTouch) * uAspect;
+    d.y *= uBedFlat;
     float r2 = max(uTouchRadius * uTouchRadius, 1e-6);
     float g = exp(-dot(d, d) / r2);
-    // ragged, flickering nozzle instead of a perfect disc
+
+    float spots = texture(uNoise, vec2(ap.x * 4.5 + uTime * 0.06, uTime * 0.043)).r;
     float nz = texture(uNoise, ap * 7.0 + vec2(uTime * 0.11, -uTime * 0.75)).b;
     float nz2 = texture(uNoise, ap * 17.0 + vec2(-uTime * 0.07, -uTime * 1.4)).g;
-    g *= mix(0.45, 1.55, nz) * mix(0.7, 1.3, nz2);
+    g *= mix(0.40, 1.70, spots) * mix(0.55, 1.45, nz) * mix(0.75, 1.25, nz2);
 
     fuel += g * uInjectFuel * uTouchOn * uDt;
     temp += g * uInjectHeat * uTouchOn * uDt;

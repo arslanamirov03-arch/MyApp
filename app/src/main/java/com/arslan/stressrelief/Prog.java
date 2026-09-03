@@ -44,6 +44,16 @@ final class Prog {
         return this;
     }
 
+    Prog f3(String n, float a, float b, float c) {
+        GLES30.glUniform3f(u(n), a, b, c);
+        return this;
+    }
+
+    Prog f3v(String n, float[] values, int count) {
+        GLES30.glUniform3fv(u(n), count, values, 0);
+        return this;
+    }
+
     Prog tex(String n, int unit, int texture) {
         GLES30.glActiveTexture(GLES30.GL_TEXTURE0 + unit);
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, texture);
