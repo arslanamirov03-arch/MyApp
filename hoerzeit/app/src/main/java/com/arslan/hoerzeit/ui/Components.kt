@@ -88,17 +88,6 @@ fun ProgressRing(
                     1.00f to C.ClaySoft,
                     center = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f)
                 )
-                // мягкое свечение под линией
-                drawArc(
-                    brush = brush,
-                    startAngle = -90f,
-                    sweepAngle = 360f * animated,
-                    useCenter = false,
-                    topLeft = topLeft,
-                    size = arcSize,
-                    alpha = 0.22f,
-                    style = Stroke(width = stroke * 2.1f, cap = StrokeCap.Round)
-                )
                 drawArc(
                     brush = brush,
                     startAngle = -90f,
