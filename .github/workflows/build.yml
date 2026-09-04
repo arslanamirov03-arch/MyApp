@@ -21,7 +21,7 @@ jobs:
 
     - name: Compile APK via Gradle
       run: |
-        GRADLEW_PATH=$(find . -name gradlew)
+        GRADLEW_PATH=$(find ./extracted_project -name gradlew)
         cd $(dirname "$GRADLEW_PATH")
         chmod +x ./gradlew
         ./gradlew assembleDebug
@@ -30,4 +30,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: german-app-speed
-        path: "**/build/outputs/apk/debug/*.apk"
+        path: "extracted_project/**/build/outputs/apk/debug/*.apk"

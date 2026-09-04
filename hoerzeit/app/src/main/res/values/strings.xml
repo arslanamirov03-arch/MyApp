@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Hörzeit</string>
+    <string name="channel_name">Практика</string>
+    <string name="channel_desc">Показывает, что сессия слушания идёт прямо сейчас</string>
+    <string name="notif_title">Практика идёт</string>
+    <string name="notif_text">Вернись в приложение и нажми «Стоп»</string>
+</resources>
