@@ -28,6 +28,7 @@ object C {
     val Rose = Color(0xFFF4D3CC)
 
     val Good = Color(0xFF6E9174)
+    val Danger = Color(0xFFB2483A)
 }
 
 private val scheme = lightColorScheme(
