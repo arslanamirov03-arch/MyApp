@@ -9,6 +9,9 @@ import java.time.ZoneId
 object Goal {
     const val TOTAL_MS: Long = 60L * 60L * 60L * 1000L      // 60 часов
     const val DAILY_MS: Long = 30L * 60L * 1000L            // 30 минут
+
+    /** Дольше этого одна сессия почти наверняка означает забытую кнопку «Стоп». */
+    const val LONG_SESSION_MS: Long = 6L * 60L * 60L * 1000L
 }
 
 /** Одна сессия практики: от «Старт» до «Стоп» (или добавленная вручную). */

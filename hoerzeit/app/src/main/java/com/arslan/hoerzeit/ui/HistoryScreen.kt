@@ -42,7 +42,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import com.arslan.hoerzeit.data.Goal
 import com.arslan.hoerzeit.data.Session
 import java.time.LocalDate
@@ -132,82 +131,36 @@ private fun ConfirmDeleteDialog(
     onCancel: () -> Unit,
     onConfirm: () -> Unit
 ) {
-    Dialog(onDismissRequest = onCancel) {
-        Column(
-            Modifier
-                .clip(RoundedCornerShape(28.dp))
-                .background(C.Cream)
-                .border(1.dp, Color.White, RoundedCornerShape(28.dp))
-                .padding(horizontal = 22.dp, vertical = 24.dp)
-        ) {
-            Text("Удалить сессию?", style = MaterialTheme.typography.headlineMedium, color = C.Ink)
-            Spacer(Modifier.height(8.dp))
+    AskDialog(
+        title = "Удалить сессию?",
+        message = "Это время исчезнет из прогресса. Отменить будет нельзя.",
+        confirmText = "Удалить",
+        cancelText = "Оставить",
+        danger = true,
+        onConfirm = onConfirm,
+        onCancel = onCancel,
+        detail = {
             Text(
-                "Это время исчезнет из прогресса. Отменить будет нельзя.",
-                style = MaterialTheme.typography.bodyMedium,
+                formatDay(session.date),
+                style = MaterialTheme.typography.labelSmall,
                 color = C.Muted
             )
-
-            Spacer(Modifier.height(18.dp))
-
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(Color.White.copy(alpha = 0.75f))
-                    .border(1.dp, C.Line, RoundedCornerShape(18.dp))
-                    .padding(horizontal = 16.dp, vertical = 14.dp)
-            ) {
+            Spacer(Modifier.height(4.dp))
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    formatDay(session.date),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = C.Muted
+                    "${formatTime(session.startTime)} – ${formatTime(session.endTime)}",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = C.Ink
                 )
-                Spacer(Modifier.height(4.dp))
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        "${formatTime(session.startTime)} – ${formatTime(session.endTime)}",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = C.Ink
-                    )
-                    Spacer(Modifier.weight(1f))
-                    Text(
-                        formatHm(session.durationMs),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = C.ClayDeep
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(20.dp))
-
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Box(
-                    Modifier
-                        .weight(1f)
-                        .height(50.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .border(1.dp, C.Line, RoundedCornerShape(16.dp))
-                        .background(Color.White.copy(alpha = 0.6f))
-                        .clickable(onClick = onCancel),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("Оставить", style = MaterialTheme.typography.titleMedium, color = C.InkSoft)
-                }
-                Box(
-                    Modifier
-                        .weight(1f)
-                        .height(50.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(C.Danger)
-                        .clickable(onClick = onConfirm),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("Удалить", style = MaterialTheme.typography.titleMedium, color = Color.White)
-                }
+                Spacer(Modifier.weight(1f))
+                Text(
+                    formatHm(session.durationMs),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = C.ClayDeep
+                )
             }
         }
-    }
+    )
 }
 
 @Composable

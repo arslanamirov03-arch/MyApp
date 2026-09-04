@@ -197,17 +197,20 @@ private fun CelebrationCard(data: Celebration, onDismiss: () -> Unit) {
                 value = "${"%.1f".format(percent)}%",
                 label = "пройдено",
                 accent = C.ClayDeep,
+                valueSize = 15,
                 modifier = Modifier.weight(1f)
             )
             StatTile(
                 value = formatHm(p.leftMs),
                 label = "осталось",
+                valueSize = 15,
                 modifier = Modifier.weight(1f)
             )
             StatTile(
                 value = "${p.streakDays} ${plural(p.streakDays, "день", "дня", "дней")}",
                 label = "серия",
                 accent = if (p.streakDays > 0) C.Good else C.Ink,
+                valueSize = 15,
                 modifier = Modifier.weight(1f)
             )
         }

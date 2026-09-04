@@ -183,13 +183,13 @@ fun TodayScreen(
                 modifier = Modifier.weight(1f)
             )
             StatTile(
-                value = "${progress.activeDays}",
-                label = "дней практики",
+                value = "${progress.activeDays} ${plural(progress.activeDays, "день", "дня", "дней")}",
+                label = "всего дней",
                 modifier = Modifier.weight(1f)
             )
             StatTile(
                 value = daysLeftEstimate(liveTotal),
-                label = "по 30 мин/день",
+                label = "если по 30 мин",
                 modifier = Modifier.weight(1f)
             )
         }
@@ -205,8 +205,8 @@ fun TodayScreen(
             Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(18.dp))
-                .border(1.dp, C.Line, RoundedCornerShape(18.dp))
                 .background(Color.White.copy(alpha = 0.45f))
+                .border(1.dp, C.Line, RoundedCornerShape(18.dp))
                 .clickable(onClick = onManual)
                 .padding(vertical = 15.dp),
             contentAlignment = Alignment.Center

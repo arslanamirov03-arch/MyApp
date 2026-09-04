@@ -56,8 +56,10 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.arslan.hoerzeit.data.Goal
 import com.arslan.hoerzeit.data.Notif
 import com.arslan.hoerzeit.data.Repo
+import com.arslan.hoerzeit.ui.AskDialog
 import com.arslan.hoerzeit.ui.C
 import com.arslan.hoerzeit.ui.Celebration
 import com.arslan.hoerzeit.ui.CelebrationOverlay
@@ -66,7 +68,11 @@ import com.arslan.hoerzeit.ui.HoerzeitTheme
 import com.arslan.hoerzeit.ui.LivingBackground
 import com.arslan.hoerzeit.ui.ManualEntrySheet
 import com.arslan.hoerzeit.ui.TodayScreen
+import com.arslan.hoerzeit.ui.formatHm
+import com.arslan.hoerzeit.ui.formatTime
 import androidx.compose.animation.core.animateFloatAsState
+import java.time.Instant
+import java.time.ZoneId
 
 class MainActivity : ComponentActivity() {
 
@@ -110,6 +116,18 @@ private fun AppRoot(repo: Repo) {
     var tab by remember { mutableIntStateOf(0) }
     var showManual by remember { mutableStateOf(false) }
     var celebration by remember { mutableStateOf<Celebration?>(null) }
+    // Пара «начало сессии» → «момент нажатия Стоп» для подозрительно долгой сессии.
+    var longSession by remember { mutableStateOf<Pair<Long, Long>?>(null) }
+
+    fun finishSession(stopAt: Long) {
+        val session = repo.stop(stopAt)
+        Notif.clear(context)
+        if (session != null) {
+            celebration = Celebration(session.durationMs, repo.progress())
+        } else {
+            Toast.makeText(context, "Сессия слишком короткая — не записал", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     val notificationPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -158,16 +176,12 @@ private fun AppRoot(repo: Repo) {
                             repo.activeStart.value?.let { Notif.showRunning(context, it) }
                         },
                         onStop = {
-                            val session = repo.stop()
-                            Notif.clear(context)
-                            if (session != null) {
-                                celebration = Celebration(session.durationMs, repo.progress())
+                            val started = repo.activeStart.value
+                            val stopAt = System.currentTimeMillis()
+                            if (started != null && stopAt - started >= Goal.LONG_SESSION_MS) {
+                                longSession = started to stopAt
                             } else {
-                                Toast.makeText(
-                                    context,
-                                    "Сессия слишком короткая — не записал",
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                                finishSession(stopAt)
                             }
                         },
                         onManual = { showManual = true },
@@ -185,6 +199,46 @@ private fun AppRoot(repo: Repo) {
         }
 
         CelebrationOverlay(data = celebration, onDismiss = { celebration = null })
+    }
+
+    longSession?.let { (started, stopAt) ->
+        AskDialog(
+            title = "Долгая сессия",
+            message = "Таймер шёл очень долго — похоже, кнопку «Стоп» забыли нажать. " +
+                "Записать это время в прогресс?",
+            confirmText = "Записать",
+            cancelText = "Не записывать",
+            onConfirm = {
+                longSession = null
+                finishSession(stopAt)
+            },
+            onCancel = {
+                longSession = null
+                repo.cancelActive()
+                Notif.clear(context)
+                Toast.makeText(
+                    context,
+                    "Не записал. Время можно вписать вручную",
+                    Toast.LENGTH_LONG
+                ).show()
+            },
+            // «Назад» или тап мимо ничего не решает — таймер просто продолжает идти.
+            onDismiss = { longSession = null },
+            detail = {
+                Text(
+                    formatHm(stopAt - started),
+                    fontSize = 26.sp,
+                    fontWeight = FontWeight.Light,
+                    color = C.ClayDeep
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "с ${formatTime(Instant.ofEpochMilli(started).atZone(ZoneId.systemDefault()).toLocalDateTime())}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = C.Muted
+                )
+            }
+        )
     }
 
     if (showManual) {

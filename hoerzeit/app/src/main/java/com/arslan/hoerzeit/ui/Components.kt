@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.material3.Text
 import androidx.compose.material3.MaterialTheme
 
@@ -143,7 +144,8 @@ fun StatTile(
     value: String,
     label: String,
     modifier: Modifier = Modifier,
-    accent: Color = C.Ink
+    accent: Color = C.Ink,
+    valueSize: Int = 17
 ) {
     Column(
         modifier = modifier
@@ -157,6 +159,7 @@ fun StatTile(
         Text(
             text = value,
             style = MaterialTheme.typography.titleMedium,
+            fontSize = valueSize.sp,
             color = accent,
             textAlign = TextAlign.Center,
             maxLines = 1
@@ -166,7 +169,8 @@ fun StatTile(
             style = MaterialTheme.typography.labelSmall,
             color = C.Muted,
             textAlign = TextAlign.Center,
-            maxLines = 1
+            lineHeight = 13.sp,
+            maxLines = 2
         )
     }
 }

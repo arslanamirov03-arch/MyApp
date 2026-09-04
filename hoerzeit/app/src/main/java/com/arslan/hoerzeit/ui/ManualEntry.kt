@@ -70,8 +70,11 @@ fun ManualEntrySheet(
     var showEnd by remember { mutableStateOf(false) }
 
     val zone = remember { ZoneId.systemDefault() }
+    // Практика перед сном может перейти за полночь: 23:40 → 00:20 считаем следующим днём.
+    val crossesMidnight = end.isBefore(start)
+    val endDate = if (crossesMidnight) date.plusDays(1) else date
     val startMillis = date.atTime(start).atZone(zone).toInstant().toEpochMilli()
-    val endMillis = date.atTime(end).atZone(zone).toInstant().toEpochMilli()
+    val endMillis = endDate.atTime(end).atZone(zone).toInstant().toEpochMilli()
     val durationMs = endMillis - startMillis
     val valid = durationMs > 0
 
@@ -124,20 +127,28 @@ fun ManualEntrySheet(
 
             Spacer(Modifier.height(18.dp))
 
-            Box(
+            Column(
                 Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(18.dp))
                     .background(if (valid) C.ClaySoft.copy(alpha = 0.28f) else Color(0x14000000))
                     .padding(vertical = 16.dp),
-                contentAlignment = Alignment.Center
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = if (valid) formatHm(durationMs) else "Конец должен быть позже начала",
+                    text = if (valid) formatHm(durationMs) else "Начало и конец совпадают",
                     fontSize = if (valid) 24.sp else 14.sp,
                     fontWeight = if (valid) FontWeight.Light else FontWeight.Normal,
                     color = if (valid) C.ClayDeep else C.Muted
                 )
+                if (valid && crossesMidnight) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "заканчивается ${formatDateFull(endDate)}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = C.InkSoft
+                    )
+                }
             }
 
             Spacer(Modifier.height(18.dp))
